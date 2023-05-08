@@ -1,0 +1,145 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const carWidth = 50;
+const carHeight = 80;
+const carSpeed = 3;
+
+const cars = {};
+let carId;
+
+const socket = io();
+
+socket.on('connect', () => {
+    carId = socket.id;
+});
+
+socket.on('init', (data) => {
+    for (const id in data) {
+        cars[id] = data[id];
+    }
+});
+
+socket.on('joined', (id, car) => {
+    cars[id] = car;
+});
+
+socket.on('left', (id) => {
+    delete cars[id];
+});
+
+socket.on('carMoved', ({id, dx, dy, rotation}) => {
+    if (cars[id]) {
+        cars[id].x += dx;
+        cars[id].y += dy;
+        cars[id].rotation = rotation;
+    }
+});
+
+function moveCar(car) {
+    if (car.keys.ArrowUp) {
+        car.x += carSpeed * Math.cos(car.rotation);
+        car.y += carSpeed * Math.sin(car.rotation);
+    }
+    if (car.keys.ArrowDown) {
+        car.x -= carSpeed * Math.cos(car.rotation);
+        car.y -= carSpeed * Math.sin(car.rotation);
+    }
+    if (car.keys.ArrowLeft) {
+        car.rotation -= 0.05;
+    }
+    if (car.keys.ArrowRight) {
+        car.rotation += 0.05;
+    }
+}
+
+function drawCar(car, color) {
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.rotation);
+    ctx.fillStyle = color;
+    ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight);
+    ctx.restore();
+}
+
+function drawGrid(cellSize = 50, color = 'rgba(200, 200, 200, 0.5)', cameraX, cameraY) {
+    const minX = -cameraX % cellSize;
+    const minY = -cameraY % cellSize;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (let x = minX; x < canvas.width; x += cellSize) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+    }
+
+    for (let y = minY; y < canvas.height; y += cellSize) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+    }
+
+    ctx.stroke();
+}
+
+
+function update() {
+    const car = cars[carId];
+    if (!car) {
+        requestAnimationFrame(update);
+        return;
+    }
+
+    moveCar(car);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const cameraX = Math.min(
+        Math.max(car.x, canvas.width / 2 - 50),
+        canvas.width / 2 + 50
+    );
+
+    const cameraY = Math.min(
+        Math.max(car.y, canvas.height / 2 - 50),
+        canvas.height / 2 + 50
+    );
+
+    ctx.translate(canvas.width / 2 - cameraX, canvas.height / 2 - cameraY);
+
+    drawGrid(50, 'rgba(200, 200, 200, 0.5)', cameraX, cameraY);
+
+    for (const id in cars) {
+        const c = cars[id];
+        drawCar(c, id === carId ? 'red' : 'blue');
+    }
+
+    socket.emit('update', car);
+    requestAnimationFrame(update);
+}
+
+
+update();
+
+document.addEventListener('keydown', (event) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault();
+        const car = cars[carId];
+        if (car && !car.keys[event.key]) {
+            car.keys[event.key] = true;
+        }
+    }
+});
+
+document.addEventListener('keyup', (event) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault();
+        const car = cars[carId];
+        if (car && car.keys[event.key]) {
+            car.keys[event.key] = false;
+        }
+    }
+});
