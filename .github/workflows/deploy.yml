@@ -1,0 +1,30 @@
+# .github/workflows/deploy.yml
+
+name: Deploy Node.js App to Production
+
+on:
+  push:
+    branches:
+      - main  # Set your branch here
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Install SSH key
+      uses: webfactory/ssh-agent@v0.5.3
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Deploy to Server
+      run: |
+        ssh -o StrictHostKeyChecking=no -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} <<'ENDSSH'
+        cd /home/cars/cars  # Set your app directory path here
+        git pull
+        npm install
+        sudo systemctl restart cars.service  # Set your systemd service name here
+        ENDSSH
+
