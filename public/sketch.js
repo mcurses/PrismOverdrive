@@ -8,9 +8,10 @@ let trail = []; // Leave a trail behind the car
 const TRAIL_LENGTH = 100;
 
 function setup() {
-    let canvas = createCanvas(1200, 1024);
+    let canvas = createCanvas(1500, 850);
     canvas.parent('sketch-holder');
     frameRate(60);
+    bg = loadImage('assets/racetrack.png');
 
     car = new Car(width / 2, 20, 0);
 
@@ -38,7 +39,7 @@ function setup() {
 }
 
 function draw() {
-    background(127);
+    background(bg);
 
     car.update();
     socket.emit('update car', {
@@ -92,7 +93,8 @@ function draw() {
         if (p.drifting) {
             stroke(255, 100, 100);
         } else {
-            stroke(255);
+            continue;
+            // stroke(255);
         }
         point(p.position.x, p.position.y);
     }
@@ -103,7 +105,7 @@ function draw() {
             if (p.drifting) {
                 stroke(255, 100, 100);
             } else {
-                stroke(255);
+                continue;
             }
             point(p.position.x, p.position.y);
         }

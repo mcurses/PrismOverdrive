@@ -3,12 +3,12 @@ class Car {
 
         // Turning parameters. Tune these as you see fit.
         this.turnRateStatic =
-            0.05; // The normal turning-rate (static friction => not sliding)
-        this.turnRateDynamic = 0.03;         // The turning-rate when drifting
+            0.06; // The normal turning-rate (static friction => not sliding)
+        this.turnRateDynamic = 0.05;         // The turning-rate when drifting
         this.turnRate = this.turnRateStatic; // initialise turn-rate
         this.gripStatic = 1;                 // sliding friction while gripping
-        this.gripDynamic = 0.2;              // sliding friction while drifting
-        this.DRIFT_CONSTANT = 1.4; // sets the x-velocity threshold for no-drift <=>
+        this.gripDynamic = 0.1;              // sliding friction while drifting
+        this.DRIFT_CONSTANT = 1.7; // sets the x-velocity threshold for no-drift <=>
                                  // drift. Lower = drift sooner
 
         // Physical properties
@@ -19,7 +19,7 @@ class Car {
         this.m = 10;                 // mass
         this.w = 18;                 // width of body (for animation)
         this.l = 30;                 // length of body (for animation)
-        this.f = 0.08;               // Acceleration / braking force
+        this.f = 0.06;               // Acceleration / braking force
         this.isDrifting = false;     // Drift state
 
         // Colour variable - in an example the car colour changes when it loses
