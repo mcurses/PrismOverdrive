@@ -1,47 +1,27 @@
 const express = require('express');
 const http = require('http');
-const socketIO = require('socket.io');
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server);
+const io = socketIo(server);
 
 app.use(express.static('public'));
 
-const cars = {};
-
 io.on('connection', (socket) => {
-  console.log('New client connected');
-  const carId = socket.id;
+    console.log('User connected');
 
-  cars[carId] = {
-    x: 0,
-    y: 0,
-    rotation: Math.PI / 2,
-    keys: {
-      ArrowUp: false,
-      ArrowDown: false,
-      ArrowLeft: false,
-      ArrowRight: false,
-    },
-  };
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
 
-  socket.emit('init', { carId, cars });
-
-  socket.on('update', (data) => {
-    cars[carId] = data;
-    socket.broadcast.emit('update', { carId, data });
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-    delete cars[carId];
-    io.emit('remove', carId);
-  });
+    socket.on('update car', (data) => {
+        // Handle the updated car position and broadcast to all other connected clients
+        socket.broadcast.emit('update car', data);
+    });
 });
 
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+server.listen(3000, () => {
+    console.log('Listening on port 3000');
 });
+

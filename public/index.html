@@ -1,15 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
+<html lang="">
+  <head>
+    <title>A car in javascript</title>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Socket.IO Cars</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
-</body>
-</html>
+    <title>drift-car demo</title>
+    <style> body {padding: 0; margin: 0;} </style>
 
+    <!-- Include P5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/p5.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!-- Include source files for this demo -->
+    <script src="sketch.js"></script>
+    <script src="car.js"></script>
+
+  </head>
+  <body>
+    <div id="sketch-holder"></div>
+  </body>
+</html>
