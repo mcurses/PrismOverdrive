@@ -13,8 +13,8 @@ let protoBufLoaded = false;
 let CarState;
 
 let canvasDimensions = {
-    width: 1500,
-    height: 850,
+    width: window.innerWidth * .991,
+    height: window.innerHeight * .991,
 }
 
 let Map = {
@@ -199,9 +199,9 @@ function renderCar(id) {
         position: curCar.getPos(),
         drifting: curCar.isDrift(),
         angle: curCar.getAngle(),
-        frameScore: Math.round(curCar.frameScore, 2),
-        driftScore: Math.round(curCar.driftScore, 2),
-        score: Math.round(curCar.score, 2),
+        frameScore: curCar.frameScore,
+        driftScore: curCar.driftScore,
+        score: curCar.score,
     });
 
     if (curCar.trail.length > TRAIL_LENGTH)
