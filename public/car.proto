@@ -5,6 +5,9 @@ message CarState {
   Position position = 2;
   bool drifting = 3;
   float angle = 4;
+  float frameScore = 5;
+  float driftScore = 6;
+  float score = 7;
 
   message Position {
     float x = 1;

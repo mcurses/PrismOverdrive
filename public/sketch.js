@@ -68,8 +68,12 @@ function setup() {
             }
             otherCars[carState.id].targetPosition = carState.position;
             otherCars[carState.id].targetAngle = carState.angle;
-
             otherCars[carState.id].setDrift(carState.drifting);
+            
+            otherCars[carState.id].frameScore = carState.frameScore;
+            otherCars[carState.id].driftScore = carState.driftScore;
+            otherCars[carState.id].score = carState.score;
+
         });
 
     });
@@ -105,64 +109,8 @@ function draw() {
     // Apply the translation
     translate(camX, camY);
 
-    // // Start with the previous camera position
-    // let camX = prevCamX;
-    // let camY = prevCamY;
-    //
-    // // Calculate the distance from the player to the edge of the visible canvas
-    // let edgeDistXLeft = Math.abs(car.d.x - camX);
-    // let edgeDistXRight = Math.abs(car.d.x - camX - canvasDimensions.width);
-    // let edgeDistX = Math.min(edgeDistXLeft, edgeDistXRight);
-    // let edgeDistYTop = Math.abs(car.d.y - camY);
-    // let edgeDistYBottom = Math.abs(car.d.y - camY - canvasDimensions.height);
-    // let edgeDistY = Math.min(edgeDistYTop, edgeDistYBottom);
-    //
-    // // Calculate the threshold distance (10% of canvas size)
-    // let threshold = canvasDimensions.width * 0.2;
-    //
-    // // If the player is within the threshold distance of the edge of the visible canvas, adjust the camera position
-    // if (edgeDistX < threshold) {
-    //     camX -= (threshold - edgeDistX);
-    // }
-    // if (edgeDistY < threshold) {
-    //     camY -= (threshold - edgeDistY);
-    // }
-    //
-    // // Limit the camera to not go outside the map
-    // camX = Math.max(Math.min(camX, 0), canvasDimensions.width - Map.width);
-    // camY = Math.max(Math.min(camY, 0), canvasDimensions.height - Map.height);
-    //
-    // // Save the current camera position for the next frame
-    // prevCamX = camX;
-    // prevCamY = camY;
-    //
-    //
-    //
-    // // Apply the translation
-    // translate(camX, camY);
-
-    background(0)
+    background(150)
     image(bg, 0, 0)
-
-    // // draw pb1 from bounds.js
-    // stroke(55, 0, 0);
-    // strokeWeight(5);
-    // noFill();
-    // for (let i = 0; i < bounds1[1].length; i++) {
-    //     let boundXi = bounds1[1][i][0];
-    //     let boundYi = bounds1[1][i][1];
-    //
-    //     rect(boundXi, boundYi, 2, 2)
-    // }
-    // for (let i = 0; i < bounds1[0].length; i++) {
-    //     // vertex(bounds1[0][i][0], bounds1[0][i][1]);
-    //     let boundXo = bounds1[0][i][0];
-    //     let boundYo = bounds1[0][i][1];
-    //
-    //
-    //     rect(boundXo, boundYo, 2, 2)
-    //     // console.log(bounds1[0][i],bounds1[0][i][0], bounds1[0][i][1]);
-    // }
 
 
     car.update();
@@ -174,6 +122,9 @@ function draw() {
             position: car.getPos(),
             drifting: car.isDrift(),
             angle: car.getAngle(),
+            frameScore: Math.round(car.frameScore, 2),
+            driftScore: Math.round(car.driftScore, 2),
+            score: Math.round(car.score, 2),
         };
         const message = CarState.create(carState);  // Create a message
         const buffer = CarState.encode(message).finish();  // Encode the message to a buffer
@@ -181,95 +132,100 @@ function draw() {
         emitCounter = 0;
     }
 
-    // Change car colour when drifting
-    let nowDrifting = car.isDrift()
-    if (nowDrifting) {
-        car.col = color(255, 100, 100);
-    } else {
-        car.col = color(255, 255, 255);
-    }
-    // change car colour when colliding
-    if (car.checkCollision(bounds1[0].reverse()) || car.checkCollision(bounds1[1])) {
-        car.col = color(255, 0, 0);
-        console.log("collided");
-    }
 
-    car.show(); // Render the other cars
+    otherCars[car.id] = car;
+
+    // Render the other cars
     for (let id in otherCars) {
         // color them red if they are drifting
-        otherCars[id].interpolate();
-        // console.log(otherCars[id].angle);
-        if (otherCars[id].isDrift()) {
-            otherCars[id].col = color(255, 100, 100);
+        curCar = otherCars[id];
+        curCar.interpolate();
+        // console.log(curCar.angle);
+        if (curCar.isDrift()) {
+            curCar.col = color(255, 100, 100);
         } else {
-            otherCars[id].col = color(255, 255, 255);
+            curCar.col = color(255, 255, 255);
+        }
+        if (curCar.checkCollision(bounds1[0].reverse()) || car.checkCollision(bounds1[1])) {
+            curCar.col = color(255, 0, 0);
         }
 
-        otherCars[id].show();
+        curCar.show();
         // save trail
-        // console.log(otherCars[id].isDrift());
-        otherCars[id].trail.push({
-            position: otherCars[id].getPos(),
-            drifting: otherCars[id].isDrift(),
+        curCar.trail.push({
+            position: curCar.getPos(),
+            drifting: curCar.isDrift(),
+            frameScore: Math.round(curCar.frameScore, 2),
+            driftScore: Math.round(curCar.driftScore, 2),
+            score: Math.round(curCar.score, 2),
         });
-        if (otherCars[id].trail.length > TRAIL_LENGTH)
-            otherCars[id].trail.splice(0, 1);
-    }
 
-    // Save the current location, AND drift state as an object
-    // to trail. That way we can do cool things when we render
-    // the trail.
-    trail.push({
-        position: car.getPos(), // A vector(x,y)
-        drifting: nowDrifting  // true / false
-    });
+        if (curCar.trail.length > TRAIL_LENGTH)
+            curCar.trail.splice(0, 1);
 
-    // Delete the oldest car position if the trail is long enough.
-    if (trail.length > TRAIL_LENGTH)
-        trail.splice(0, 1);
-
-    // Render the car's trail. Change color of trail depending on whether
-    // drifting or not.
-    stroke(255);
-    strokeWeight(3);
-    noFill();
-    for (let p of trail) {
-        // Colour the trail to show when drifting
-        // console.log(p.drifting);
-        if (p.drifting) {
-            stroke(255, 100, 100);
-        } else {
-            continue;
-            // stroke(255);
-        }
-        point(p.position.x, p.position.y);
-    }
-
-    // render the other cars' trails
-    for (let id in otherCars) {
-        // console.log(otherCars[id].trail.filter(p => p.drifting).length);
         for (let p of otherCars[id].trail) {
             if (p.drifting) {
-                stroke(255, 100, 100);
+                strokeWeight(p.score / 100);
+                colorMode(HSB, 100);
+                stroke(p.driftScore / 20, 100, 20 + p.score / 100)
+                colorMode(RGB, 255);
             } else {
                 continue;
+                // stroke(255);
             }
+            strokeWeight(p.frameScore * 2 *
+                Math.max(1, Math.floor(p.score / 1000)));
             point(p.position.x, p.position.y);
         }
     }
 
+    // // Save the current location, AND drift state as an object
+    // // to trail. That way we can do cool things when we render
+    // // the trail.
+    // trail.push({
+    //     position: car.getPos(), // A vector(x,y)
+    //     drifting: nowDrifting,  // true / false
+    //     frameScore: Math.round(car.frameScore, 2),
+    //     driftScore: Math.round(car.driftScore, 2),
+    //     score: Math.round(car.score, 2),
+    // });
+    //
+    // // Delete the oldest car position if the trail is long enough.
+    // if (trail.length > TRAIL_LENGTH)
+    //     trail.splice(0, 1);
+    //
+    // // Render the car's trail. Change color of trail depending on whether
+    // // drifting or not.
+    // stroke(255);
+    // strokeWeight(3);
+    // noFill();
+    // for (let p of trail) {
+    //     // Colour the trail to show when drifting
+    //     // console.log(p.drifting);
+    //
+    // }
+    //
+    // // render the other cars' trails
+    // for (let id in otherCars) {
+    //     // console.log(otherCars[id].trail.filter(p => p.drifting).length);
+    // }
+    //
+    //
+    // // Change car colour when drifting
+    // let nowDrifting = car.isDrift()
+    // if (nowDrifting) {
+    //     car.col = color(255, 100, 100);
+    // } else {
+    //     car.col = color(255, 255, 255);
+    // }
+    // // change car colour when colliding
+    // if (car.checkCollision(bounds1[0].reverse()) || car.checkCollision(bounds1[1])) {
+    //     car.col = color(255, 0, 0);
+    //     console.log("collided");
+    // }
+    //
+    // car.show();
 
-    // Keep car onscreen. Car displacement (position) is stored in vector: car.d
-    if (car.d.x > Map.width) {
-        car.d.x = 0;
-    } else if (car.d.x < 0) {
-        car.d.x = Map.width;
-    }
-    if (car.d.y > Map.height) {
-        car.d.y = 0;
-    } else if (car.d.y < 0) {
-        car.d.y = Map.height;
-    }
 
 
 // Also keep the other cars onscreen
