@@ -193,4 +193,50 @@ class Car {
     setDrift(drifting) {
         this.isDrifting = drifting;
     }
+    // Add a new method for collision detection
+
+    checkCollision(boundaries) {
+        // Iterate over each boundary line
+        for (let i = 0; i < boundaries.length - 1; i++) {
+            let start = createVector(boundaries[i][0], boundaries[i][1]);
+            let end = createVector(boundaries[i+1][0], boundaries[i+1][1]);
+            let carPos = this.d;
+
+            // Calculate the distance from the car to the boundary line
+            let lineDist = p5.Vector.dist(carPos, this.closestPointOnLine(start, end, carPos));
+
+            // Check if the distance is less than the car's size (assuming the car is a circle with diameter of car.l)
+            if (lineDist < this.l / 2) {
+                // Calculate the normal vector
+                let boundaryVector = p5.Vector.sub(end, start);
+                let normalVector = createVector(-boundaryVector.y, boundaryVector.x);
+                normalVector.normalize();
+
+                // Push the car back
+                let pushBack = normalVector.mult((this.l / 2 - lineDist) * .5);
+                this.d.add(pushBack);
+                this.v.mult(0.95);
+                this.v.add(pushBack);
+
+                return true; // Collision detected
+            }
+        }
+
+        return false; // No collision
+    }
+
+    // Helper method to find the closest point on a line to a given point
+    closestPointOnLine(start, end, point) {
+        let startToEnd = p5.Vector.sub(end, start);
+        let startToPoint = p5.Vector.sub(point, start);
+
+        let magnitude = startToEnd.mag();
+        let startToEndNormalized = startToEnd.normalize();
+
+        let dot = startToPoint.dot(startToEndNormalized);
+
+        dot = constrain(dot, 0, magnitude);
+
+        return p5.Vector.add(start, startToEndNormalized.mult(dot));
+    }
 }

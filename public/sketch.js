@@ -12,20 +12,35 @@ let protoBufLoaded = false;
 
 let CarState;
 
+let canvasDimensions = {
+    width: 1500,
+    height: 850,
+}
+
+let Map = {
+    width: 3000,
+    height: 3000,
+}
+
+let prevCamX = Map.width / 2;
+let prevCamY = Map.height / 2;
 
 function setup() {
-    let canvas = createCanvas(1500, 850);
+    let canvas = createCanvas(canvasDimensions.width, canvasDimensions.height);
     canvas.parent('sketch-holder');
     frameRate(60);
-    bg = loadImage('assets/racetrack.png');
+    bg = loadImage('assets/track.png');
+    // bg.resize(Map.width, Map.height);
+    console.log(bg);
 
-    car = new Car(width / 2, 20, 0);
+    car = new Car(Map.width / 2, Map.height / 2, 0);
 
     protobuf.load("car.proto", function (err, root) {
         if (err)
             throw err;
 
         console.log("Loaded protobuf");
+        console.log(car);
         protoBufLoaded = true;
         // Obtain the message type
         CarState = root.lookupType("CarState");
@@ -61,7 +76,94 @@ function setup() {
 }
 
 function draw() {
-    background(bg);
+
+    // Calculate the desired camera position
+    let camX = lerp(prevCamX, -car.d.x + canvasDimensions.width / 2, 0.1);
+    let camY = lerp(prevCamY, -car.d.y + canvasDimensions.height / 2, 0.1);
+    let targetCamX = -car.d.x + canvasDimensions.width / 2;
+    let targetCamY = -car.d.y + canvasDimensions.height / 2;
+
+    // Calculate the distance from the player to the edge of the canvas
+    let edgeDistX = min(car.d.x, Map.width - car.d.x);
+    let edgeDistY = min(car.d.y, Map.height - car.d.y);
+
+    // If the player is within 300 pixels of the edge of the canvas, adjust the camera position
+    if (edgeDistX < 300) {
+        camX = -car.d.x + canvasDimensions.width / 2 + (300 - edgeDistX);
+    }
+    if (edgeDistY < 300) {
+        camY = -car.d.y + canvasDimensions.height / 2 + (300 - edgeDistY);
+    }
+
+
+    // Limit the camera to not go outside the map
+    camX = constrain(camX, canvasDimensions.width - Map.width, 0);
+    camY = constrain(camY, canvasDimensions.height - Map.height, 0);
+
+    prevCamX = camX;
+    prevCamY = camY;
+    // Apply the translation
+    translate(camX, camY);
+
+    // // Start with the previous camera position
+    // let camX = prevCamX;
+    // let camY = prevCamY;
+    //
+    // // Calculate the distance from the player to the edge of the visible canvas
+    // let edgeDistXLeft = Math.abs(car.d.x - camX);
+    // let edgeDistXRight = Math.abs(car.d.x - camX - canvasDimensions.width);
+    // let edgeDistX = Math.min(edgeDistXLeft, edgeDistXRight);
+    // let edgeDistYTop = Math.abs(car.d.y - camY);
+    // let edgeDistYBottom = Math.abs(car.d.y - camY - canvasDimensions.height);
+    // let edgeDistY = Math.min(edgeDistYTop, edgeDistYBottom);
+    //
+    // // Calculate the threshold distance (10% of canvas size)
+    // let threshold = canvasDimensions.width * 0.2;
+    //
+    // // If the player is within the threshold distance of the edge of the visible canvas, adjust the camera position
+    // if (edgeDistX < threshold) {
+    //     camX -= (threshold - edgeDistX);
+    // }
+    // if (edgeDistY < threshold) {
+    //     camY -= (threshold - edgeDistY);
+    // }
+    //
+    // // Limit the camera to not go outside the map
+    // camX = Math.max(Math.min(camX, 0), canvasDimensions.width - Map.width);
+    // camY = Math.max(Math.min(camY, 0), canvasDimensions.height - Map.height);
+    //
+    // // Save the current camera position for the next frame
+    // prevCamX = camX;
+    // prevCamY = camY;
+    //
+    //
+    //
+    // // Apply the translation
+    // translate(camX, camY);
+
+    background(0)
+    image(bg, 0, 0)
+
+    // // draw pb1 from bounds.js
+    // stroke(55, 0, 0);
+    // strokeWeight(5);
+    // noFill();
+    // for (let i = 0; i < bounds1[1].length; i++) {
+    //     let boundXi = bounds1[1][i][0];
+    //     let boundYi = bounds1[1][i][1];
+    //
+    //     rect(boundXi, boundYi, 2, 2)
+    // }
+    // for (let i = 0; i < bounds1[0].length; i++) {
+    //     // vertex(bounds1[0][i][0], bounds1[0][i][1]);
+    //     let boundXo = bounds1[0][i][0];
+    //     let boundYo = bounds1[0][i][1];
+    //
+    //
+    //     rect(boundXo, boundYo, 2, 2)
+    //     // console.log(bounds1[0][i],bounds1[0][i][0], bounds1[0][i][1]);
+    // }
+
 
     car.update();
     emitCounter++;
@@ -85,6 +187,11 @@ function draw() {
         car.col = color(255, 100, 100);
     } else {
         car.col = color(255, 255, 255);
+    }
+    // change car colour when colliding
+    if (car.checkCollision(bounds1[0].reverse()) || car.checkCollision(bounds1[1])) {
+        car.col = color(255, 0, 0);
+        console.log("collided");
     }
 
     car.show(); // Render the other cars
@@ -153,29 +260,29 @@ function draw() {
 
 
     // Keep car onscreen. Car displacement (position) is stored in vector: car.d
-    if (car.d.x > width) {
+    if (car.d.x > Map.width) {
         car.d.x = 0;
     } else if (car.d.x < 0) {
-        car.d.x = width;
+        car.d.x = Map.width;
     }
-    if (car.d.y > height) {
+    if (car.d.y > Map.height) {
         car.d.y = 0;
     } else if (car.d.y < 0) {
-        car.d.y = height;
+        car.d.y = Map.height;
     }
 
 
 // Also keep the other cars onscreen
     for (let id in otherCars) {
-        if (otherCars[id].d.x > width) {
+        if (otherCars[id].d.x > Map.width) {
             otherCars[id].d.x = 0;
         } else if (otherCars[id].d.x < 0) {
-            otherCars[id].d.x = width;
+            otherCars[id].d.x = Map.width;
         }
-        if (otherCars[id].d.y > height) {
+        if (otherCars[id].d.y > Map.height) {
             otherCars[id].d.y = 0;
         } else if (otherCars[id].d.y < 0) {
-            otherCars[id].d.y = height;
+            otherCars[id].d.y = Map.height;
         }
     }
 }
