@@ -69,11 +69,12 @@ class Car {
         push();
         translate(this.d.x, this.d.y);
         rotate(this.angle);
-        stroke(3);
-        strokeWeight(3);
+        stroke(3)
+
+        strokeWeight(this.isDrifting ? 3 : 2);
         fill(this.col);
         rect(0, 0, this.w, this.l); // Car body
-        rect(0, this.l / 2, 4, 4);  // Indicate front side
+        rect(0, this.l / 2, this.w - 2, 6);  // Indicate front side
 
         // show score
         // fill(0);
