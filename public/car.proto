@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message CarState {
+  string id = 1;
+  Position position = 2;
+  bool drifting = 3;
+  float angle = 4;
+
+  message Position {
+    float x = 1;
+    float y = 2;
+  }
+}
+

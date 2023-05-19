@@ -6,10 +6,10 @@ class Car {
             0.06; // The normal turning-rate (static friction => not sliding)
         this.turnRateDynamic = 0.05;         // The turning-rate when drifting
         this.turnRate = this.turnRateStatic; // initialise turn-rate
-        this.gripStatic = 1;                 // sliding friction while gripping
+        this.gripStatic = .8;                 // sliding friction while gripping
         this.gripDynamic = 0.1;              // sliding friction while drifting
         this.DRIFT_CONSTANT = 1.7; // sets the x-velocity threshold for no-drift <=>
-                                 // drift. Lower = drift sooner
+        // drift. Lower = drift sooner
 
         // Physical properties
         this.d = createVector(x, y); // displacement (position)
@@ -27,6 +27,8 @@ class Car {
         this.col = color(255, 255, 255);
         this.id = "";
         this.trail = [];
+        this.targetPosition = null;
+        this.targetAngle = null;
     }
 
     /*******************************************************************************
@@ -43,12 +45,15 @@ class Car {
     getAngle() {
         return this.angle;
     }
+
     setAngle(angle) {
         this.angle = angle;
     }
+
     setTrail(trail) {
         this.trail = trail;
     }
+
     getTrail() {
         return this.trail;
     }
@@ -122,6 +127,42 @@ class Car {
         this.v.add(this.a);
         this.d.add(this.v);
         this.a = createVector(0, 0); // Reset acceleration for next frame
+
+    }
+
+    interpolate() {
+
+        if (this.targetPosition) {
+            let distance = dist(this.d.x, this.d.y, this.targetPosition.x, this.targetPosition.y);
+            // if difference is too large, just teleport
+            if (distance > 500) {
+                this.d = createVector(this.targetPosition.x, this.targetPosition.y);
+                this.targetPosition = null;
+            } else {
+                let targetPos = createVector(this.targetPosition.x, this.targetPosition.y);
+                this.d = p5.Vector.lerp(this.d, targetPos, 0.1);
+            }
+            if (distance < 1) {
+                this.targetPosition = null;
+            }
+        }
+        if (this.targetAngle !== null) {
+            let difference = this.targetAngle - this.angle;
+            while (difference < -Math.PI) difference += Math.PI * 2;
+            while (difference > Math.PI) difference -= Math.PI * 2;
+
+            if (Math.abs(difference) > Math.PI / 2) {
+                this.angle = this.targetAngle;
+                this.targetAngle = null;
+            } else {
+                let turnDirection = difference > 0 ? 1 : -1;
+                this.angle += this.turnRate * turnDirection;
+                if (Math.abs(this.targetAngle - this.angle) < this.turnRate) {
+                    this.angle = this.targetAngle;
+                    this.targetAngle = null;
+                }
+            }
+        }
     }
 
     /*******************************************************************************
