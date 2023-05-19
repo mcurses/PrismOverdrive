@@ -16,7 +16,7 @@ function setup() {
     car = new Car(width / 2, 20, 0);
 
     socket =
-        io.connect('http://localhost:3000'); // Establish a Socket.IO connection
+        io.connect('https://cars.puhoy.net'); // Establish a Socket.IO connection
     socket.on(
         'connect', () => {
             // On successful connection, assign the socket id to the car
@@ -33,7 +33,7 @@ function setup() {
             otherCars[data.id].setPosition(data.position);
             otherCars[data.id].setDrift(data.drifting);
             otherCars[data.id].setAngle(data.angle)
-            otherCars[data.id].setTrail(data.trail)
+            // otherCars[data.id].setTrail(data.trail)
         });
     car.id = socket.id;
 }
@@ -48,7 +48,7 @@ function draw() {
         position: car.getPos(),
         drifting: car.isDrift(),
         angle: car.getAngle(),
-        trail: trail
+        // trail: trail
     });
 
     // Change car colour when drifting
@@ -100,16 +100,16 @@ function draw() {
     }
 
     // render the other cars' trails
-    for (let id in otherCars) {
-        for (let p of otherCars[id].trail) {
-            if (p.drifting) {
-                stroke(255, 100, 100);
-            } else {
-                continue;
-            }
-            point(p.position.x, p.position.y);
-        }
-    }
+    // for (let id in otherCars) {
+    //     for (let p of otherCars[id].trail) {
+    //         if (p.drifting) {
+    //             stroke(255, 100, 100);
+    //         } else {
+    //             continue;
+    //         }
+    //         point(p.position.x, p.position.y);
+    //     }
+    // }
 
 
     // Keep car onscreen. Car displacement (position) is stored in vector: car.d
