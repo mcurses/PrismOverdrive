@@ -31,8 +31,13 @@ function setup() {
     frameRate(60);
     bg = loadImage('assets/track2.png');
     // bg.resize(Map.width, Map.height);
-    console.log(bg);
 
+    layer1 = loadImage('assets/layer2.png');
+    layer1.resize(500, 500);
+    layer2 = loadImage('assets/layer2.png');
+    layer2.resize(700, 700);
+    layer3 = loadImage('assets/layer1.png');
+    layer3.resize(900, 900);
     car = new Car(Map.width / 2, Map.height / 2, 0);
 
     protobuf.load("car.proto", function (err, root) {
@@ -40,7 +45,6 @@ function setup() {
             throw err;
 
         console.log("Loaded protobuf");
-        console.log(car);
         protoBufLoaded = true;
         // Obtain the message type
         CarState = root.lookupType("CarState");
@@ -79,13 +83,33 @@ function setup() {
     });
 }
 
+function drawParallaxLayer(imageObj, camX, camY, parallaxFactor) {
+    // Calculate the offset for this layer
+    let offsetX = camX * parallaxFactor % imageObj.width;
+    let offsetY = camY * parallaxFactor % imageObj.height;
+
+    // Draw the image tiles
+    for (let x = -offsetX - imageObj.width; x < width; x += imageObj.width) {
+        for (let y = -offsetY - imageObj.height; y < height; y += imageObj.height) {
+            image(imageObj, x, y);
+        }
+    }
+}
 
 function draw() {
     let {camX, camY} = getCameraOffset();
+    clear();
+
+    background(20);
+    // Draw the layers with parallax effect
+    drawParallaxLayer(layer1, camX, camY, 0.032); // Farthest layer, moves the least
+    drawParallaxLayer(layer2, camX, camY, 0.029); // Middle layer
+    drawParallaxLayer(layer3, camX, camY, 0.006); // Nearest layer, moves the most
+
     // Apply the translation
     translate(camX, camY);
 
-    background(150)
+    // background(150)
     image(bg, 0, 0)
 
 
@@ -205,9 +229,9 @@ function renderCar(id) {
         score: curCar.score,
     });
 
-    let trailCutOff = Math.min(TRAIL_MAX_LENGTH, curCar.score / 2000);
-    if (curCar.trail.length > curCar.score / 10)
-        curCar.trail.splice(0, 1);
+    let trailCutOff = Math.min(TRAIL_MAX_LENGTH, 10 + curCar.score / 10);
+    if (curCar.trail.length > trailCutOff)
+        curCar.trail.splice(0, curCar.trail.length - trailCutOff);
 
     for (let p of otherCars[id].trail) {
         if (p.drifting) {
@@ -221,11 +245,13 @@ function renderCar(id) {
             continue;
             // stroke(255);
         }
-        strokeWeight(p.frameScore * 2 *
-            Math.max(1, p.score / 1000));
         // point(p.position.x, p.position.y);
         let corners = getCarCorners(p.position, p.angle);
-        for (let corner of corners) {
+        for (let [index, corner] of corners.entries()) {
+
+            let factor = index == 3 || index == 2 ? 1.5 : 2;
+                strokeWeight(p.frameScore * factor *
+                    Math.max(1, p.score / 1000));
             // console.log(p.position, corner);
             point(corner.x, corner.y);
         }
