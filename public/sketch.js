@@ -5,7 +5,7 @@ let car;
 let otherCars = {};
 
 let trail = []; // Leave a trail behind the car
-const TRAIL_LENGTH = 100;
+const TRAIL_MAX_LENGTH = 500;
 const EMIT_FREQUENCY = 7;
 let emitCounter = 0;
 let protoBufLoaded = false;
@@ -18,7 +18,7 @@ let canvasDimensions = {
 }
 
 let Map = {
-    width: 3000,
+    width: 5000,
     height: 3000,
 }
 
@@ -29,7 +29,7 @@ function setup() {
     let canvas = createCanvas(canvasDimensions.width, canvasDimensions.height);
     canvas.parent('sketch-holder');
     frameRate(60);
-    bg = loadImage('assets/track.png');
+    bg = loadImage('assets/track2.png');
     // bg.resize(Map.width, Map.height);
     console.log(bg);
 
@@ -98,9 +98,9 @@ function draw() {
             position: car.getPos(),
             drifting: car.isDrift(),
             angle: car.getAngle(),
-            frameScore: Math.round(car.frameScore, 2),
-            driftScore: Math.round(car.driftScore, 2),
-            score: Math.round(car.score, 2),
+            frameScore: car.frameScore,
+            driftScore: car.driftScore,
+            score: car.score,
         };
         const message = CarState.create(carState);  // Create a message
         const buffer = CarState.encode(message).finish();  // Encode the message to a buffer
@@ -119,21 +119,21 @@ function draw() {
 
 function getCameraOffset() {
     // Calculate the desired camera position
-    let camX = lerp(prevCamX, -car.d.x + canvasDimensions.width / 2, 0.1);
-    let camY = lerp(prevCamY, -car.d.y + canvasDimensions.height / 2, 0.1);
-    let targetCamX = -car.d.x + canvasDimensions.width / 2;
-    let targetCamY = -car.d.y + canvasDimensions.height / 2;
+    let camX = lerp(prevCamX, -car.pos.x + canvasDimensions.width / 2, 0.1);
+    let camY = lerp(prevCamY, -car.pos.y + canvasDimensions.height / 2, 0.1);
+    let targetCamX = -car.pos.x + canvasDimensions.width / 2;
+    let targetCamY = -car.pos.y + canvasDimensions.height / 2;
 
     // Calculate the distance from the player to the edge of the canvas
-    let edgeDistX = min(car.d.x, Map.width - car.d.x);
-    let edgeDistY = min(car.d.y, Map.height - car.d.y);
+    let edgeDistX = min(car.pos.x, Map.width - car.pos.x);
+    let edgeDistY = min(car.pos.y, Map.height - car.pos.y);
 
     // If the player is within 300 pixels of the edge of the canvas, adjust the camera position
     if (edgeDistX < 300) {
-        camX = -car.d.x + canvasDimensions.width / 2 + (300 - edgeDistX);
+        camX = -car.pos.x + canvasDimensions.width / 2 + (300 - edgeDistX);
     }
     if (edgeDistY < 300) {
-        camY = -car.d.y + canvasDimensions.height / 2 + (300 - edgeDistY);
+        camY = -car.pos.y + canvasDimensions.height / 2 + (300 - edgeDistY);
     }
 
 
@@ -147,8 +147,8 @@ function getCameraOffset() {
 }
 
 function getCarCorners(position, angle) {
-    let carWidth = car.w;
-    let carHeight = car.l;
+    let carWidth = car.width;
+    let carHeight = car.length;
     let corners = [];
 
     // Calculate the corners relative to the car's center point
@@ -190,7 +190,8 @@ function renderCar(id) {
     } else {
         curCar.col = color(255, 255, 255);
     }
-    if (curCar.checkCollision(bounds1[0].reverse()) || car.checkCollision(bounds1[1])) {
+    let bounds = bounds2
+    if (curCar.checkCollision(bounds[0].reverse()) || car.checkCollision(bounds[1])) {
         curCar.col = color(255, 0, 0);
     }
 
@@ -204,7 +205,8 @@ function renderCar(id) {
         score: curCar.score,
     });
 
-    if (curCar.trail.length > TRAIL_LENGTH)
+    let trailCutOff = Math.min(TRAIL_MAX_LENGTH, curCar.score / 2000);
+    if (curCar.trail.length > curCar.score / 10)
         curCar.trail.splice(0, 1);
 
     for (let p of otherCars[id].trail) {
@@ -233,16 +235,16 @@ function renderCar(id) {
 
     curCar.show();
 
-    if (curCar.d.x > Map.width) {
-        curCar.d.x = 0;
-    } else if (curCar.d.x < 0) {
-        curCar.d.x = Map.width;
-    }
-    if (curCar.d.y > Map.height) {
-        curCar.d.y = 0;
-    } else if (curCar.d.y < 0) {
-        curCar.d.y = Map.height;
-    }
+    // if (curcar.pos.x > Map.width) {
+    //     curcar.pos.x = 0;
+    // } else if (curcar.pos.x < 0) {
+    //     curcar.pos.x = Map.width;
+    // }
+    // if (curcar.pos.y > Map.height) {
+    //     curcar.pos.y = 0;
+    // } else if (curcar.pos.y < 0) {
+    //     curcar.pos.y = Map.height;
+    // }
 }
 
 function driftColor(driftScore, frameScore, score) {
