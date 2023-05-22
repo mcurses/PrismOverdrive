@@ -7,7 +7,7 @@ let otherCars = {};
 let trail = []; // Leave a trail behind the car
 const TRAIL_MAX_LENGTH = 200;
 const EMIT_FREQUENCY = 7;
-const TRAIL_FREQUENCY = 3;
+const TRAIL_FREQUENCY = 2;
 let emitCounter = 0;
 let protoBufLoaded = false;
 
