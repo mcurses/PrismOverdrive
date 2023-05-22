@@ -16,10 +16,10 @@ class Car {
         this.velocity = createVector(0, 0); // velocity (world-referenced)
         this.acceleration = createVector(0, 0); // acceleration (world-referenced)
         this.angle = angle;          // heading - the direction the car faces
-        this.mass = 10;                 // mass
+        this.mass = 13;                 // mass
         this.width = 18;                 // width of body (for animation)
         this.length = 30;                 // length of body (for animation)
-        this.f = 0.07;               // Acceleration / braking force
+        this.force = 0.08;               // Acceleration / braking force
         this.isDrifting = false;     // Drift state
 
         // Colour variable - in an example the car colour changes when it loses
@@ -27,6 +27,7 @@ class Car {
         this.col = color(255, 255, 255);
         this.id = "";
         this.trail = [];
+        this.trailCounter = 0;
         this.targetPosition = null;
         this.targetAngle = null;
 
@@ -89,13 +90,13 @@ class Car {
         if (keyIsPressed) {
             // ACCELERATING (BODY-FIXED to WORLD)
             if (keyIsDown(UP_ARROW)) {
-                let bodyAcc = createVector(0, this.f);
+                let bodyAcc = createVector(0, this.force);
                 let worldAcc = this.vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
             // BRAKING (BODY-FIXED TO WORLD)
             if (keyIsDown(DOWN_ARROW)) {
-                let bodyAcc = createVector(0, -this.f);
+                let bodyAcc = createVector(0, -this.force);
                 let worldAcc = this.vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }

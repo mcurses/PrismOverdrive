@@ -5,8 +5,9 @@ let car;
 let otherCars = {};
 
 let trail = []; // Leave a trail behind the car
-const TRAIL_MAX_LENGTH = 500;
+const TRAIL_MAX_LENGTH = 200;
 const EMIT_FREQUENCY = 7;
+const TRAIL_FREQUENCY = 3;
 let emitCounter = 0;
 let protoBufLoaded = false;
 
@@ -100,11 +101,11 @@ function draw() {
     let {camX, camY} = getCameraOffset();
     clear();
 
-    background(20);
+    background(60);
     // Draw the layers with parallax effect
     drawParallaxLayer(layer1, camX, camY, 0.032); // Farthest layer, moves the least
     drawParallaxLayer(layer2, camX, camY, 0.029); // Middle layer
-    drawParallaxLayer(layer3, camX, camY, 0.006); // Nearest layer, moves the most
+    // drawParallaxLayer(layer3, camX, camY, 0.006); // Nearest layer, moves the most
 
     // Apply the translation
     translate(camX, camY);
@@ -220,20 +221,36 @@ function renderCar(id) {
     }
 
     // save trail
-    curCar.trail.push({
-        position: curCar.getPos(),
-        drifting: curCar.isDrift(),
-        angle: curCar.getAngle(),
-        frameScore: curCar.frameScore,
-        driftScore: curCar.driftScore,
-        score: curCar.score,
-    });
+
+    if (curCar.id === car.id) {
+        curCar.trailCounter++;
+    } else {
+        curCar.trailCounter += 1/3;
+    }
+
+    if (~~curCar.trailCounter >= TRAIL_FREQUENCY) {
+        curCar.trail.push({
+            position: curCar.getPos(),
+            drifting: curCar.isDrift(),
+            angle: curCar.getAngle(),
+            frameScore: curCar.frameScore,
+            driftScore: curCar.driftScore,
+            score: curCar.score,
+        });
+        curCar.trailCounter = 0;
+    }
 
     let trailCutOff = Math.min(TRAIL_MAX_LENGTH, 10 + curCar.score / 10);
     if (curCar.trail.length > trailCutOff)
         curCar.trail.splice(0, curCar.trail.length - trailCutOff);
 
     for (let p of otherCars[id].trail) {
+        // // omit every nth trail point, every 10th of a second increment n
+        // if (curCar.trail.indexOf(p) % 7 !== 0) {
+        //     Math.floor(10 * (curCar.frameScore ))
+        //     if 100
+        //     continue;
+        // }
         if (p.drifting) {
             // strokeWeight(p.score / 100);
 
@@ -250,8 +267,8 @@ function renderCar(id) {
         for (let [index, corner] of corners.entries()) {
 
             let factor = index == 3 || index == 2 ? 1.5 : 2;
-                strokeWeight(p.frameScore * factor *
-                    Math.max(1, p.score / 1000));
+            strokeWeight(p.frameScore * factor *
+                Math.max(1, p.score / 1000));
             // console.log(p.position, corner);
             point(corner.x, corner.y);
         }
