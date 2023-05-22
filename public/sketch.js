@@ -5,7 +5,7 @@ let car;
 let otherCars = {};
 
 let trail = []; // Leave a trail behind the car
-const TRAIL_MAX_LENGTH = 200;
+const TRAIL_MAX_LENGTH = 100;
 const EMIT_FREQUENCY = 7;
 const TRAIL_FREQUENCY = 2;
 let emitCounter = 0;
@@ -240,7 +240,7 @@ function renderCar(id) {
         curCar.trailCounter = 0;
     }
 
-    let trailCutOff = Math.min(TRAIL_MAX_LENGTH, 10 + curCar.score / 10);
+    let trailCutOff = Math.min(TRAIL_MAX_LENGTH, 10 + curCar.score / 30);
     if (curCar.trail.length > trailCutOff)
         curCar.trail.splice(0, curCar.trail.length - trailCutOff);
 
@@ -267,9 +267,9 @@ function renderCar(id) {
         for (let [index, corner] of corners.entries()) {
 
             let factor = index == 3 || index == 2 ? 1.5 : 2;
-            strokeWeight(p.frameScore * factor *
-                Math.max(1, p.score / 1000));
-            // console.log(p.position, corner);
+            let weight = p.frameScore * factor * Math.max(1, p.score / 1000);
+            weight = Math.min(weight, 50);
+            strokeWeight(weight);
             point(corner.x, corner.y);
         }
 
