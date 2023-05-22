@@ -273,6 +273,17 @@ function renderCar(id) {
             point(corner.x, corner.y);
         }
 
+        // if not moving, increase idle time
+        if (curCar.vel.mag() < 0.1) {
+            curCar.idleTime++;
+        } else {
+            curCar.idleTime = 0;
+        }
+        // if idle for 60 seconds, remove from game
+        if (curCar.idleTime > 60 * 60) {
+            delete otherCars[id];
+        }
+
 
     }
 

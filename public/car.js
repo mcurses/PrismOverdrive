@@ -35,6 +35,7 @@ class Car {
         this.frameScore = 0;
         this.lastDriftTime = 0;
         this.driftScore = 0;
+        this.idleTime = 0;
     }
 
     /*******************************************************************************
