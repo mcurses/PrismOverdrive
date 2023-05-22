@@ -274,7 +274,7 @@ function renderCar(id) {
         }
 
         // if not moving, increase idle time
-        if (curCar.vel.mag() < 0.1) {
+        if (curCar.velocity.mag() < 0.1) {
             curCar.idleTime++;
         } else {
             curCar.idleTime = 0;
