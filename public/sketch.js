@@ -30,7 +30,7 @@ function setup() {
     let canvas = createCanvas(canvasDimensions.width, canvasDimensions.height);
     canvas.parent('sketch-holder');
     frameRate(60);
-    bg = loadImage('assets/track2-grad-bord.png');
+    bg = loadImage('assets/track2-grad.png');
     // bg.resize(Map.width, Map.height);
 
     layer1 = loadImage('assets/layer2.png');
