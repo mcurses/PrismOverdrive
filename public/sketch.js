@@ -1,4 +1,3 @@
-// Example use of the Car class. Leaves a colour-coded trail behind
 // the car to indicate when it was sliding.
 
 let car;
@@ -7,7 +6,7 @@ let otherCars = {};
 let trail = []; // Leave a trail behind the car
 const TRAIL_MAX_LENGTH = 100;
 const EMIT_FREQUENCY = 7;
-const TRAIL_FREQUENCY = 2;
+const TRAIL_FREQUENCY = 5;
 let emitCounter = 0;
 let protoBufLoaded = false;
 
@@ -20,25 +19,53 @@ let canvasDimensions = {
 
 let Map = {
     width: 5000,
-    height: 3000,
+    height: 4000,
 }
 
 let prevCamX = Map.width / 2;
 let prevCamY = Map.height / 2;
 
+let miniMapDimensions = {
+    width: 200,
+    height: 150,
+};
+
+let bounds;
+
+function preload() {
+    // bg = loadImage('assets/track3.png');
+    bg = loadImage('assets/track2-grad.png');
+    layer1 = loadImage('assets/layer2.png');
+    layer2 = loadImage('assets/layer2.png');
+    layer3 = loadImage('assets/layer1.png');
+}
+
+function updateCarsFromMessage(cars, carState) {
+    let car = cars[carState.id];
+    cars.targetPosition = carState.position;
+    cars.targetAngle = carState.angle;
+    cars.setDrift(carState.drifting);
+
+    cars.frameScore = carState.frameScore;
+    cars.driftScore = carState.driftScore;
+    cars.score = carState.score;
+    return cars;
+}
+
 function setup() {
     let canvas = createCanvas(canvasDimensions.width, canvasDimensions.height);
     canvas.parent('sketch-holder');
     frameRate(60);
-    bg = loadImage('assets/track2-grad.png');
+    bounds = bounds2
+    // bounds = bounds3;
+    // bounds = scaleTo(bounds3, Map.width, Map.height);
     // bg.resize(Map.width, Map.height);
+    // console.log("Bounds: " + bounds);
 
-    layer1 = loadImage('assets/layer2.png');
     layer1.resize(500, 500);
-    layer2 = loadImage('assets/layer2.png');
     layer2.resize(700, 700);
-    layer3 = loadImage('assets/layer1.png');
-    layer3.resize(900, 900);
+    // layer3.resize(900, 900);
+
     car = new Car(Map.width / 2, Map.height / 2, 0);
 
     protobuf.load("car.proto", function (err, root) {
@@ -70,14 +97,9 @@ function setup() {
             // console.log(carState);
             if (!otherCars[carState.id]) {
                 otherCars[carState.id] = new Car(carState.position.x, carState.position.y, 0);
+                console.log("New car: " + carState.id);
             }
-            otherCars[carState.id].targetPosition = carState.position;
-            otherCars[carState.id].targetAngle = carState.angle;
-            otherCars[carState.id].setDrift(carState.drifting);
-
-            otherCars[carState.id].frameScore = carState.frameScore;
-            otherCars[carState.id].driftScore = carState.driftScore;
-            otherCars[carState.id].score = carState.score;
+            cars = updateCarsFromMessage(cars, carState);
 
         });
 
@@ -101,10 +123,11 @@ function draw() {
     let {camX, camY} = getCameraOffset();
     clear();
 
-    background(60);
+    background(30);
+
     // Draw the layers with parallax effect
     drawParallaxLayer(layer1, camX, camY, 0.032); // Farthest layer, moves the least
-    drawParallaxLayer(layer2, camX, camY, 0.029); // Middle layer
+    drawParallaxLayer(layer2, camX, camY, 0.022); // Middle layer
     // drawParallaxLayer(layer3, camX, camY, 0.006); // Nearest layer, moves the most
 
     // Apply the translation
@@ -112,7 +135,21 @@ function draw() {
 
     // background(150)
     image(bg, 0, 0)
+    fill(25); // Fill color (white)
+    stroke(0); // Outline color (black)
 
+    // // Draw the racetrack
+    // beginShape();
+    // // Draw the inner boundary in reverse order
+    // for (let i = bounds[0].length - 1; i >= 0; i--) {
+    //     vertex(bounds[0][i][0] + camX, bounds[0][i][1] + camY);
+    // }
+    // // Draw the outer boundary
+    // for (let i = 1; i < bounds[1].length; i++) {
+    //     vertex(bounds[1][i][0] + camX, bounds[1][i][1] + camY);
+    // }
+    // endShape(CLOSE);
+    //
 
     car.update();
     emitCounter++;
@@ -136,10 +173,18 @@ function draw() {
 
     otherCars[car.id] = car;
 
-    // Render the other cars
+    // render the trails
+    for (let id in otherCars) {
+        renderTrail(id);
+    }
+    // Render the  cars
     for (let id in otherCars) {
         renderCar(id);
     }
+
+    // Draw mini-map
+    resetMatrix();
+    drawMinimap();
 }
 
 function getCameraOffset() {
@@ -202,41 +247,14 @@ function rotatePoint(point, origin, angle) {
     return createVector(rotatedX, rotatedY);
 }
 
-function renderCar(id) {
-    // color them red if they are drifting
-    let curCar = otherCars[id];
-    curCar.interpolate();
-    // console.log(curCar.angle);
-    if (curCar.isDrift()) {
-        carColor = driftColor(curCar.driftScore, curCar.frameScore, curCar.score);
-        colorMode(HSB, 100);
-        curCar.col = color(carColor.h, carColor.s + 20, 80)
-        colorMode(RGB, 255);
-    } else {
-        curCar.col = color(255, 255, 255);
-    }
-    let bounds = bounds2
-    if (curCar.checkCollision(bounds[0].reverse()) || car.checkCollision(bounds[1])) {
-        curCar.col = color(255, 0, 0);
-    }
-
+function renderTrail(id) {
     // save trail
-
-    if (curCar.id === car.id) {
-        curCar.trailCounter++;
-    } else {
-        curCar.trailCounter += 1/3;
-    }
-
+    let curCar = otherCars[id];
+    curCar.trailCounter = curCar.id === car.id
+        ? curCar.trailCounter + (1)
+        : curCar.trailCounter + (1 / 3);
     if (~~curCar.trailCounter >= TRAIL_FREQUENCY) {
-        curCar.trail.push({
-            position: curCar.getPos(),
-            drifting: curCar.isDrift(),
-            angle: curCar.getAngle(),
-            frameScore: curCar.frameScore,
-            driftScore: curCar.driftScore,
-            score: curCar.score,
-        });
+        addTrailPoint(curCar);
         curCar.trailCounter = 0;
     }
 
@@ -244,19 +262,60 @@ function renderCar(id) {
     if (curCar.trail.length > trailCutOff)
         curCar.trail.splice(0, curCar.trail.length - trailCutOff);
 
-    for (let p of otherCars[id].trail) {
+
+    let trailIndex = 0;
+    let maxTrailWeight = 50;
+    for (let p of curCar.trail) {
+        trailIndex++;
         // // omit every nth trail point, every 10th of a second increment n
         // if (curCar.trail.indexOf(p) % 7 !== 0) {
         //     Math.floor(10 * (curCar.frameScore ))
         //     if 100
         //     continue;
         // }
+        let weight = 0;
         if (p.drifting) {
             // strokeWeight(p.score / 100);
 
             let trailPointColor = driftColor(p.driftScore, p.frameScore, p.score)
             colorMode(HSB, 100);
-            stroke(trailPointColor.h, trailPointColor.s, trailPointColor.l)
+            let opacity = 255;
+
+            let trailLength = curCar.trail.length;
+            let i = trailLength - trailIndex;
+            let fadeInLength = 18;
+            fadeInLength = Math.min(fadeInLength, trailLength / 2);
+            // Fade in for the first 5 dots
+            if (i < fadeInLength) {
+                opacity = map(i, 0, fadeInLength, 0, 255);
+                // Fade out after 20 dots
+            } else if (i >= fadeInLength) {
+                // Fade out starting from the 20th last dot
+                opacity = map(i, fadeInLength, trailLength, 255, 0);
+                // console.log(i, ~~opacity, trailLength);
+            }
+
+            weight = p.frameScore * Math.max(1, p.score / 1000);
+            weight = weight > maxTrailWeight ? maxTrailWeight : weight;
+            if (curCar.score > 1000) {
+                // Use a sine wave to create a smooth wave of alternating opacity
+                // The speed of the wave is determined by the frameScore
+                let waveSpeed = p.score;
+                let wave = Math.sin(i * 1.1);
+
+                // Map the wave value (which is between -1 and 1) to the opacity range (0 to 255)
+
+                opacity *= map(wave, -1, 1, 0, 1) * .02
+                // strokeWeigt(.2);
+                weight = 1;
+                stroke(trailPointColor.h, trailPointColor.s, trailPointColor.l, 255)
+            }
+
+            // console.log(i, opacity);
+            // Full opacity for dots between 5 and 20
+            stroke(trailPointColor.h, trailPointColor.s, trailPointColor.l, opacity)
+            fill(trailPointColor.h, trailPointColor.s, trailPointColor.l, opacity)
+
             colorMode(RGB, 255);
         } else {
             continue;
@@ -267,25 +326,57 @@ function renderCar(id) {
         for (let [index, corner] of corners.entries()) {
 
             let factor = index == 3 || index == 2 ? 1.5 : 2;
-            let weight = p.frameScore * factor * Math.max(1, p.score / 1000);
-            weight = Math.min(weight, 50);
-            strokeWeight(weight);
-            point(corner.x, corner.y);
+            strokeWeight(weight * factor);
+            circle(corner.x, corner.y, weight * factor, weight * factor)
         }
-
-        // if not moving, increase idle time
-        if (curCar.velocity.mag() < 0.1) {
-            curCar.idleTime++;
-        } else {
-            curCar.idleTime = 0;
-        }
-        // if idle for 60 seconds, remove from game
-        if (curCar.idleTime > 60 * 60) {
-            delete otherCars[id];
-        }
-
-
     }
+}
+
+function
+addTrailPoint(curCar) {
+    curCar.trail.push({
+        position: curCar.getPos(),
+        drifting: curCar.isDrift(),
+        angle: curCar.getAngle(),
+        frameScore: curCar.frameScore,
+        driftScore: curCar.driftScore,
+        score: curCar.score,
+    });
+}
+
+function renderCar(id) {
+
+    let curCar = otherCars[id];
+    curCar.interpolatePosition();
+
+    // Set color
+    colorMode(HSB, 100);
+    if (curCar.isDrift()) {
+        carColor = driftColor(curCar.driftScore, curCar.frameScore, curCar.score);
+        curCar.color = color(carColor.h, carColor.s + 20, 80)
+    } else {
+        curCar.color = color(0, 0, 100);  // Neutral hue, no saturation, full brightness
+    }
+    if (curCar.checkCollision(bounds[0].reverse()) || car.checkCollision(bounds[1])) {
+        curCar.color = color(255, 255, 255);
+    }
+    otherCars[id].color = curCar.color;
+
+
+    colorMode(RGB, 255);
+
+
+    // if not moving, increase idle time
+    if (curCar.velocity.mag() < 0.1) {
+        curCar.idleTime++;
+    } else {
+        curCar.idleTime = 0;
+    }
+    // if idle for 60 seconds, remove from game
+    if (curCar.idleTime > 60 * 60) {
+        delete otherCars[id];
+    }
+
 
     curCar.show();
 
@@ -308,6 +399,99 @@ function driftColor(driftScore, frameScore, score) {
         l: score / 10
     }
 }
+
+function drawPolylineShape(bounds, scale) {
+    // draw the track on the minimap
+    stroke(255, 100);
+    strokeWeight(1); // thin lines for the track
+    for (let j = 0; j < bounds.length; j++) {
+        for (let i = 0; i < bounds[j].length - 1; i++) {
+            let start = createVector(bounds[j][i][0] * scale, bounds[j][i][1] * scale);
+            let end = createVector(bounds[j][i + 1][0] * scale, bounds[j][i + 1][1] * scale);
+            line(start.x, start.y, end.x, end.y);
+        }
+    }
+    // draw the track on the minimap
+    beginShape();
+    let outerBoundary = bounds[0];
+    for (let i = 0; i < outerBoundary.length - 1; i++) {
+        let start = createVector(outerBoundary[i][0] * scale, outerBoundary[i][1] * scale);
+        vertex(start.x, start.y);
+    }
+    let innerBoundary = bounds[1];
+    let innerBoundaryReversed = innerBoundary.slice().reverse();
+    beginContour();
+    for (let i = 0; i < innerBoundaryReversed.length - 1; i++) {
+        let start = createVector(innerBoundaryReversed[i][0] * scale, innerBoundaryReversed[i][1] * scale);
+        vertex(start.x, start.y);
+    }
+    endContour();
+    fill(0, 0, 0, 90); // Set the fill color
+    endShape(CLOSE);
+}
+
+function drawMinimap() {
+    const minimapScale = 200 / Map.width; // adjust this value to change the size of the minimap
+    const minimapWidth = Map.width * minimapScale;
+    const minimapHeight = Map.height * minimapScale;
+
+    // draw the minimap background
+    fill(0, 0); // semi-transparent black
+    stroke(255); // white border
+    strokeWeight(0);
+    rect(minimapWidth / 2, minimapHeight / 2, minimapWidth, minimapHeight);
+    drawPolylineShape(bounds, minimapScale);
+
+    // draw the cars on the minimap
+    for (let id in otherCars) {
+        let curCar = otherCars[id];
+        let x = curCar.pos.x * minimapScale;
+        let y = curCar.pos.y * minimapScale;
+
+        // draw the car as a small rectangle
+        stroke(0); // black border
+        strokeWeight(0);
+        push();
+        translate(x, y);
+        rotate(curCar.angle);
+        // colorMode(HSB, 100);  // Set the color mode to HSB before setting the fill color
+        // console.log(c);
+        fill(red(curCar.color), green(curCar.color), blue(curCar.color));
+
+        // fill(c[0], c[1], c[2]); // Set the fill color using the color levels
+        // colorMode(RGB, 255);  // Reset the color mode to RGB after setting the fill color
+        rect(0, 0, curCar.width * minimapScale * 2.5, curCar.length * minimapScale * 2.5);
+        pop();
+    }
+}
+
+function scaleTo(bounds, width, height) {
+    // Find current bounds
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let array of bounds) {
+        for (let point of array) {
+            minX = Math.min(minX, point[0]);
+            minY = Math.min(minY, point[1]);
+            maxX = Math.max(maxX, point[0]);
+            maxY = Math.max(maxY, point[1]);
+        }
+    }
+
+    // Calculate scale factors
+    let scaleX = width / (maxX - minX);
+    let scaleY = height / (maxY - minY);
+
+    // Scale bounds
+    return bounds.map(array => {
+        return array.map(point => {
+            return [
+                (point[0] - minX) * scaleX,
+                (point[1] - minY) * scaleY
+            ];
+        });
+    });
+}
+
 
 // Prevent arrow-keys and spacebar from scrolling the page.
 window.addEventListener(

@@ -19,12 +19,12 @@ class Car {
         this.mass = 13;                 // mass
         this.width = 18;                 // width of body (for animation)
         this.length = 30;                 // length of body (for animation)
-        this.force = 0.08;               // Acceleration / braking force
+        this.force = 0.09;               // Acceleration / braking force
         this.isDrifting = false;     // Drift state
 
         // Colour variable - in an example the car colour changes when it loses
         // traction
-        this.col = color(255, 255, 255);
+        this.color = color(255, 255, 255);
         this.id = "";
         this.trail = [];
         this.trailCounter = 0;
@@ -74,7 +74,7 @@ class Car {
         stroke(3)
 
         strokeWeight(this.isDrifting ? 3 : 2);
-        fill(this.col);
+        fill(this.color);
         rect(0, 0, this.width, this.length); // Car body
         rect(0, this.length / 2, this.width - 2, 6);  // Indicate front side
 
@@ -160,8 +160,7 @@ class Car {
 
     }
 
-    interpolate() {
-
+    interpolatePosition() {
         if (this.targetPosition) {
             let distance = dist(this.pos.x, this.pos.y, this.targetPosition.x, this.targetPosition.y);
             // if difference is too large, just teleport

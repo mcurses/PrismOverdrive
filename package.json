@@ -15,5 +15,8 @@
     "pbjs": "^0.0.14",
     "protobufjs": "^7.2.3",
     "socket.io": "^4.6.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.4"
   }
 }
