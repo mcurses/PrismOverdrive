@@ -22,7 +22,7 @@ export class Vector {
     div(n: number) {
         this.x /= n;
         this.y /= n;
-        // return new Vector(this.x / n, this.y / n);
+        return new Vector(this.x / n, this.y / n);
     }
 
     mag() {
@@ -70,4 +70,35 @@ export interface Coordinates {
 export interface Dimensions {
     width: number;
     height: number;
+}
+
+export function lerp(start: number, end: number, amt: number) {
+    return start + (end - start) * amt;
+}
+
+export function mapValues(value: number, start1: number, stop1: number, start2: number, stop2: number): number {
+    return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
+}
+export class HSLColor {
+    h: number;
+    s: number;
+    b: number;
+    a: number;
+
+    constructor(h: number, s: number, b: number, a: number = 1) {
+        this.h = h;
+        this.s = s;
+        this.b = b;
+        this.a = a;
+    }
+    toCSS() {
+        return `hsla(${this.h},${this.s}%,${this.b}%,${this.a})`;
+    }
+    toCSSWithAlpha(alpha: number) {
+        return `hsla(${this.h},${this.s}%,${this.b}%,${alpha})`;
+    }
+}
+
+export function constrain(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
 }

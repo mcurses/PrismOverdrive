@@ -1,5 +1,26 @@
 import p5 from "p5";
-import {Vector, Dimensions, Coordinates} from "./Utils"
+import {Vector, Dimensions, Coordinates, HSLColor, constrain} from "./Utils"
+
+let keys = {
+    'ArrowUp': false,
+    'ArrowDown': false,
+    'ArrowLeft': false,
+    'ArrowRight': false
+};
+
+// Listen for keydown event and update the state of the corresponding key
+window.addEventListener('keydown', (e) => {
+    if (keys.hasOwnProperty(e.key)) {
+        keys[e.key] = true;
+    }
+});
+
+// Listen for keyup event and update the state of the corresponding key
+window.addEventListener('keyup', (e) => {
+    if (keys.hasOwnProperty(e.key)) {
+        keys[e.key] = false;
+    }
+});
 
 class Car {
     turnRateStatic: number;
@@ -17,7 +38,7 @@ class Car {
     length: number;
     force: number;
     isDrifting: boolean;
-    color: p5.Color;
+    color: HSLColor;
     id: string;
     trail: any[];
     trailCounter: number;
@@ -46,7 +67,7 @@ class Car {
         this.length = 30;
         this.force = 0.09;
         this.isDrifting = false;
-        this.color = p5.color('rgb(255, 255, 255)');
+        this.color = new HSLColor(0, 100, 50);
         this.id = "";
         this.trail = [];
         this.trailCounter = 0;
@@ -62,8 +83,8 @@ class Car {
     /*******************************************************************************
      *  Safely read car variables
      ******************************************************************************/
-    getPos(): { x: number, y: number, z: number } {
-        return {x: this.pos.x, y: this.pos.y, z: this.pos.z}
+    getPos(): Coordinates {
+        return {x: this.pos.x, y: this.pos.y}
     }
 
     isDrift(): boolean {
@@ -87,50 +108,53 @@ class Car {
     }
 
 
-    show() {
-        p5.rectMode(CENTER);
-        // Centre on the car, rotate
-        p5.push();
-        p5.translate(this.pos.x, this.pos.y);
-        p5.rotate(this.angle);
-        p5.stroke(3)
+    show(ctx) {
+        // Save the current context
+        ctx.save();
 
-        p5.strokeWeight(this.isDrifting ? 3 : 2);
-        p5.fill(this.color);
-        p5.rect(0, 0, this.width, this.length); // Car body
-        p5.rect(0, this.length / 2, this.width - 2, 6);  // Indicate front side
+        // Translate and rotate the context
+        ctx.translate(this.pos.x, this.pos.y);
+        ctx.rotate(this.angle);
 
-        // show score
-        // fill(0);
-        // textSize(10);
-        // text(~~this.score, 0, 0);
+        // Set stroke and fill styles
+        ctx.lineWidth = this.isDrifting ? 3 : 2;
+        ctx.fillStyle = this.color;
+        ctx.strokeStyle = '#000';  // Assuming the stroke color to be black
 
-        p5.pop();
+        // Draw the car body and front side indicator
+        ctx.fillRect(-this.width / 2, -this.length / 2, this.width, this.length);
+        ctx.strokeRect(-this.width / 2, -this.length / 2, this.width, this.length);
+
+        ctx.fillRect(-this.width / 2 + 1, 0, this.width - 2, 6);
+        ctx.strokeRect(-this.width / 2 + 1, 0, this.width - 2, 6);
+
+        // Restore the context to its original state
+        ctx.restore();
     }
 
     update() {
         // Add input forces
-
-        if (p5.keyIsPressed) {
+        if (keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
             // ACCELERATING (BODY-FIXED to WORLD)
-            if (p5.keyIsDown(p5.UP_ARROW)) {
+            if (keys['ArrowUp']) {
                 let bodyAcc = new Vector(0, this.force);
                 let worldAcc = this.vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
             // BRAKING (BODY-FIXED TO WORLD)
-            if (p5.keyIsDown(p5.DOWN_ARROW)) {
+            if (keys['ArrowDown']) {
                 let bodyAcc = new Vector(0, -this.force);
                 let worldAcc = this.vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
-            if (p5.keyIsDown(p5.LEFT_ARROW)) {
+            if (keys['ArrowLeft']) {
                 this.angle -= this.turnRate;
             }
-            if (p5.keyIsDown(p5.RIGHT_ARROW)) {
+            if (keys['ArrowRight']) {
                 this.angle += this.turnRate;
             }
         }
+
 
         // Car steering and drifting physics
 
@@ -174,8 +198,8 @@ class Car {
 
         // Reset the score if not drifting for 3 seconds
         if (this.isDrifting) {
-            this.lastDriftTime = p5.millis();
-        } else if (this.lastDriftTime !== null && p5.millis() - this.lastDriftTime > 3000) {
+            this.lastDriftTime = Date.now();
+        } else if (this.lastDriftTime !== null && Date.now() - this.lastDriftTime > 3000) {
             this.resetScore();
         } else {
             this.driftScore = 0;
@@ -318,7 +342,7 @@ class Car {
 
         let dot = startToPoint.dot(startToEndNormalized);
 
-        dot = p5.constrain(dot, 0, magnitude);
+        dot = constrain(dot, 0, magnitude);
 
         return Vector.add(start, startToEndNormalized.mult(dot));
     }
