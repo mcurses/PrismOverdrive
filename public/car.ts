@@ -1,36 +1,57 @@
+import p5 from "p5";
+import {Vector, Dimensions, Coordinates} from "./Utils"
+
 class Car {
-    constructor(x = width / 2, y = height / 2, angle = 0) {
+    turnRateStatic: number;
+    turnRateDynamic: number;
+    turnRate: number;
+    gripStatic: number;
+    gripDynamic: number;
+    DRIFT_CONSTANT: number;
+    pos: Vector;
+    velocity: Vector;
+    acceleration: Vector;
+    angle: number;
+    mass: number;
+    width: number;
+    length: number;
+    force: number;
+    isDrifting: boolean;
+    color: p5.Color;
+    id: string;
+    trail: any[];
+    trailCounter: number;
+    targetPosition: Vector | null;
+    targetAngle: number | null;
+    score: number;
+    frameScore: number;
+    lastDriftTime: number;
+    driftScore: number;
+    idleTime: number;
 
-        // Turning parameters. Tune these as you see fit.
-        this.turnRateStatic =
-            0.06; // The normal turning-rate (static friction => not sliding)
-        this.turnRateDynamic = 0.05;         // The turning-rate when drifting
-        this.turnRate = this.turnRateStatic; // initialise turn-rate
-        this.gripStatic = .8;                 // sliding friction while gripping
-        this.gripDynamic = 0.1;              // sliding friction while drifting
-        this.DRIFT_CONSTANT = 1.7; // sets the x-velocity threshold for no-drift <=>
-        // drift. Lower = drift sooner
 
-        // Physical properties
-        this.pos = createVector(x, y); // displacement (position)
-        this.velocity = createVector(0, 0); // velocity (world-referenced)
-        this.acceleration = createVector(0, 0); // acceleration (world-referenced)
-        this.angle = angle;          // heading - the direction the car faces
-        this.mass = 13;                 // mass
-        this.width = 18;                 // width of body (for animation)
-        this.length = 30;                 // length of body (for animation)
-        this.force = 0.09;               // Acceleration / braking force
-        this.isDrifting = false;     // Drift state
-
-        // Colour variable - in an example the car colour changes when it loses
-        // traction
-        this.color = color(255, 255, 255);
+    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0) {
+        this.turnRateStatic = 0.06;
+        this.turnRateDynamic = 0.05;
+        this.turnRate = this.turnRateStatic;
+        this.gripStatic = .8;
+        this.gripDynamic = 0.1;
+        this.DRIFT_CONSTANT = 1.7;
+        this.pos = new Vector(posX, posY);
+        this.velocity = new Vector(0, 0);
+        this.acceleration = new Vector(0, 0);
+        this.angle = angle;
+        this.mass = 13;
+        this.width = 18;
+        this.length = 30;
+        this.force = 0.09;
+        this.isDrifting = false;
+        this.color = p5.color('rgb(255, 255, 255)');
         this.id = "";
         this.trail = [];
         this.trailCounter = 0;
         this.targetPosition = null;
         this.targetAngle = null;
-
         this.score = 0;
         this.frameScore = 0;
         this.lastDriftTime = 0;
@@ -41,23 +62,23 @@ class Car {
     /*******************************************************************************
      *  Safely read car variables
      ******************************************************************************/
-    getPos() {
+    getPos(): { x: number, y: number, z: number } {
         return {x: this.pos.x, y: this.pos.y, z: this.pos.z}
     }
 
-    isDrift() {
+    isDrift(): boolean {
         return this.isDrifting;
     }
 
-    getAngle() {
+    getAngle(): number {
         return this.angle;
     }
 
-    setAngle(angle) {
+    setAngle(angle: number) {
         this.angle = angle;
     }
 
-    setTrail(trail) {
+    setTrail(trail: any[]) {
         this.trail = trail;
     }
 
@@ -65,46 +86,48 @@ class Car {
         return this.trail;
     }
 
-    show() {
-        rectMode(CENTER);
-        // Centre on the car, rotate
-        push();
-        translate(this.pos.x, this.pos.y);
-        rotate(this.angle);
-        stroke(3)
 
-        strokeWeight(this.isDrifting ? 3 : 2);
-        fill(this.color);
-        rect(0, 0, this.width, this.length); // Car body
-        rect(0, this.length / 2, this.width - 2, 6);  // Indicate front side
+    show() {
+        p5.rectMode(CENTER);
+        // Centre on the car, rotate
+        p5.push();
+        p5.translate(this.pos.x, this.pos.y);
+        p5.rotate(this.angle);
+        p5.stroke(3)
+
+        p5.strokeWeight(this.isDrifting ? 3 : 2);
+        p5.fill(this.color);
+        p5.rect(0, 0, this.width, this.length); // Car body
+        p5.rect(0, this.length / 2, this.width - 2, 6);  // Indicate front side
 
         // show score
         // fill(0);
         // textSize(10);
         // text(~~this.score, 0, 0);
 
-        pop();
+        p5.pop();
     }
 
     update() {
         // Add input forces
-        if (keyIsPressed) {
+
+        if (p5.keyIsPressed) {
             // ACCELERATING (BODY-FIXED to WORLD)
-            if (keyIsDown(UP_ARROW)) {
-                let bodyAcc = createVector(0, this.force);
+            if (p5.keyIsDown(p5.UP_ARROW)) {
+                let bodyAcc = new Vector(0, this.force);
                 let worldAcc = this.vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
             // BRAKING (BODY-FIXED TO WORLD)
-            if (keyIsDown(DOWN_ARROW)) {
-                let bodyAcc = createVector(0, -this.force);
+            if (p5.keyIsDown(p5.DOWN_ARROW)) {
+                let bodyAcc = new Vector(0, -this.force);
                 let worldAcc = this.vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
-            if (keyIsDown(LEFT_ARROW)) {
+            if (p5.keyIsDown(p5.LEFT_ARROW)) {
                 this.angle -= this.turnRate;
             }
-            if (keyIsDown(RIGHT_ARROW)) {
+            if (p5.keyIsDown(p5.RIGHT_ARROW)) {
                 this.angle += this.turnRate;
             }
         }
@@ -117,7 +140,7 @@ class Car {
 
         let bodyFixedDrag;
         let grip;
-        if (abs(vB.x) < this.DRIFT_CONSTANT) {
+        if (Math.abs(vB.x) < this.DRIFT_CONSTANT) {
             // Gripping
             grip = this.gripStatic
             this.turnRate = this.turnRateStatic;
@@ -128,7 +151,7 @@ class Car {
             this.turnRate = this.turnRateDynamic;
             this.isDrifting = true;
         }
-        bodyFixedDrag = createVector(vB.x * -grip, vB.y * 0.05);
+        bodyFixedDrag = new Vector(vB.x * -grip, vB.y * 0.05);
 
         // Rotate body fixed forces into world fixed and add to acceleration
         let worldFixedDrag =
@@ -137,10 +160,10 @@ class Car {
             worldFixedDrag.div(this.mass)); // Include inertia
 
         // Physics Engine
-        this.angle = this.angle % TWO_PI; // Restrict angle to one revolution
+        this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
         this.velocity.add(this.acceleration);
         this.pos.add(this.velocity);
-        this.acceleration = createVector(0, 0); // Reset acceleration for next frame
+        this.acceleration = new Vector(0, 0); // Reset acceleration for next frame
 
 
         // Update the score
@@ -151,8 +174,8 @@ class Car {
 
         // Reset the score if not drifting for 3 seconds
         if (this.isDrifting) {
-            this.lastDriftTime = millis();
-        } else if (this.lastDriftTime !== null && millis() - this.lastDriftTime > 3000) {
+            this.lastDriftTime = p5.millis();
+        } else if (this.lastDriftTime !== null && p5.millis() - this.lastDriftTime > 3000) {
             this.resetScore();
         } else {
             this.driftScore = 0;
@@ -162,14 +185,14 @@ class Car {
 
     interpolatePosition() {
         if (this.targetPosition) {
-            let distance = dist(this.pos.x, this.pos.y, this.targetPosition.x, this.targetPosition.y);
+            let distance = Vector.dist(this.pos, this.targetPosition);
             // if difference is too large, just teleport
             if (distance > 500) {
-                this.pos = createVector(this.targetPosition.x, this.targetPosition.y);
+                this.pos = new Vector(this.targetPosition.x, this.targetPosition.y);
                 this.targetPosition = null;
             } else {
-                let targetPos = createVector(this.targetPosition.x, this.targetPosition.y);
-                this.pos = p5.Vector.lerp(this.pos, targetPos, 0.1);
+                let targetPos = new Vector(this.targetPosition.x, this.targetPosition.y);
+                this.pos = Vector.lerp(this.pos, targetPos, 0.1);
             }
             if (distance < 1) {
                 this.targetPosition = null;
@@ -194,29 +217,29 @@ class Car {
         }
     }
 
-    calculateScore(velocity, angle) {
+    calculateScore(velocity: Vector, angle: number): number {
         let score = 0;
         let angleDifference = this.getAngleDifference(angle, velocity);
 
         // Calculate the score based on the angle difference and the velocity
-        score = (1 - sin(angleDifference)) * velocity.mag();
+        score = (1 - Math.sin(angleDifference)) * velocity.mag();
 
         return score;
     }
 
-    getAngleDifference(angle, velocity) {
+    getAngleDifference(angle: number, velocity: Vector) {
         // Create a vector representing the car's direction
-        let carDirection = createVector(cos(angle), sin(angle));
+        let carDirection = new Vector(Math.cos(angle), Math.sin(angle));
 
         // Normalize the vectors
         let vNormalized = velocity.copy().normalize();
-        let carDirectionNormalized = carDirection.copy().normalize();
+        let carDirectionNormalized = carDirection.normalize()
 
         // Calculate the dot product of the vectors
         let dotProduct = vNormalized.dot(carDirectionNormalized);
 
         // return the angle between the vectors
-        return acos(dotProduct);
+        return Math.acos(dotProduct);
     }
 
     resetScore() {
@@ -229,47 +252,47 @@ class Car {
      ******************************************************************************/
 
     // Body to world rotation
-    vectBodyToWorld(vect, ang) {
+    vectBodyToWorld(vect: Vector, ang: number) {
         let v = vect.copy();
-        let vn = createVector(v.x * cos(ang) - v.y * sin(ang),
-            v.x * sin(ang) + v.y * cos(ang));
+        let vn = new Vector(v.x * Math.cos(ang) - v.y * Math.sin(ang),
+            v.x * Math.sin(ang) + v.y * Math.cos(ang));
         return vn;
     }
 
     // World to body rotation
-    vectWorldToBody(vect, ang) {
+    vectWorldToBody(vect: Vector, ang: number) {
         let v = vect.copy();
-        let vn = createVector(v.x * cos(ang) + v.y * sin(ang),
-            v.x * sin(ang) - v.y * cos(ang));
+        let vn = new Vector(v.x * Math.cos(ang) + v.y * Math.sin(ang),
+            v.x * Math.sin(ang) - v.y * Math.cos(ang));
         return vn;
     }
 
-    setPosition(position) {
+    setPosition(position: Vector) {
         this.pos = position;
     }
 
-    setDrift(drifting) {
+    setDrift(drifting: boolean) {
         this.isDrifting = drifting;
     }
 
     // Add a new method for collision detection
 
-    checkCollision(boundaries) {
+    checkCollision(boundaries: number[][]) {
         // Iterate over each boundary line
         for (let i = 0; i < boundaries.length - 1; i++) {
-            let start = createVector(boundaries[i][0], boundaries[i][1]);
-            let end = createVector(boundaries[i + 1][0], boundaries[i + 1][1]);
+            let start = new Vector(boundaries[i][0], boundaries[i][1]);
+            let end = new Vector(boundaries[i + 1][0], boundaries[i + 1][1]);
             let carPos = this.pos;
 
             // Calculate the distance from the car to the boundary line
-            let lineDist = p5.Vector.dist(carPos, this.closestPointOnLine(start, end, carPos));
+            let lineDist = Vector.dist(carPos, this.closestPointOnLine(start, end, carPos));
 
             // Check if the distance is less than the car's size (assuming the car is a circle with diameter of car.l)
             if (lineDist < this.length / 2) {
                 // Calculate the normal vector
-                let boundaryVector = p5.Vector.sub(end, start);
-                let normalVector = createVector(-boundaryVector.y, boundaryVector.x);
-                normalVector.normalize();
+                let boundaryVector = Vector.sub(end, start);
+                let normalVector = new Vector(-boundaryVector.y, boundaryVector.x);
+                normalVector = normalVector.normalize();
 
                 // Push the car back
                 let pushBack = normalVector.mult((this.length / 2 - lineDist) * .5);
@@ -286,17 +309,19 @@ class Car {
     }
 
     // Helper method to find the closest point on a line to a given point
-    closestPointOnLine(start, end, point) {
-        let startToEnd = p5.Vector.sub(end, start);
-        let startToPoint = p5.Vector.sub(point, start);
+    closestPointOnLine(start: Vector, end: Vector, point: Vector): Vector {
+        let startToEnd = Vector.sub(end, start);
+        let startToPoint = Vector.sub(point, start);
 
         let magnitude = startToEnd.mag();
         let startToEndNormalized = startToEnd.normalize();
 
         let dot = startToPoint.dot(startToEndNormalized);
 
-        dot = constrain(dot, 0, magnitude);
+        dot = p5.constrain(dot, 0, magnitude);
 
-        return p5.Vector.add(start, startToEndNormalized.mult(dot));
+        return Vector.add(start, startToEndNormalized.mult(dot));
     }
 }
+
+export default Car;
