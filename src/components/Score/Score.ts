@@ -1,7 +1,7 @@
 // Update the score
 import Vector from "../../utils/Vector";
 
-export default class Score {
+class Score {
 
     totalScore: number;
     driftScore: number;
@@ -13,17 +13,21 @@ export default class Score {
         this.driftScore = 0;
     }
 
-    calculateScore(velocity: Vector, angle: number): number {
-        let score = 0;
+    update(velocity: Vector, angle: number  ){
         let angleDifference = Vector.angleVectorDifference(angle, velocity);
 
         // Calculate the score based on the angle difference and the velocity
-        score = (1 - Math.sin(angleDifference)) * velocity.mag();
+        this.frameScore = (1 - Math.sin(angleDifference)) * velocity.mag();
+        this.driftScore += this.frameScore;
 
-        return score;
     }
 
+    endDrift() {
+        this.totalScore += this.driftScore;
+        this.driftScore = 0;
+    }
     resetScore() {
         this.totalScore = 0;
     }
 }
+export default Score;

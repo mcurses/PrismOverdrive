@@ -30,7 +30,6 @@ class Car {
     targetPosition: Vector | null;
     targetAngle: number | null;
     score: Score;
-    frameScore: number;
     lastDriftTime: number;
     driftScore: number;
     idleTime: number;
@@ -60,7 +59,6 @@ class Car {
         this.targetPosition = null;
         this.targetAngle = null;
         this.score = new Score();
-        this.frameScore = 0;
         this.lastDriftTime = 0;
         this.driftScore = 0;
         this.idleTime = 0;
@@ -216,7 +214,7 @@ class Car {
 
         // Set color
         if (curCar.isDrift()) {
-            let carColor = driftColor(curCar.driftScore, curCar.frameScore, curCar.score.totalScore);
+            let carColor = driftColor(curCar.driftScore, curCar.score.frameScore, curCar.score.totalScore);
             // curCar.color = p5.color(carColor.h, carColor.s + 20, 80)
             curCar.color = new HSLColor(carColor.h, carColor.s + 20, 80);
         } else {

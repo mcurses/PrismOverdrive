@@ -1,4 +1,4 @@
-export default class Vector {
+class Vector {
     x: number;
     y: number;
 
@@ -10,7 +10,7 @@ export default class Vector {
     add(v: Vector) {
         this.x += v.x;
         this.y += v.y;
-        return new Vector(this.x + v.x, this.y + v.y);
+        return this;
     }
 
     sub(v: Vector) {
@@ -24,11 +24,15 @@ export default class Vector {
     div(n: number) {
         this.x /= n;
         this.y /= n;
-        return new Vector(this.x / n, this.y / n);
+        return this;
     }
 
     mag() {
         return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    distanceTo(v: Vector) {
+        return Math.sqrt(Math.pow(this.x - v.x, 2) + Math.pow(this.y - v.y, 2));
     }
 
     static dist(v1: Vector, v2: Vector) {
@@ -84,3 +88,5 @@ export default class Vector {
         return new Vector(start.x + mult.x, start.y + mult.y);
     }
 }
+
+export default Vector;

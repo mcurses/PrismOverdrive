@@ -8,7 +8,7 @@ interface WallHit {
     wallStart: Vector;
     wallEnd: Vector;
 }
-export default class Track {
+class Track {
     boundaries: number[][][];
     mapSize: Dimensions
 
@@ -50,7 +50,7 @@ export default class Track {
         return null
     }
 
-    drawTrack(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D) {
         // Set the style for the track
         ctx.fillStyle = 'rgb(160,160,160)'; // Change this to the color of your track
         ctx.strokeStyle = 'rgb(255,255,255)'; // Change this to the color of your track's border
@@ -76,3 +76,5 @@ export default class Track {
         return Vector.add(start, startToEndNormalized.mult(dot));
     }
 }
+
+export default Track;
