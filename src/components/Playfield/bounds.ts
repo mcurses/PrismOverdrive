@@ -1,3 +1,5 @@
+import {Dimensions} from "../../utils/Utils";
+
 export const bounds1 = [
     [
         [2341.76, 1155.5],
@@ -871,7 +873,7 @@ export const bounds3 = [
     ]
 ]
 
-export function scaleTo(bounds: number[][][], width: number, height: number) {
+export function scaleTo(bounds: number[][][], size: Dimensions) {
     // Find current bounds
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (let array of bounds) {
@@ -884,8 +886,8 @@ export function scaleTo(bounds: number[][][], width: number, height: number) {
     }
 
     // Calculate scale factors
-    let scaleX = width / (maxX - minX);
-    let scaleY = height / (maxY - minY);
+    let scaleX = size.width / (maxX - minX);
+    let scaleY = size.height / (maxY - minY);
 
     // Scale bounds
     return bounds.map(array => {

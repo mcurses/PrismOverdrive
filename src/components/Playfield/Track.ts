@@ -33,7 +33,7 @@ class Track {
                 if (lineDist < car.length / 2) {
                     // Calculate the normal vector
                     let boundaryVector = Vector.sub(end, start);
-                    let normalVector = new Vector(-boundaryVector.y, boundaryVector.x);
+                    let normalVector = new Vector(-boundaryVector.y, boundaryVector.x).mult(side === 0 ? -1 : 1);
                     normalVector = normalVector.normalize();
 
                     return {

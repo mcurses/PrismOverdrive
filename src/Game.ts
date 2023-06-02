@@ -27,6 +27,7 @@ class Game {
     miniMap: MiniMap;
     serverConnection: ServerConnection
 
+    lastTimestamp: number = 0;
 
     constructor() {
         this.canvasSize = {
@@ -74,18 +75,23 @@ class Game {
             (id, player) => this.updatePlayer(id, player),
             (id) => this.removePlayer(id));
         this.serverConnection.connect();
+        let bounds = bounds2
+        bounds = scaleTo(bounds, this.MapSize);
 
-        this.track = new Track(this.canvasSize, bounds2)
+        this.track = new Track(this.canvasSize, bounds)
         this.camera = new Camera({canvasSize: this.canvasSize, mapSize: this.track.mapSize});
         this.inputController = new InputController(InputType.KEYBOARD);
         this.miniMap = new MiniMap({track: this.track, maxWidth: 50});
 
 
-        this.gameLoop();
+        requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
     }
 
 
-    gameLoop() {
+    gameLoop(timestamp) {
+        const deltaTime = timestamp - this.lastTimestamp;
+        this.lastTimestamp = timestamp;
+
         if (this.serverConnection.socketId) {
             if (!this.players[this.serverConnection.socketId]) {
                 this.updatePlayer(this.serverConnection.socketId,
@@ -97,13 +103,13 @@ class Game {
             }
         } else {
             console.log("Waiting for server connection")
-            requestAnimationFrame(() => this.gameLoop());
+            requestAnimationFrame((time) => this.gameLoop(time));
         }
 
         if (!this.players || !this.players[this.serverConnection.socketId] || !this.serverConnection.connected) {
             console.log(this.players)
             console.log(this.serverConnection.socketId)
-            requestAnimationFrame(() => this.gameLoop());
+            requestAnimationFrame((time) => this.gameLoop(time));
             return
         }
         let player = this.players[this.serverConnection.socketId];
@@ -122,14 +128,16 @@ class Game {
         this.ctx.translate(camPos.x, camPos.y);
         this.track.draw(this.ctx);
 
-        player.car.update(this.inputController.getKeys());
+        player.car.update(this.inputController.getKeys(), deltaTime);
+        console.log(player.car.isDrifting)
         player.score.update(player.car.velocity, player.car.angle);
 
         // Check for collisions
         let wallHit = this.track.getWallHit(player.car);
         if (wallHit !== null) {
             // Push the car back
-            let pushBack = wallHit.normalVector.mult((player.car.length / 2 - wallHit.distance) * .5);
+            let pushBack = wallHit.normalVector.mult(Math.abs(player.car.length / 2 - wallHit.distance) * .04);
+
             player.car.pos.add(pushBack);
             player.car.velocity.mult(0.95);
             player.car.velocity.add(pushBack);
@@ -177,12 +185,13 @@ class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
         this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
 
-        requestAnimationFrame(() => this.gameLoop());
+        requestAnimationFrame((time) => this.gameLoop(time));
 
     }
 
 
     private updatePlayer(id: string, player: Player) {
+        console.log("Update player", id, player)
         if (this.players[id]) {
             this.players[id].handleServerUpdate(player);
         } else {

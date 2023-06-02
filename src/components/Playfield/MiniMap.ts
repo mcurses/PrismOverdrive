@@ -36,15 +36,22 @@ export default class MiniMap {
             ctx.strokeStyle = 'rgb(0,0,0)'; // black border
             ctx.lineWidth = 1;
 
+
             // Save the current state of the canvas
             ctx.save();
             ctx.translate(x, y);
+
+            // Translate to the center of the car
+            ctx.translate(curCar.width * minimapScale * 1.25, curCar.length * minimapScale * 1.25);
+
             ctx.rotate(curCar.angle);
 
             // Convert the car's color value from p5 to the canvas API
             ctx.fillStyle = curCar.color.toCSS()
 
-            ctx.fillRect(0, 0, curCar.width * minimapScale * 2.5, curCar.length * minimapScale * 2.5);
+            // Draw the car, moving it back by half its width and height
+            ctx.fillRect(-curCar.width * minimapScale * 1.25, -curCar.length * minimapScale * 1.25,
+                curCar.width * minimapScale * 2.5, curCar.length * minimapScale * 2.5);
 
             // Restore the saved state of the canvas
             ctx.restore();

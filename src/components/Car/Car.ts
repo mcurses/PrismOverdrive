@@ -35,20 +35,21 @@ class Car {
 
 
     constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0) {
-        this.turnRateStatic = 0.06;
-        this.turnRateDynamic = 0.05;
+        let turnFactor = 0.5;
+        this.turnRateStatic = 0.008 * turnFactor
+        this.turnRateDynamic = 0.003 * turnFactor
         this.turnRate = this.turnRateStatic;
-        this.gripStatic = 18;
-        this.gripDynamic = 4;
+        this.gripStatic = .2;
+        this.gripDynamic = .1;
         this.DRIFT_CONSTANT = 1.7;
         this.pos = new Vector(posX, posY);
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
         this.angle = angle;
-        this.mass = 13;
+        this.mass = 22;
         this.width = 18;
         this.length = 30;
-        this.force = 0.09;
+        this.force = 0.005;
         this.isDrifting = false;
         this.color = new HSLColor(0, 100, 50);
         this.id = "";
@@ -96,7 +97,7 @@ class Car {
     }
 
 
-    update(keys) {
+    update(keys, deltaTime) {
         // Add input forces
         if (keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
             // ACCELERATING (BODY-FIXED to WORLD)
@@ -112,10 +113,10 @@ class Car {
                 this.acceleration.add(worldAcc);
             }
             if (keys['ArrowLeft']) {
-                this.angle -= this.turnRate;
+                this.angle -= this.turnRate * deltaTime;
             }
             if (keys['ArrowRight']) {
-                this.angle += this.turnRate;
+                this.angle += this.turnRate * deltaTime;
             }
         }
 
@@ -151,7 +152,7 @@ class Car {
         // Physics Engine
         this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
         this.velocity.add(this.acceleration);
-        this.pos.add(this.velocity);
+        this.pos.add(this.velocity.mult(deltaTime));
         this.acceleration = new Vector(0, 0); // Reset acceleration for next frame
 
 
