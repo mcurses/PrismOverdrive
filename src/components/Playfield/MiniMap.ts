@@ -10,10 +10,12 @@ export default class MiniMap {
     constructor(props: { track: Track, maxWidth: number }) {
         this.track = props.track;
         this.maxWidth = props.maxWidth;
+        const minimapScale = this.maxWidth / props.track.mapSize.width; // adjust this value to change the size of the minimap
+        console.log("minimapScale", minimapScale)
     }
 
     draw(ctx: CanvasRenderingContext2D, track: Track, cars: Car[]) {
-        const minimapScale = 200 / track.mapSize.width; // adjust this value to change the size of the minimap
+        const minimapScale = this.maxWidth / track.mapSize.width; // adjust this value to change the size of the minimap
         const minimapWidth = track.mapSize.width * minimapScale;
         const minimapHeight = track.mapSize.height * minimapScale;
 

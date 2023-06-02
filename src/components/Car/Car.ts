@@ -29,9 +29,7 @@ class Car {
     trailCounter: number;
     targetPosition: Vector | null;
     targetAngle: number | null;
-    score: Score;
     lastDriftTime: number;
-    driftScore: number;
     idleTime: number;
     isColliding: boolean;
 
@@ -58,9 +56,7 @@ class Car {
         this.trailCounter = 0;
         this.targetPosition = null;
         this.targetAngle = null;
-        this.score = new Score();
         this.lastDriftTime = 0;
-        this.driftScore = 0;
         this.idleTime = 0;
     }
 
@@ -159,14 +155,6 @@ class Car {
         this.acceleration = new Vector(0, 0); // Reset acceleration for next frame
 
 
-        // Reset the score if not drifting for 3 seconds
-        if (this.isDrifting) {
-            this.lastDriftTime = Date.now();
-        } else if (this.lastDriftTime !== null && Date.now() - this.lastDriftTime > 3000) {
-            this.score.resetScore();
-        } else {
-            this.driftScore = 0;
-        }
 
     }
 
@@ -213,20 +201,12 @@ class Car {
         curCar.interpolatePosition();
 
         // Set color
-        if (curCar.isDrift()) {
-            let carColor = driftColor(curCar.driftScore, curCar.score.frameScore, curCar.score.totalScore);
-            // curCar.color = p5.color(carColor.h, carColor.s + 20, 80)
-            curCar.color = new HSLColor(carColor.h, carColor.s + 20, 80);
-        } else {
-            // curCar.color = p5.color(0, 0, 100);  // Neutral hue, no saturation, full brightness
+        if (!curCar.isDrift()) {
             curCar.color = new HSLColor(0, 0, 100);
-
         }
         if (curCar.isColliding) {
             curCar.color = new HSLColor(255, 255, 255);
         }
-
-
 
         // Save the current context
         ctx.save();

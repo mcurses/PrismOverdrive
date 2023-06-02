@@ -7,7 +7,7 @@ class Score {
     driftScore: number;
     frameScore: number;
 
-    constructor() {
+    constructor(frameScore = 0, totalScore = 0, driftScore = 0) {
         this.frameScore = 0;
         this.totalScore = 0;
         this.driftScore = 0;

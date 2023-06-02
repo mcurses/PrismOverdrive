@@ -7,6 +7,8 @@ import Track from "./components/Playfield/Track";
 import MiniMap from "./components/Playfield/MiniMap";
 import Camera from "./components/Camera/Camera";
 import Player from "./components/Player/Player";
+import ServerConnection from "./components/ServerConnection/ServerConnection";
+import Score from "./components/Score/Score";
 
 
 class Game {
@@ -15,9 +17,7 @@ class Game {
     MapSize: Dimensions;
     layer1: HTMLImageElement;
     layer2: HTMLImageElement;
-    socket: socketio.Socket;
-    players: { [key: string]: Player };
-    playerId: string;
+    players: { [key: string]: Player } = {};
     car: Car;
     ctx: CanvasRenderingContext2D;
     canvas: HTMLCanvasElement;
@@ -25,6 +25,7 @@ class Game {
     track: Track;
     camera: Camera;
     miniMap: MiniMap;
+    serverConnection: ServerConnection
 
 
     constructor() {
@@ -69,27 +70,47 @@ class Game {
         document.getElementById('sketch-holder').appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        this.serverConnection = new ServerConnection(
+            (id, player) => this.updatePlayer(id, player),
+            (id) => this.removePlayer(id));
+        this.serverConnection.connect();
+
         this.track = new Track(this.canvasSize, bounds2)
         this.camera = new Camera({canvasSize: this.canvasSize, mapSize: this.track.mapSize});
         this.inputController = new InputController(InputType.KEYBOARD);
-        this.miniMap = new MiniMap({track: this.track, maxWidth: 200});
+        this.miniMap = new MiniMap({track: this.track, maxWidth: 50});
 
 
         this.gameLoop();
     }
 
 
-    function
-
     gameLoop() {
-        let playerCar = this.players[this.playerId].car;
-        if (!playerCar) {
-            console.log("No player car")
-            requestAnimationFrame(this.gameLoop);
-            return
+        if (this.serverConnection.socketId) {
+            if (!this.players[this.serverConnection.socketId]) {
+                this.updatePlayer(this.serverConnection.socketId,
+                    new Player(
+                        this.serverConnection.socketId,
+                        new Car(500, 500, 0),
+                        new Score()));
+                console.log("Added player")
+            }
+        } else {
+            console.log("Waiting for server connection")
+            requestAnimationFrame(() => this.gameLoop());
         }
 
-        let camPos = this.camera.getOffset(playerCar.pos);
+        if (!this.players || !this.players[this.serverConnection.socketId] || !this.serverConnection.connected) {
+            console.log(this.players)
+            console.log(this.serverConnection.socketId)
+            requestAnimationFrame(() => this.gameLoop());
+            return
+        }
+        let player = this.players[this.serverConnection.socketId];
+
+        let camPos = this.camera.getOffset(player.car.pos);
+        // console.log(camPos, player.car.pos)
+
 
         // Clear the canvas
         this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -101,26 +122,26 @@ class Game {
         this.ctx.translate(camPos.x, camPos.y);
         this.track.draw(this.ctx);
 
-        playerCar.update(this.inputController.getKeys());
-        playerCar.score.update(playerCar.velocity, playerCar.angle);
+        player.car.update(this.inputController.getKeys());
+        player.score.update(player.car.velocity, player.car.angle);
 
         // Check for collisions
-        let wallHit = this.track.getWallHit(playerCar);
+        let wallHit = this.track.getWallHit(player.car);
         if (wallHit !== null) {
             // Push the car back
-            let pushBack = wallHit.normalVector.mult((playerCar.length / 2 - wallHit.distance) * .5);
-            playerCar.pos.add(pushBack);
-            playerCar.velocity.mult(0.95);
-            playerCar.velocity.add(pushBack);
-            playerCar.score.resetScore()
+            let pushBack = wallHit.normalVector.mult((player.car.length / 2 - wallHit.distance) * .5);
+            player.car.pos.add(pushBack);
+            player.car.velocity.mult(0.95);
+            player.car.velocity.add(pushBack);
+            player.score.resetScore()
         }
 
         // Check for idling
         for (let playerId in this.players) {
             let player = this.players[playerId];
-            if (playerId === this.playerId) continue;
+            if (playerId === this.serverConnection.socketId) continue;
             if (player.car.velocity.mag() < .1) {
-                player.score.incrementIdleTime();
+                player.incrementIdleTime();
             } else {
                 player.score.resetScore()
             }
@@ -148,21 +169,41 @@ class Game {
         }
         // Render the  cars
         for (let id in this.players) {
-            this.players[id].render(this.ctx);
+            this.players[id].car.render(this.ctx);
             // console.log(playerCar.pos);
         }
 
         // Draw mini-map
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
-        this.miniMap.draw(this.ctx, this.track, this.this.cars)
-        requestAnimationFrame(this.gameLoop);
+        this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
+
+        requestAnimationFrame(() => this.gameLoop());
+
     }
 
 
+    private updatePlayer(id: string, player: Player) {
+        if (this.players[id]) {
+            this.players[id].handleServerUpdate(player);
+        } else {
+            this.players[id] = player;
+        }
+
+    }
+
+    private removePlayer(id: string) {
+        delete this.players[id];
+    }
 }
 
-let game = new Game();
-game.preload().then(() => game.setup());
+// on load start the game
+
+window.addEventListener('load', () => {
+    let game = new Game();
+    game.preload().then(() => game.setup());
+});
+
+
 // Prevent arrow-keys and spacebar from scrolling the page.
 window.addEventListener(
     "keydown",

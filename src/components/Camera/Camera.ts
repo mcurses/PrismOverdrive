@@ -22,8 +22,8 @@ export default class Camera {
             lerp(this.prevCam.y, targetCam.y, 0.1));
 
         // Limit the camera to not go outside the map
-        newCam.x = constrain(newCam.x, this.mapSize.width - this.canvasSize.width, 0);
-        newCam.y = constrain(newCam.y, this.mapSize.height - this.canvasSize.height, 0);
+        // newCam.x = constrain(newCam.x, this.mapSize.width - this.canvasSize.width, 0);
+        // newCam.y = constrain(newCam.y, this.mapSize.height - this.canvasSize.height, 0);
 
         this.prevCam = newCam;
 

@@ -1,6 +1,9 @@
 import * as protobuf from "protobufjs";
 import * as io from "socket.io-client";
 import Car from "../Car/Car";
+import Player from "../Player/Player";
+import Score from "../Score/Score";
+
 
 export default class ServerConnection {
 
@@ -8,19 +11,27 @@ export default class ServerConnection {
     private EMIT_FREQUENCY = 7;
     private emitCounter = 0;
     private CarState: any;
-    private carUpdates: { [key: string]: Car } = {};
+    private Player: any;
+    private Score: any;
+    private carUpdates: { [key: string]: Player } = {};
+    private updatePlayer: (id: string, player: Player) => void;
+    connected: boolean = false;
+    socketId: string = "";
 
-    constructor() {
+    constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
+        this.updatePlayer = updatePlayer;
     }
 
 
     loadCarState() {
-        protobuf.load("assets/car.proto", (err: any, root: any) => {
+        protobuf.load("assets/player.proto", (err: any, root: any) => {
             if (err)
                 throw err;
             console.log("Loaded protobuf");
             // Obtain the message type
             this.CarState = root.lookupType("CarState");
+            this.Player = root.lookupType("Player");
+            this.Score = root.lookupType("Score");
         });
     }
 
@@ -29,32 +40,30 @@ export default class ServerConnection {
         this.carUpdates = {};
         return carUpdates;
     }
-    connect() {
 
+    connect() {
         let socketUrl = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://cars.puhoy.net';
         this.socket = io.connect(socketUrl);
+
         this.socket.on(
             'connect', () => {
                 // On successful connection, assign the socket id to the car
+                this.socketId = this.socket.id;
+                this.connected = true;
                 let playerId = this.socket.id;
-                this.carUpdates[playerId] = new Car(500, 500, 0);
-                this.carUpdates[playerId].id = playerId;
+                this.updatePlayer(playerId, new Player(playerId, new Car(500, 500, 0), new Score()));
             });
 
         this.socket.on('update car', (array: any[]) => {
             const buffer = new Uint8Array(array);  // Convert the array back to a buffer
-            const message = this.CarState.decode(buffer);  // Decode the buffer to a message
-            const carState = this.CarState.toObject(message, {
+            const message = this.Player.decode(buffer);  // Decode the buffer to a message
+            const playerState = this.Player.toObject(message, {
                 longs: String,
                 enums: String,
                 bytes: String,
             });
 
-            if (!this.carUpdates[carState.id]) {
-                this.carUpdates[carState.id] = new Car(carState.position.x, carState.position.y, 0);
-                console.log("New car: " + carState.id);
-            }
-            this.carUpdates = this.updateCarsFromMessage(this.carUpdates, carState);
+            this.updatePlayer(playerState.id, playerState);
         });
     }
 
@@ -78,16 +87,16 @@ export default class ServerConnection {
         }
     }
 
-     updateCarsFromMessage(cars: { [key: string]: Car }, carState: any) {
-        let car = cars[carState.id];
-        car.targetPosition = carState.position;
-        car.targetAngle = carState.angle;
-        car.setDrift(carState.drifting);
-
-        car.frameScore = carState.frameScore;
-        car.driftScore = carState.driftScore;
-        car.score = carState.score;
-        cars[carState.id] = car;
-        return cars;
-    }
+    // updatePlayersFromMessage(cars: { [key: string]: Car }, carState: any) {
+    //     let car = cars[carState.id];
+    //     car.targetPosition = carState.position;
+    //     car.targetAngle = carState.angle;
+    //     car.setDrift(carState.drifting);
+    //
+    //     car.frameScore = carState.frameScore;
+    //     car.driftScore = carState.driftScore;
+    //     car.score = carState.score;
+    //     cars[carState.id] = car;
+    //     return cars;
+    // }
 }
