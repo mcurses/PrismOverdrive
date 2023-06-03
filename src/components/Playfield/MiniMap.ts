@@ -7,11 +7,18 @@ export default class MiniMap {
     track: Track;
     maxWidth: number;
 
-    constructor(props: { track: Track, maxWidth: number }) {
+    constructor(props: { offscreenCtx: CanvasRenderingContext2D, track: Track, maxWidth: number }) {
         this.track = props.track;
         this.maxWidth = props.maxWidth;
         const minimapScale = this.maxWidth / props.track.mapSize.width; // adjust this value to change the size of the minimap
-        console.log("minimapScale", minimapScale)
+        // console.log("minimapScale", minimapScale)
+        // draw the minimap background
+
+        props.offscreenCtx.fillStyle = 'rgba(0,0,0,0.5)'; // semi-transparent black
+        props.offscreenCtx.strokeStyle = 'rgb(255,255,255)'; // white border
+        props.offscreenCtx.lineWidth = 1;
+        // ctx.fillRect(minimapWidth / 2, minimapHeight / 2, minimapWidth, minimapHeight);
+        drawPolylineShape(props.offscreenCtx, props.track.boundaries, minimapScale);
     }
 
     draw(ctx: CanvasRenderingContext2D, track: Track, cars: Car[]) {
@@ -19,12 +26,6 @@ export default class MiniMap {
         const minimapWidth = track.mapSize.width * minimapScale;
         const minimapHeight = track.mapSize.height * minimapScale;
 
-        // draw the minimap background
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'; // semi-transparent black
-        ctx.strokeStyle = 'rgb(255,255,255)'; // white border
-        ctx.lineWidth = 1;
-        // ctx.fillRect(minimapWidth / 2, minimapHeight / 2, minimapWidth, minimapHeight);
-        drawPolylineShape(ctx, track.boundaries, minimapScale);
 
         // draw the cars on the minimap
         for (let id in cars) {

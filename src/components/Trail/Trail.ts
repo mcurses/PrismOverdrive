@@ -29,16 +29,21 @@ class Trail {
         this.points = [];
     }
 
-    pushTrailPoint(player: Player) {
-        this.points.push(this.createTrailPoint(player.car, player.score));
+    addPoint(player: Player) {
+        this.points.push(new TrailPoint(
+            player.car.getPos(),
+            player.car.getAngle(),
+            player.car.isDrift(),
+            player.score
+        ));
     }
 
-    renderTrail(ctx: CanvasRenderingContext2D, player: Player, isPlayer: boolean) {
-        player.car.trailCounter = isPlayer
+    render(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
+        player.car.trailCounter = isLocal
             ? player.car.trailCounter + (1)
             : player.car.trailCounter + (1 / 3);
         if (~~player.car.trailCounter >= this.TRAIL_FREQUENCY) {
-            player.car.trail.push(this.createTrailPoint(player.car, player.score));
+            player.car.trail.addPoint(player);
             player.car.trailCounter = 0;
         }
 
@@ -117,12 +122,7 @@ class Trail {
 
 
     createTrailPoint(car: Car, score: Score): TrailPoint {
-        return new TrailPoint(
-            car.getPos(),
-            car.getAngle(),
-            car.isDrift(),
-            score
-        );
+        return
     }
 
     getTrail() {
@@ -133,3 +133,4 @@ class Trail {
         this.points = [];
     }
 }
+export default Trail;

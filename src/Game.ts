@@ -14,7 +14,7 @@ import Score from "./components/Score/Score";
 class Game {
     canvasSize: Dimensions;
     miniMapDimensions: Dimensions;
-    MapSize: Dimensions;
+    mapSize: Dimensions;
     layer1: HTMLImageElement;
     layer2: HTMLImageElement;
     players: { [key: string]: Player } = {};
@@ -28,6 +28,10 @@ class Game {
     serverConnection: ServerConnection
 
     lastTimestamp: number = 0;
+    private trackCanvas: HTMLCanvasElement;
+    private trackCtx: CanvasRenderingContext2D;
+    private miniMapCanvas: HTMLCanvasElement;
+    private miniMapCtx: CanvasRenderingContext2D;
 
     constructor() {
         this.canvasSize = {
@@ -39,7 +43,7 @@ class Game {
             height: 150,
         };
 
-        this.MapSize = {
+        this.mapSize = {
             width: 5000,
             height: 4000,
         }
@@ -71,17 +75,27 @@ class Game {
         document.getElementById('sketch-holder').appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        this.miniMapCanvas = document.createElement('canvas');
+        this.miniMapCanvas.width = this.mapSize.width;
+        this.miniMapCanvas.height = this.mapSize.height;
+        this.miniMapCtx = this.miniMapCanvas.getContext('2d');
+
+        this.trackCanvas = document.createElement('canvas');
+        this.trackCanvas.width = this.mapSize.width;
+        this.trackCanvas.height = this.mapSize.height;
+        // this.trackCtx = this.trackCanvas.getContext('2d');
+
         this.serverConnection = new ServerConnection(
             (id, player) => this.updatePlayer(id, player),
             (id) => this.removePlayer(id));
         this.serverConnection.connect();
         let bounds = bounds2
-        bounds = scaleTo(bounds, this.MapSize);
+        bounds = scaleTo(bounds, this.mapSize);
 
-        this.track = new Track(this.canvasSize, bounds)
+        this.track = new Track(this.trackCanvas, this.canvasSize, bounds)
         this.camera = new Camera({canvasSize: this.canvasSize, mapSize: this.track.mapSize});
         this.inputController = new InputController(InputType.KEYBOARD);
-        this.miniMap = new MiniMap({track: this.track, maxWidth: 50});
+        this.miniMap = new MiniMap({offscreenCtx:this.miniMapCtx,track: this.track, maxWidth: 50});
 
 
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
@@ -119,24 +133,27 @@ class Game {
 
 
         // Clear the canvas
-        this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+        // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
         // Draw the background
         this.ctx.fillStyle = 'rgb(30,30,30)';
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
         this.ctx.translate(camPos.x, camPos.y);
-        this.track.draw(this.ctx);
+        // this.track.draw(this.ctx);
+        this.ctx.drawImage(this.trackCanvas, 0, 0);
+
 
         player.car.update(this.inputController.getKeys(), deltaTime);
-        console.log(player.car.isDrifting)
+        player.car.interpolatePosition();
+        // console.log(player.car.isDrifting)
         player.score.update(player.car.velocity, player.car.angle);
 
         // Check for collisions
         let wallHit = this.track.getWallHit(player.car);
         if (wallHit !== null) {
             // Push the car back
-            let pushBack = wallHit.normalVector.mult(Math.abs(player.car.length / 2 - wallHit.distance) * .04);
+            let pushBack = wallHit.normalVector.mult(Math.abs(player.car.length / 2 - wallHit.distance) * .4);
 
             player.car.pos.add(pushBack);
             player.car.velocity.mult(0.95);
@@ -145,15 +162,15 @@ class Game {
         }
 
         // Check for idling
-        for (let playerId in this.players) {
-            let player = this.players[playerId];
-            if (playerId === this.serverConnection.socketId) continue;
-            if (player.car.velocity.mag() < .1) {
-                player.incrementIdleTime();
-            } else {
-                player.score.resetScore()
-            }
-        }
+        // for (let playerId in this.players) {
+        //     let player = this.players[playerId];
+        //     if (playerId === this.serverConnection.socketId) continue;
+        //     if (player.car.velocity.mag() < .1) {
+        //         player.incrementIdleTime();
+        //     } else {
+        //         player.score.resetScore()
+        //     }
+        // }
 
         // if not moving, increase idle time
         // if (curCar.velocity.mag() < 0.1) {
@@ -174,6 +191,7 @@ class Game {
         // render the trails
         for (let id in this.players) {
             // renderTrail(id);
+            // this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
         }
         // Render the  cars
         for (let id in this.players) {
@@ -183,6 +201,7 @@ class Game {
 
         // Draw mini-map
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
+        this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
 
         requestAnimationFrame((time) => this.gameLoop(time));
