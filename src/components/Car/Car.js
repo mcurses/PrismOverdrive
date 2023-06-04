@@ -56,7 +56,7 @@ class Car {
      *  Safely read car variables
      ******************************************************************************/
     getPos() {
-        return {x: this.pos.x, y: this.pos.y};
+        return {x: this.position.x, y: this.position.y};
     }
 
     isDrift() {
@@ -83,7 +83,7 @@ class Car {
         // Save the current context
         ctx.save();
         // Translate and rotate the context
-        ctx.translate(this.pos.x, this.pos.y);
+        ctx.translate(this.position.x, this.position.y);
         ctx.rotate(this.angle);
         // Set stroke and fill styles
         ctx.lineWidth = this.isDrifting ? 3 : 2;
@@ -144,7 +144,7 @@ class Car {
         // Physics Engine
         this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
         this.velocity.add(this.acceleration);
-        this.pos.add(this.velocity);
+        this.position.add(this.velocity);
         this.acceleration = new Utils_1.Vector(0, 0); // Reset acceleration for next frame
         // Update the score
         let score = this.calculateScore(this.velocity, this.angle);
@@ -163,14 +163,14 @@ class Car {
 
     interpolatePosition() {
         if (this.targetPosition) {
-            let distance = Utils_1.Vector.dist(this.pos, this.targetPosition);
+            let distance = Utils_1.Vector.dist(this.position, this.targetPosition);
             // if difference is too large, just teleport
             if (distance > 500) {
-                this.pos = new Utils_1.Vector(this.targetPosition.x, this.targetPosition.y);
+                this.position = new Utils_1.Vector(this.targetPosition.x, this.targetPosition.y);
                 this.targetPosition = null;
             } else {
                 let targetPos = new Utils_1.Vector(this.targetPosition.x, this.targetPosition.y);
-                this.pos = Utils_1.Vector.lerp(this.pos, targetPos, 0.1);
+                this.position = Utils_1.Vector.lerp(this.position, targetPos, 0.1);
             }
             if (distance < 1) {
                 this.targetPosition = null;
@@ -239,7 +239,7 @@ class Car {
     }
 
     setPosition(position) {
-        this.pos = position;
+        this.position = position;
     }
 
     setDrift(drifting) {
@@ -252,7 +252,7 @@ class Car {
         for (let i = 0; i < boundaries.length - 1; i++) {
             let start = new Utils_1.Vector(boundaries[i][0], boundaries[i][1]);
             let end = new Utils_1.Vector(boundaries[i + 1][0], boundaries[i + 1][1]);
-            let carPos = this.pos;
+            let carPos = this.position;
             // Calculate the distance from the car to the boundary line
             let lineDist = Utils_1.Vector.dist(carPos, this.closestPointOnLine(start, end, carPos));
             // Check if the distance is less than the car's size (assuming the car is a circle with diameter of car.l)
@@ -263,7 +263,7 @@ class Car {
                 normalVector = normalVector.normalize();
                 // Push the car back
                 let pushBack = normalVector.mult((this.length / 2 - lineDist) * .5);
-                this.pos.add(pushBack);
+                this.position.add(pushBack);
                 this.velocity.mult(0.95);
                 this.velocity.add(pushBack);
                 this.resetScore();

@@ -24,8 +24,13 @@ io.on('connection', (socket) => {
         console.log('User disconnected');
     });
 
+    socket.on('alive', () => {
+        console.log('alive')
+    });
+
     socket.on('update car', (data) => {
         // Handle the updated car position and broadcast to all other connected clients
+        // console.log('Update car position to: ');
         socket.broadcast.emit('update car', data);
     });
 });

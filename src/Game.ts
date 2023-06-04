@@ -9,6 +9,7 @@ import Camera from "./components/Camera/Camera";
 import Player from "./components/Player/Player";
 import ServerConnection from "./components/ServerConnection/ServerConnection";
 import Score from "./components/Score/Score";
+import HighScoreTable from "./components/Score/HighscoreTable";
 
 
 class Game {
@@ -36,7 +37,10 @@ class Game {
     private trailsCtx: CanvasRenderingContext2D;
     private trailsCanvas: HTMLCanvasElement;
 
-    private interval: NodeJS.Timeout;
+    private trackDrawInterval: NodeJS.Timeout;
+    private lastUdpate: number;
+    private sendUpdateInterval: NodeJS.Timer;
+    private highscoreTable: HighScoreTable;
 
     constructor() {
         this.canvasSize = {
@@ -106,8 +110,10 @@ class Game {
         this.camera = new Camera({canvasSize: this.canvasSize, mapSize: this.track.mapSize});
         this.inputController = new InputController(InputType.KEYBOARD);
         this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 50});
+        this.highscoreTable = new HighScoreTable();
+        this.lastUdpate = 0;
 
-        this.interval = setInterval(() => {
+        this.trackDrawInterval = setInterval(() => {
             // Draw a semi-transparent white rectangle over the entire trailsCanvas
             // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
             // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
@@ -124,8 +130,11 @@ class Game {
 //             // this.trailsCtx.globalAlpha = 1;
 //             this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
 
-        }, 1000 / 12      );
+        }, 1000 / 12);
 
+        this.sendUpdateInterval = setInterval(() => {
+            this.serverConnection.sendUpdate(this.players[this.serverConnection.socketId]);
+        }, 1000 / 60);
 
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
     }
@@ -134,13 +143,15 @@ class Game {
     gameLoop(timestamp) {
         const deltaTime = timestamp - this.lastTimestamp;
         this.lastTimestamp = timestamp;
+        this.lastUdpate = this.lastUdpate === 0 ? timestamp : this.lastUdpate;
+        // this.serverConnection.alive();
 
         if (this.serverConnection.socketId) {
             if (!this.players[this.serverConnection.socketId]) {
                 this.updatePlayer(this.serverConnection.socketId,
                     new Player(
                         this.serverConnection.socketId,
-                        new Car(500, 500, 0),
+                        new Car(500, 1900, 0),
                         new Score()));
                 console.log("Added player")
             }
@@ -150,13 +161,13 @@ class Game {
             return
         }
 
+
         if (!this.players || !this.players[this.serverConnection.socketId] || !this.serverConnection.connected) {
             requestAnimationFrame((time) => this.gameLoop(time));
             return
         }
-        let player = this.players[this.serverConnection.socketId];
-
-        let camPos = this.camera.getOffset(player.car.position);
+        const player = this.players[this.serverConnection.socketId];
+        this.camera.moveTowards(player.car.position);
 
         // Clear the canvas
         // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -166,13 +177,19 @@ class Game {
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
-        this.ctx.translate(camPos.x, camPos.y);
+        this.ctx.translate(this.camera.position.x, this.camera.position.y);
         this.ctx.drawImage(this.trackCanvas, 0, 0);
 
 
         player.car.update(this.inputController.getKeys(), deltaTime);
         player.score.update(player.car.velocity, player.car.angle);
-        if (!player.car.isDrifting) {
+        this.highscoreTable.updateScore(player.name, player.score);
+        this.highscoreTable.displayScores(this.ctx);
+        if (player.car.isDrifting) {
+            player.lastDriftTime = timestamp;
+        } else if (timestamp - player.lastDriftTime > 4000 && player.score.driftScore > 0) {
+            // console.log( timestamp - player.lastDriftTime )
+            // console.log("End drift")
             player.score.endDrift();
         }
 
@@ -186,7 +203,7 @@ class Game {
             player.car.position.add(pushBack);
             player.car.velocity.mult(0.95);
             player.car.velocity.add(pushBack);
-            player.score.resetScore()
+            player.score.endDrift()
         }
 
         // Check for idling
@@ -244,11 +261,12 @@ class Game {
 
 
     private updatePlayer(id: string, player: Player) {
-        console.log("Update player", id, player)
+        // console.log("Update player", id, player)
         if (this.players[id]) {
+            // console.log(this.players[id])
             this.players[id].handleServerUpdate(player);
         } else {
-            this.players[id] = player;
+            this.players[id] = new Player(id, new Car(), new Score());
         }
 
     }
@@ -262,7 +280,8 @@ class Game {
 
 window.addEventListener('load', () => {
     let game = new Game();
-    game.preload().then(() => game.setup());
+    // game.preload().then(() => game.setup());
+    game.setup();
 });
 
 

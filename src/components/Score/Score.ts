@@ -3,31 +3,37 @@ import Vector from "../../utils/Vector";
 
 class Score {
 
-    totalScore: number;
+    highscore: number;
     driftScore: number;
+    driftBoard: number[];
     frameScore: number;
+    driftCount: number;
 
     constructor(frameScore = 0, totalScore = 0, driftScore = 0) {
         this.frameScore = 0;
-        this.totalScore = 0;
+        this.highscore = 0;
         this.driftScore = 0;
+
     }
 
-    update(velocity: Vector, angle: number  ){
+    update(velocity: Vector, angle: number) {
         let angleDifference = Vector.angleVectorDifference(angle, velocity);
 
         // Calculate the score based on the angle difference and the velocity
         this.frameScore = (1 - Math.sin(angleDifference)) * velocity.mag();
         this.driftScore += this.frameScore;
-
     }
 
     endDrift() {
-        this.totalScore += this.driftScore;
+        if (this.driftScore > this.highscore)
+            this.highscore += this.driftScore;
         this.driftScore = 0;
     }
+
     resetScore() {
-        this.totalScore = 0;
+        this.endDrift()
+        this.highscore = 0;
     }
 }
+
 export default Score;

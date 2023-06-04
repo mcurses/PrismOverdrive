@@ -14,14 +14,18 @@ export default class ServerConnection {
     private Player: any;
     private Score: any;
     private carUpdates: { [key: string]: Player } = {};
-    private updatePlayer: (id: string, player: Player) => void;
+    private updateLocalPlayer: (id: string, player: Player) => void;
     connected: boolean = false;
     socketId: string = "";
 
     constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
-        this.updatePlayer = updatePlayer;
+        this.updateLocalPlayer = updatePlayer;
+        this.loadCarState()
     }
 
+    alive() {
+        this.socket.emit('alive');
+    }
 
     loadCarState() {
         protobuf.load("assets/player.proto", (err: any, root: any) => {
@@ -51,10 +55,11 @@ export default class ServerConnection {
                 this.socketId = this.socket.id;
                 this.connected = true;
                 let playerId = this.socket.id;
-                this.updatePlayer(playerId, new Player(playerId, new Car(500, 500, 0), new Score()));
+                this.updateLocalPlayer(playerId, new Player(playerId, new Car(300, 1800, 0), new Score()));
             });
 
         this.socket.on('update car', (array: any[]) => {
+            // console.log("Received update")
             const buffer = new Uint8Array(array);  // Convert the array back to a buffer
             const message = this.Player.decode(buffer);  // Decode the buffer to a message
             const playerState = this.Player.toObject(message, {
@@ -63,27 +68,30 @@ export default class ServerConnection {
                 bytes: String,
             });
 
-            this.updatePlayer(playerState.id, playerState);
+            this.updateLocalPlayer(playerState.id, playerState);
         });
     }
 
 
-    update(playerCar) {
-        this.emitCounter++;
-        if (this.CarState && this.emitCounter >= this.EMIT_FREQUENCY) {
-            const carState = {
-                id: playerCar.id,
-                position: playerCar.getPos(),
-                drifting: playerCar.isDrift(),
-                angle: playerCar.getAngle(),
-                frameScore: playerCar.frameScore,
-                driftScore: playerCar.driftScore,
-                score: playerCar.score,
+    sendUpdate(player: Player) {
+        if (this.Player) {
+            const playerState = {
+                id: player.id,
+                name: player.name,
+                car: this.CarState.create({
+                    position: player.car.getPos(),
+                    drifting: player.car.isDrifting,
+                    angle: player.car.getAngle(),
+                }),
+                score: this.Score.create({
+                    frameScore: player.score.frameScore,
+                    driftScore: player.score.driftScore,
+                    totalScore: player.score.highscore,
+                })
             };
-            const message = this.CarState.create(carState);  // Create a message
-            const buffer = this.CarState.encode(message).finish();  // Encode the message to a buffer
+            const message = this.Player.create(playerState);  // Create a message
+            const buffer = this.Player.encode(message).finish();  // Encode the message to a buffer
             this.socket.emit('update car', Array.from(buffer));  // Convert the buffer to an array before emitting
-            this.emitCounter = 0;
         }
     }
 

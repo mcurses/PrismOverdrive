@@ -23,6 +23,7 @@ class Trail {
     TRAIL_FREQUENCY = 15;
     TRAIL_MAX_LENGTH = 100;
     TRAIL_MAX_WEIGHT = 50;
+    private prevWeight: number = 0;
 
     constructor() {
         this.points = [];
@@ -40,7 +41,7 @@ class Trail {
         // console.log(simTrail)
         // console.log(this.points.length + " " + player.car.trailCounter)
 
-        let trailCutOff = Math.min(this.TRAIL_MAX_LENGTH, 10 + player.score.totalScore / 30);
+        let trailCutOff = Math.min(this.TRAIL_MAX_LENGTH, 10 + player.score.highscore / 30);
         if (this.points.length > trailCutOff)
             this.points.splice(0, this.points.length - trailCutOff);
 
@@ -57,15 +58,19 @@ class Trail {
         // console.log(ctx.strokeStyle)
         // ctx.fillStyle = `hsla(${trailPointColor.h}, ${trailPointColor.s}%, ${trailPointColor.l}%, ${opacity / 255})`;
 
-        let trailPointColor = driftColor(player.score.driftScore, player.score.frameScore, player.score.totalScore);
-        trailPointColor.b = 50;
-        let colorString = trailPointColor.toCSSWithAlpha(opacity / 255);
-        console.log(player.score, colorString)
+        let trailPointColor = driftColor(player.score.driftScore, player.score.frameScore, player.score.highscore);
+        trailPointColor.b = Math.min(50, trailPointColor.b);
+        trailPointColor.a = opacity / 255;
+        // console.log(player.score, colorString)
         // ctx.strokeStyle = colorString;
-        ctx.fillStyle = colorString;
+        ctx.fillStyle = trailPointColor.toCSS();
 
-        let weight = player.score.frameScore * .4 * Math.max(1, player.score.totalScore / 1000);
+        let weight = player.score.frameScore * .4 * Math.max(1, player.score.driftScore / 1000);
+        let weightDiff = weight - this.prevWeight;
+        weight = this.prevWeight + weightDiff * .1;
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
+        this.prevWeight = weight
+
 
         // console.log("weight", p.score, weight, p.score.frameScore, p.score.totalScore / 1000)
 
@@ -129,7 +134,7 @@ class Trail {
                 // console.log("drifting")
                 // ... Processing of trailPointColor and opacity
 
-                let trailPointColor = driftColor(p.score.driftScore, p.score.frameScore, p.score.totalScore);
+                let trailPointColor = driftColor(p.score.driftScore, p.score.frameScore, p.score.highscore);
                 // p5.colorMode(p5.HSB, 100);
                 let opacity = 255;
 
@@ -171,7 +176,7 @@ class Trail {
                 // ctx.fillStyle = `hsla(${trailPointColor.h}, ${trailPointColor.s}%, ${trailPointColor.l}%, ${opacity / 255})`;
                 ctx.fillStyle = trailPointColor.toCSSWithAlpha(opacity / 255)
 
-                weight = p.score.frameScore * .1 * Math.max(1, p.score.totalScore / 1000);
+                weight = p.score.frameScore * .1 * Math.max(1, p.score.highscore / 1000);
                 weight = weight > maxTrailWeight ? maxTrailWeight : weight;
 
                 // console.log("weight", p.score, weight, p.score.frameScore, p.score.totalScore / 1000)

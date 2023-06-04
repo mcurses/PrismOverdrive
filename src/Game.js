@@ -211,13 +211,13 @@ function draw() {
 }
 function getCameraOffset() {
     // Calculate the desired camera position
-    let camX = (0, Utils_1.lerp)(prevCamX, -car.pos.x + canvasDimensions.width / 2, 0.1);
-    let camY = (0, Utils_1.lerp)(prevCamY, -car.pos.y + canvasDimensions.height / 2, 0.1);
-    let targetCamX = -car.pos.x + canvasDimensions.width / 2;
-    let targetCamY = -car.pos.y + canvasDimensions.height / 2;
+    let camX = (0, Utils_1.lerp)(prevCamX, -car.position.x + canvasDimensions.width / 2, 0.1);
+    let camY = (0, Utils_1.lerp)(prevCamY, -car.position.y + canvasDimensions.height / 2, 0.1);
+    let targetCamX = -car.position.x + canvasDimensions.width / 2;
+    let targetCamY = -car.position.y + canvasDimensions.height / 2;
     // Calculate the distance from the player to the edge of the canvas
-    let edgeDistX = Math.min(car.pos.x, Map.width - car.pos.x);
-    let edgeDistY = Math.min(car.pos.y, Map.height - car.pos.y);
+    let edgeDistX = Math.min(car.position.x, Map.width - car.position.x);
+    let edgeDistY = Math.min(car.position.y, Map.height - car.position.y);
     // If the player is within 300 pixels of the edge of the canvas, adjust the camera position
     if (edgeDistX < 300) {
         camX = -car.pos.x + canvasDimensions.width / 2 + (300 - edgeDistX);
