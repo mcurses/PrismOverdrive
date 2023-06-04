@@ -133,7 +133,9 @@ class Game {
         }, 1000 / 12);
 
         this.sendUpdateInterval = setInterval(() => {
-            this.serverConnection.sendUpdate(this.players[this.serverConnection.socketId]);
+            if (this.players[this.serverConnection.socketId])
+                this.serverConnection.sendUpdate(this.players[this.serverConnection.socketId]);
+            // console.log("Sending update")
         }, 1000 / 60);
 
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
@@ -252,7 +254,9 @@ class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
         this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
-        this.highscoreTable.updateScore(player.name, player.score);
+        for (let id in this.players) {
+            this.highscoreTable.updateScore(player.name, player.score);
+        }
         this.highscoreTable.displayScores(this.ctx);
 
         requestAnimationFrame((time) => this.gameLoop(time));

@@ -44,7 +44,7 @@ describe('Score_class', () => {
         score.update(velocity, angle);
         let driftScore = score.driftScore;
         score.endDrift();
-        expect(score.highscore).toBe(driftScore);
+        expect(score.highScore).toBe(driftScore);
     });
 
     // Tests that the update method correctly handles the edge case where the velocity vector is 0.
@@ -76,9 +76,9 @@ describe('Score_class', () => {
     // Tests that the resetScore method correctly sets the totalScore variable to 0.
     it("test_reset_score_sets_total_score_to_0_correctly", () => {
         const score = new Score();
-        score.highscore = 10;
+        score.highScore = 10;
         score.resetScore();
-        expect(score.highscore).toBe(0);
+        expect(score.highScore).toBe(0);
     });
 
     // Tests that the update method correctly handles the edge case where the angle is 0 or 180 degrees.

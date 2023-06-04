@@ -11,8 +11,8 @@ export default class ServerConnection {
     private EMIT_FREQUENCY = 7;
     private emitCounter = 0;
     private CarState: any;
-    private Player: any;
-    private Score: any;
+    private PlayerState: any;
+    private ScoreState: any;
     private carUpdates: { [key: string]: Player } = {};
     private updateLocalPlayer: (id: string, player: Player) => void;
     connected: boolean = false;
@@ -20,7 +20,7 @@ export default class ServerConnection {
 
     constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
         this.updateLocalPlayer = updatePlayer;
-        // this.loadCarState()
+        this.loadCarState()
     }
 
     alive() {
@@ -34,8 +34,9 @@ export default class ServerConnection {
             console.log("Loaded protobuf");
             // Obtain the message type
             this.CarState = root.lookupType("CarState");
-            this.Player = root.lookupType("Player");
-            this.Score = root.lookupType("Score");
+            this.PlayerState = root.lookupType("PlayerState");
+            this.ScoreState = root.lookupType("ScoreState");
+            console.log(this.CarState);
         });
     }
 
@@ -55,8 +56,8 @@ export default class ServerConnection {
         this.socket.on('update car', (array: any[]) => {
             // console.log("Received update")
             const buffer = new Uint8Array(array);  // Convert the array back to a buffer
-            const message = this.Player.decode(buffer);  // Decode the buffer to a message
-            const playerState = this.Player.toObject(message, {
+            const message = this.PlayerState.decode(buffer);  // Decode the buffer to a message
+            const playerState = this.PlayerState.toObject(message, {
                 longs: String,
                 enums: String,
                 bytes: String,
@@ -68,7 +69,12 @@ export default class ServerConnection {
 
 
     sendUpdate(player: Player) {
-        if (this.Player) {
+        // console.log("Sending update", player)
+
+        // this.socket.emit('alive');
+        // console.log(this.Player)
+        if (this.PlayerState) {
+            // console.log("Sending update")
             const playerState = {
                 id: player.id,
                 name: player.name,
@@ -77,14 +83,14 @@ export default class ServerConnection {
                     drifting: player.car.isDrifting,
                     angle: player.car.getAngle(),
                 }),
-                score: this.Score.create({
+                score: this.ScoreState.create({
                     frameScore: player.score.frameScore,
                     driftScore: player.score.driftScore,
-                    totalScore: player.score.highscore,
+                    highScore: player.score.highScore,
                 })
             };
-            const message = this.Player.create(playerState);  // Create a message
-            const buffer = this.Player.encode(message).finish();  // Encode the message to a buffer
+            const message = this.PlayerState.create(playerState);  // Create a message
+            const buffer = this.PlayerState.encode(message).finish();  // Encode the message to a buffer
             this.socket.emit('update car', Array.from(buffer));  // Convert the buffer to an array before emitting
         }
     }

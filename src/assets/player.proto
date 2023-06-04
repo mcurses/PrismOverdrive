@@ -1,9 +1,9 @@
 syntax = "proto3";
 
 message CarState {
-  Position position = 2;
-  bool drifting = 3;
-  float angle = 4;
+  Position position = 1;
+  bool drifting = 2;
+  float angle = 3;
 
   message Position {
     float x = 1;
@@ -11,15 +11,15 @@ message CarState {
   }
 }
 
-message Score {
+message ScoreState {
   float frameScore = 1;
   float driftScore = 2;
-  float totalScore = 3;
+  float highScore = 3;
 }
 
-message Player {
+message PlayerState {
   string id = 1;
   string name = 2;
-  Score score = 3;
+  ScoreState score = 3;
   CarState car = 4;
 }

@@ -41,7 +41,7 @@ class Trail {
         // console.log(simTrail)
         // console.log(this.points.length + " " + player.car.trailCounter)
 
-        let trailCutOff = Math.min(this.TRAIL_MAX_LENGTH, 10 + player.score.highscore / 30);
+        let trailCutOff = Math.min(this.TRAIL_MAX_LENGTH, 10 + player.score.highScore / 30);
         if (this.points.length > trailCutOff)
             this.points.splice(0, this.points.length - trailCutOff);
 
@@ -58,7 +58,7 @@ class Trail {
         // console.log(ctx.strokeStyle)
         // ctx.fillStyle = `hsla(${trailPointColor.h}, ${trailPointColor.s}%, ${trailPointColor.l}%, ${opacity / 255})`;
 
-        let trailPointColor = driftColor(player.score.driftScore, player.score.frameScore, player.score.highscore);
+        let trailPointColor = driftColor(player.score.driftScore, player.score.frameScore, player.score.highScore);
         trailPointColor.b = Math.min(50, trailPointColor.b);
         trailPointColor.a = opacity / 255;
         // console.log(player.score, colorString)
@@ -134,7 +134,7 @@ class Trail {
                 // console.log("drifting")
                 // ... Processing of trailPointColor and opacity
 
-                let trailPointColor = driftColor(p.score.driftScore, p.score.frameScore, p.score.highscore);
+                let trailPointColor = driftColor(p.score.driftScore, p.score.frameScore, p.score.highScore);
                 // p5.colorMode(p5.HSB, 100);
                 let opacity = 255;
 
@@ -176,7 +176,7 @@ class Trail {
                 // ctx.fillStyle = `hsla(${trailPointColor.h}, ${trailPointColor.s}%, ${trailPointColor.l}%, ${opacity / 255})`;
                 ctx.fillStyle = trailPointColor.toCSSWithAlpha(opacity / 255)
 
-                weight = p.score.frameScore * .1 * Math.max(1, p.score.highscore / 1000);
+                weight = p.score.frameScore * .1 * Math.max(1, p.score.highScore / 1000);
                 weight = weight > maxTrailWeight ? maxTrailWeight : weight;
 
                 // console.log("weight", p.score, weight, p.score.frameScore, p.score.totalScore / 1000)

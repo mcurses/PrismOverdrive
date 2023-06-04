@@ -21,7 +21,7 @@ export default class Player {
     }
 
     handleServerUpdate(player: Player) {
-        console.log("Handling server update")
+        // console.log("Handling server update")
 
         // update all properties of the player
         this.car.targetPosition = player.car.position;
@@ -42,7 +42,7 @@ export default class Player {
             this.score.driftScore = 0;
         }
 
-        let carColor = driftColor(this.score.driftScore, this.score.frameScore, this.score.highscore);
+        let carColor = driftColor(this.score.driftScore, this.score.frameScore, this.score.highScore);
         this.car.color = new HSLColor(carColor.h, carColor.s + 20, 80);
 
     }

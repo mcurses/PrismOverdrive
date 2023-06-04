@@ -3,7 +3,7 @@ import Vector from "../../utils/Vector";
 
 class Score {
 
-    highscore: number;
+    highScore: number;
     driftScore: number;
     driftBoard: number[];
     frameScore: number;
@@ -11,7 +11,7 @@ class Score {
 
     constructor(frameScore = 0, totalScore = 0, driftScore = 0) {
         this.frameScore = 0;
-        this.highscore = 0;
+        this.highScore = 0;
         this.driftScore = 0;
 
     }
@@ -25,14 +25,14 @@ class Score {
     }
 
     endDrift() {
-        if (this.driftScore > this.highscore)
-            this.highscore += this.driftScore;
+        if (this.driftScore > this.highScore)
+            this.highScore += this.driftScore;
         this.driftScore = 0;
     }
 
     resetScore() {
         this.endDrift()
-        this.highscore = 0;
+        this.highScore = 0;
     }
 }
 
