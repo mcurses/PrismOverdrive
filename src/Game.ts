@@ -183,8 +183,6 @@ class Game {
 
         player.car.update(this.inputController.getKeys(), deltaTime);
         player.score.update(player.car.velocity, player.car.angle);
-        this.highscoreTable.updateScore(player.name, player.score);
-        this.highscoreTable.displayScores(this.ctx);
         if (player.car.isDrifting) {
             player.lastDriftTime = timestamp;
         } else if (timestamp - player.lastDriftTime > 4000 && player.score.driftScore > 0) {
@@ -254,6 +252,8 @@ class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
         this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
+        this.highscoreTable.updateScore(player.name, player.score);
+        this.highscoreTable.displayScores(this.ctx);
 
         requestAnimationFrame((time) => this.gameLoop(time));
 

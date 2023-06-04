@@ -20,7 +20,7 @@ export default class ServerConnection {
 
     constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
         this.updateLocalPlayer = updatePlayer;
-        this.loadCarState()
+        // this.loadCarState()
     }
 
     alive() {
@@ -37,12 +37,6 @@ export default class ServerConnection {
             this.Player = root.lookupType("Player");
             this.Score = root.lookupType("Score");
         });
-    }
-
-    getCarUpdates() {
-        let carUpdates = this.carUpdates;
-        this.carUpdates = {};
-        return carUpdates;
     }
 
     connect() {

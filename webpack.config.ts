@@ -21,10 +21,10 @@ module.exports = {
                     },
                 },
             },
-            {
-                test: /\.js$/,
-                loader: "webpack-remove-debug", // remove "debug" package
-            },
+            // {
+            //     test: /\.js$/,
+            //     loader: "webpack-remove-debug", // remove "debug" package
+            // },
         ],
     },
     resolve: {
