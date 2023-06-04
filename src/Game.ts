@@ -118,36 +118,32 @@ class Game {
         } else {
             console.log("Waiting for server connection")
             requestAnimationFrame((time) => this.gameLoop(time));
+            return
         }
 
         if (!this.players || !this.players[this.serverConnection.socketId] || !this.serverConnection.connected) {
-            console.log(this.players)
-            console.log(this.serverConnection.socketId)
             requestAnimationFrame((time) => this.gameLoop(time));
             return
         }
         let player = this.players[this.serverConnection.socketId];
 
         let camPos = this.camera.getOffset(player.car.pos);
-        // console.log(camPos, player.car.pos)
-
 
         // Clear the canvas
         // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+
         // Draw the background
         this.ctx.fillStyle = 'rgb(30,30,30)';
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
         this.ctx.translate(camPos.x, camPos.y);
-        // this.track.draw(this.ctx);
         this.ctx.drawImage(this.trackCanvas, 0, 0);
 
 
         player.car.update(this.inputController.getKeys(), deltaTime);
-        player.car.interpolatePosition();
-        // console.log(player.car.isDrifting)
         player.score.update(player.car.velocity, player.car.angle);
+
 
         // Check for collisions
         let wallHit = this.track.getWallHit(player.car);
@@ -191,12 +187,11 @@ class Game {
         // render the trails
         for (let id in this.players) {
             // renderTrail(id);
-            // this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
+            this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
         }
         // Render the  cars
         for (let id in this.players) {
             this.players[id].car.render(this.ctx);
-            // console.log(playerCar.pos);
         }
 
         // Draw mini-map

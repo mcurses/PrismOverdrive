@@ -12,17 +12,26 @@ export class InputController {
                     'ArrowUp': false,
                     'ArrowDown': false,
                     'ArrowLeft': false,
-                    'ArrowRight': false
+                    'ArrowRight': false,
+                    'Space': false,
                 };
                 window.addEventListener('keydown', (e) => {
                     if (this.keys.hasOwnProperty(e.key)) {
                         this.keys[e.key] = true;
+                    }
+                    if (e.key === ' ') {
+                        e.preventDefault();
+                        this.keys['Space'] = true;
                     }
                 });
 
                 window.addEventListener('keyup', (e) => {
                     if (this.keys.hasOwnProperty(e.key)) {
                         this.keys[e.key] = false;
+                    }
+                    if (e.key === ' ') {
+                        e.preventDefault();
+                        this.keys['Space'] = false;
                     }
                 });
         }

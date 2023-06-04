@@ -35,24 +35,25 @@ class Car {
     maxSteeringForce: number;
     steeringAcceleration: number;
     centerOfMass: number;
+    handbrake: boolean;
 
 
     constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0) {
-        let turnFactor = 1;
-        this.turnRateStatic = 0.06 * turnFactor
+        let turnFactor = .3;
+        this.turnRateStatic = 0.04 * turnFactor
         this.turnRateDynamic = 0.06 * turnFactor
         this.turnRate = this.turnRateStatic;
-        this.gripStatic = .6;
-        this.gripDynamic = .05;
-        this.DRIFT_CONSTANT = 1.7;
+        this.gripStatic = 1.4;
+        this.gripDynamic = .1;
+        this.DRIFT_CONSTANT = 9.;
         this.pos = new Vector(posX, posY);
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
         this.angle = angle;
-        this.mass = 13;
+        this.mass = 29;
         this.width = 18;
         this.length = 30;
-        this.force = 0.08;
+        this.force = 0.19;
         this.isDrifting = false;
         this.color = new HSLColor(0, 100, 50);
         this.id = "";
@@ -67,7 +68,9 @@ class Car {
         // Set the maximum steering force and the steering acceleration
         this.maxSteeringForce = 0.005; // Adjust as needed
         this.steeringAcceleration = 0.0005; // Adjust as needed
-        this.centerOfMass = 0.9; // Adjust as needed, 0.5 is the middle, higher values towards the rear
+        this.centerOfMass = 0.5; // Adjust as needed, 0.5 is the middle, higher values towards the rear
+
+        this.handbrake = false;
 
     }
 
@@ -86,47 +89,31 @@ class Car {
         return this.angle;
     }
 
-    setAngle(angle: number) {
-        this.angle = angle;
-    }
-
-    // setTrail(trail: any[]) {
-    //     this.trail = trail;
-    // }
-
-    getTrail() {
-        return this.trail;
-    }
-
-    setPosition(position: Vector) {
-        this.pos = position;
-    }
-
     setDrift(drifting: boolean) {
         this.isDrifting = drifting;
     }
 
 
     update(keys, deltaTime) {
-        let timeFactor = .1;
+        let timeFactor = .4;
 
-            let force = this.isDrifting ? this.force * 0.5 : this.force; // Reduce the force by half when drifting
-        if (this.isDrifting) {
-            console.log("drifting")
-        }
+            // let force = this.isDrifting ? this.force * 0.5 : this.force; // Reduce the force by half when drifting
+        // if (this.isDrifting) {
+        //     console.log("drifting")
+        // }
 
         // deltaTime = deltaTime * timeFactor;
         // Add input forces
         if (keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
             // ACCELERATING (BODY-FIXED to WORLD)
             if (keys['ArrowUp']) {
-                let bodyAcc = new Vector(0, force);
+                let bodyAcc = new Vector(0, this.force);
                 let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
             // BRAKING (BODY-FIXED TO WORLD)
             if (keys['ArrowDown']) {
-                let bodyAcc = new Vector(0, -force);
+                let bodyAcc = new Vector(0, -this.force);
                 let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
                 this.acceleration.add(worldAcc);
             }
@@ -137,6 +124,7 @@ class Car {
                 this.angle += this.turnRate * deltaTime * timeFactor;
             }
         }
+        this.handbrake = keys['Space'];
 
         // If a direction key is pressed, increase the steeringForce
         // if (keys['ArrowLeft']) {
@@ -166,23 +154,23 @@ class Car {
 
         let bodyFixedDrag;
         let grip;
-        if (Math.abs(vB.x) < this.DRIFT_CONSTANT) {
+        if (Math.abs(vB.x) < this.DRIFT_CONSTANT && !this.handbrake) {
             // Gripping
             grip = this.gripStatic
             this.turnRate = this.turnRateStatic;
             this.isDrifting = false;
-            bodyFixedDrag = new Vector(vB.x * -this.gripStatic, vB.y * 0.05);
+            // bodyFixedDrag = new Vector(vB.x * -this.gripStatic, vB.y * 0.05);
 
         } else {
             // Drifting
             grip = this.gripDynamic;
             this.turnRate = this.turnRateDynamic;
             this.isDrifting = true;
-            let frontGrip = this.gripDynamic;
-            let rearGrip = this.gripDynamic * (1 - this.centerOfMass);
-            bodyFixedDrag = new Vector(vB.x * -frontGrip, vB.y * -rearGrip);
+            // let frontGrip = this.gripDynamic;
+            // let rearGrip = this.gripDynamic * (1 - this.centerOfMass);
+            // bodyFixedDrag = new Vector(vB.x * -frontGrip, vB.y * -rearGrip);
         }
-        // bodyFixedDrag = new Vector(vB.x * -grip, vB.y * 0.05);
+        bodyFixedDrag = new Vector(vB.x * -grip, vB.y * 0.10);
 
         // Rotate body fixed forces into world fixed and add to acceleration
         let worldFixedDrag =
@@ -194,6 +182,10 @@ class Car {
         // Physics Engine
         this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
         this.velocity.add(this.acceleration);
+        //
+        if (this.velocity.mag() > 50) {
+            console.log("velocity: ", this.velocity.mag())
+        }
         this.targetPosition = this.pos.copy().add(this.velocity.mult(deltaTime * timeFactor));
         this.acceleration = new Vector(0, 0); // Reset acceleration for next frame
 
