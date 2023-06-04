@@ -28,3 +28,17 @@ export function loadImage(src: string): Promise<void> {
         img.src = src;
     });
 }
+
+export function gaussianRand() {
+  var rand = 0;
+
+  for (var i = 0; i < 6; i += 1) {
+    rand += Math.random();
+  }
+
+  return rand / 6;
+}
+
+export function gaussianRandom(start, end) {
+  return Math.floor(start + gaussianRand() * (end - start + 1));
+}

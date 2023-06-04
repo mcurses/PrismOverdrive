@@ -1,7 +1,7 @@
 import Car from "./components/Car/Car";
 import {bounds2, bounds3, scaleTo} from "./components/Playfield/bounds";
 import * as socketio from "socket.io-client";
-import {Dimensions, loadImage} from "./utils/Utils";
+import {Dimensions, gaussianRandom, loadImage} from "./utils/Utils";
 import {InputController, InputType} from "./InputController";
 import Track from "./components/Playfield/Track";
 import MiniMap from "./components/Playfield/MiniMap";
@@ -41,6 +41,8 @@ class Game {
     private lastUdpate: number;
     private sendUpdateInterval: NodeJS.Timer;
     private highscoreTable: HighScoreTable;
+    private nameInput: HTMLInputElement;
+    private prevKeys: { [p: string]: boolean } = {};
 
     constructor() {
         this.canvasSize = {
@@ -106,10 +108,10 @@ class Game {
         let bounds = bounds2
         bounds = scaleTo(bounds, this.mapSize);
 
-        this.track = new Track(this.trackCanvas, this.canvasSize, bounds)
+        this.track = new Track(this.trackCanvas, this.mapSize, bounds)
         this.camera = new Camera({canvasSize: this.canvasSize, mapSize: this.track.mapSize});
         this.inputController = new InputController(InputType.KEYBOARD);
-        this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 50});
+        this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 250});
         this.highscoreTable = new HighScoreTable();
         this.lastUdpate = 0;
 
@@ -121,6 +123,8 @@ class Game {
             this.trailsCtx.globalAlpha = 0.04;
             this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
             this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
+            this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-18,18), gaussianRandom(-18,18));
+
             this.trailsCtx.globalAlpha = 1;
 
 // Convert white pixels to transparent
@@ -130,7 +134,7 @@ class Game {
 //             // this.trailsCtx.globalAlpha = 1;
 //             this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
 
-        }, 1000 / 12);
+        }, 1000 / 4);
 
         this.sendUpdateInterval = setInterval(() => {
             if (this.players[this.serverConnection.socketId])
@@ -139,8 +143,29 @@ class Game {
         }, 1000 / 60);
 
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+
+        // Create the input field
+        this.nameInput = document.createElement('input');
+        this.nameInput.style.position = 'absolute';
+        this.nameInput.style.display = 'none';  // Initially hidden
+        this.nameInput.addEventListener('input', () => {
+            this.players[this.serverConnection.socketId].name = this.nameInput.value;
+        });
+        document.body.appendChild(this.nameInput);
+        this.inputController.handleKey('Escape', () => this.toggleNameInput());
+        this.inputController.handleKey('Enter', () => this.nameInput.style.display = 'none');
+
     }
 
+    toggleNameInput() {
+        this.nameInput.value = this.players[this.serverConnection.socketId].name.slice(0, 8);
+        this.nameInput.style.display = this.nameInput.style.display === 'none' ? 'block' : 'none';
+        if (this.nameInput.style.display === 'block') {
+            this.nameInput.focus();
+        } else {
+            this.nameInput.blur();
+        }
+    }
 
     gameLoop(timestamp) {
         const deltaTime = timestamp - this.lastTimestamp;
@@ -155,7 +180,7 @@ class Game {
                         this.serverConnection.socketId,
                         new Car(500, 1900, 0),
                         new Score()));
-                console.log("Added player")
+                console.log("Added player", this.serverConnection.socketId)
             }
         } else {
             console.log("Waiting for server connection")
@@ -168,14 +193,14 @@ class Game {
             requestAnimationFrame((time) => this.gameLoop(time));
             return
         }
-        const player = this.players[this.serverConnection.socketId];
-        this.camera.moveTowards(player.car.position);
+        const localPlayer = this.players[this.serverConnection.socketId];
+        this.camera.moveTowards(localPlayer.car.position);
 
         // Clear the canvas
         // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Draw the background
-        this.ctx.fillStyle = 'rgb(30,30,30)';
+        this.ctx.fillStyle = 'rgb(40,30,30)';
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
@@ -183,27 +208,28 @@ class Game {
         this.ctx.drawImage(this.trackCanvas, 0, 0);
 
 
-        player.car.update(this.inputController.getKeys(), deltaTime);
-        player.score.update(player.car.velocity, player.car.angle);
-        if (player.car.isDrifting) {
-            player.lastDriftTime = timestamp;
-        } else if (timestamp - player.lastDriftTime > 4000 && player.score.driftScore > 0) {
+        let keys = this.inputController.getKeys();
+        localPlayer.car.update(keys, deltaTime);
+        localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
+        if (localPlayer.car.isDrifting) {
+            localPlayer.lastDriftTime = timestamp;
+        } else if (timestamp - localPlayer.lastDriftTime > 4000 && localPlayer.score.driftScore > 0) {
             // console.log( timestamp - player.lastDriftTime )
             // console.log("End drift")
-            player.score.endDrift();
+            localPlayer.score.endDrift();
         }
 
 
         // Check for collisions
-        let wallHit = this.track.getWallHit(player.car);
+        let wallHit = this.track.getWallHit(localPlayer.car);
         if (wallHit !== null) {
             // Push the car back
-            let pushBack = wallHit.normalVector.mult(Math.abs(player.car.length / 2 - wallHit.distance) * .4);
+            let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.length / 2 - wallHit.distance) * .4);
 
-            player.car.position.add(pushBack);
-            player.car.velocity.mult(0.95);
-            player.car.velocity.add(pushBack);
-            player.score.endDrift()
+            localPlayer.car.position.add(pushBack);
+            localPlayer.car.velocity.mult(0.95);
+            localPlayer.car.velocity.add(pushBack);
+            localPlayer.score.endDrift()
         }
 
         // Check for idling
@@ -254,9 +280,9 @@ class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
         this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
-        for (let id in this.players) {
-            this.highscoreTable.updateScore(player.name, player.score);
-        }
+        this.highscoreTable.updateScores(
+            Object.values(this.players).map(player => ({ playerName: player.name, score: player.score }))
+        );
         this.highscoreTable.displayScores(this.ctx);
 
         requestAnimationFrame((time) => this.gameLoop(time));
@@ -265,12 +291,12 @@ class Game {
 
 
     private updatePlayer(id: string, player: Player) {
-        // console.log("Update player", id, player)
-        if (this.players[id]) {
+        // console.log("Update player", player.name, player)
+        if (this.players[player.name]) {
             // console.log(this.players[id])
-            this.players[id].handleServerUpdate(player);
+            this.players[player.name].handleServerUpdate(player);
         } else {
-            this.players[id] = new Player(id, new Car(), new Score());
+            this.players[player.name] = new Player(id, new Car(), new Score());
         }
 
     }

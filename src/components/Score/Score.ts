@@ -26,7 +26,7 @@ class Score {
 
     endDrift() {
         if (this.driftScore > this.highScore)
-            this.highScore += this.driftScore;
+            this.highScore = this.driftScore;
         this.driftScore = 0;
     }
 

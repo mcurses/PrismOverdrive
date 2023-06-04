@@ -14,6 +14,8 @@ export class InputController {
                     'ArrowLeft': false,
                     'ArrowRight': false,
                     'Space': false,
+                    'Escape': false,
+                    'Enter': false,
                 };
                 window.addEventListener('keydown', (e) => {
                     if (this.keys.hasOwnProperty(e.key)) {
@@ -35,6 +37,13 @@ export class InputController {
                     }
                 });
         }
+    }
+    handleKey(name: string, handler: Function ) {
+        window.addEventListener('keydown', (e) => {
+            if (e.key === name) {
+                handler();
+            }
+        });
     }
 
     destroy() {

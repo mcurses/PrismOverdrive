@@ -1,19 +1,19 @@
 export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number[][][], scale: number) {
     // ctx.strokeStyle = 'rgba(255,255,255,0.4)'; // Equivalent to p5.stroke(255, 100);
     // ctx.lineWidth = 1; // Equivalent to p5.strokeWeight(1);
-    ctx.beginPath();
+    // ctx.beginPath();
 
-    // Draw the track on the minimap
-    for (let j = 0; j < bounds.length; j++) {
-        for (let i = 0; i < bounds[j].length - 1; i++) {
-            let start = {x: bounds[j][i][0] * scale, y: bounds[j][i][1] * scale};
-            let end = {x: bounds[j][i + 1][0] * scale, y: bounds[j][i + 1][1] * scale};
-            ctx.moveTo(start.x, start.y);
-            ctx.lineTo(end.x, end.y);
-        }
-    }
+    // // Draw the track on the minimap
+    // for (let j = 0; j < bounds.length; j++) {
+    //     for (let i = 0; i < bounds[j].length - 1; i++) {
+    //         let start = {x: bounds[j][i][0] * scale, y: bounds[j][i][1] * scale};
+    //         let end = {x: bounds[j][i + 1][0] * scale, y: bounds[j][i + 1][1] * scale};
+    //         ctx.moveTo(start.x, start.y);
+    //         ctx.lineTo(end.x, end.y);
+    //     }
+    // }
 
-    ctx.closePath()
+    // ctx.closePath()
 
     // Fill the track
     let outerBoundary = bounds[0];
