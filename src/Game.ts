@@ -27,11 +27,16 @@ class Game {
     miniMap: MiniMap;
     serverConnection: ServerConnection
 
+
     lastTimestamp: number = 0;
     private trackCanvas: HTMLCanvasElement;
     private trackCtx: CanvasRenderingContext2D;
     private miniMapCanvas: HTMLCanvasElement;
     private miniMapCtx: CanvasRenderingContext2D;
+    private trailsCtx: CanvasRenderingContext2D;
+    private trailsCanvas: HTMLCanvasElement;
+
+    private interval: NodeJS.Timeout;
 
     constructor() {
         this.canvasSize = {
@@ -75,6 +80,11 @@ class Game {
         document.getElementById('sketch-holder').appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        this.trailsCanvas = document.createElement('canvas');
+        this.trailsCanvas.width = this.mapSize.width;
+        this.trailsCanvas.height = this.mapSize.height;
+        this.trailsCtx = this.trailsCanvas.getContext('2d');
+
         this.miniMapCanvas = document.createElement('canvas');
         this.miniMapCanvas.width = this.mapSize.width;
         this.miniMapCanvas.height = this.mapSize.height;
@@ -95,7 +105,26 @@ class Game {
         this.track = new Track(this.trackCanvas, this.canvasSize, bounds)
         this.camera = new Camera({canvasSize: this.canvasSize, mapSize: this.track.mapSize});
         this.inputController = new InputController(InputType.KEYBOARD);
-        this.miniMap = new MiniMap({offscreenCtx:this.miniMapCtx,track: this.track, maxWidth: 50});
+        this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 50});
+
+        this.interval = setInterval(() => {
+            // Draw a semi-transparent white rectangle over the entire trailsCanvas
+            // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
+            // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
+
+            this.trailsCtx.globalAlpha = 0.04;
+            this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+            this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
+            this.trailsCtx.globalAlpha = 1;
+
+// Convert white pixels to transparent
+//             this.trailsCtx.globalCompositeOperation = 'destination-in';
+//             // this.trailsCtx.globalAlpha = 0.995;
+//             this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
+//             // this.trailsCtx.globalAlpha = 1;
+//             this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+
+        }, 1000 / 12      );
 
 
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
@@ -127,7 +156,7 @@ class Game {
         }
         let player = this.players[this.serverConnection.socketId];
 
-        let camPos = this.camera.getOffset(player.car.pos);
+        let camPos = this.camera.getOffset(player.car.position);
 
         // Clear the canvas
         // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -143,6 +172,9 @@ class Game {
 
         player.car.update(this.inputController.getKeys(), deltaTime);
         player.score.update(player.car.velocity, player.car.angle);
+        if (!player.car.isDrifting) {
+            player.score.endDrift();
+        }
 
 
         // Check for collisions
@@ -151,7 +183,7 @@ class Game {
             // Push the car back
             let pushBack = wallHit.normalVector.mult(Math.abs(player.car.length / 2 - wallHit.distance) * .4);
 
-            player.car.pos.add(pushBack);
+            player.car.position.add(pushBack);
             player.car.velocity.mult(0.95);
             player.car.velocity.add(pushBack);
             player.score.resetScore()
@@ -183,12 +215,19 @@ class Game {
 
         // cars[playerCar.id] = playerCar;
 
+        // console.log('frame')
 
         // render the trails
         for (let id in this.players) {
             // renderTrail(id);
-            this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
+            this.players[id].car.trail.drawPoint(this.trailsCtx, this.players[id], true);
+            // console.log(id)
+            // this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
         }
+
+        this.ctx.drawImage(this.trailsCanvas, 0, 0);
+
+
         // Render the  cars
         for (let id in this.players) {
             this.players[id].car.render(this.ctx);

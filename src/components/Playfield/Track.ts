@@ -68,7 +68,7 @@ class Track {
             for (let i = 0; i < sideBoundaries.length - 1; i++) {
                 let start = new Vector(sideBoundaries[i][0], sideBoundaries[i][1]);
                 let end = new Vector(sideBoundaries[i + 1][0], sideBoundaries[i + 1][1]);
-                let carPos = car.pos;
+                let carPos = car.position;
 
                 // Calculate the distance from the car to the boundary line
                 let lineDist = Vector.dist(carPos, this.closestPointOnLine(start, end, carPos));
@@ -97,8 +97,8 @@ class Track {
     draw(ctx: CanvasRenderingContext2D) {
         // Set the style for the track
         ctx.fillStyle = 'rgb(160,160,160)'; // Change this to the color of your track
-        ctx.strokeStyle = 'rgb(255,255,255)'; // Change this to the color of your track's border
-        ctx.lineWidth = 2; // Change this to the width of your track's border
+        ctx.strokeStyle = 'rgb(0,0,0)'; // Change this to the color of your track's border
+        ctx.lineWidth = 20; // Change this to the width of your track's border
         // Draw the track
         drawPolylineShape(ctx, this.boundaries, 1); // Use a scale of 1 to draw the track at its original size
 

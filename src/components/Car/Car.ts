@@ -12,7 +12,7 @@ class Car {
     gripStatic: number;
     gripDynamic: number;
     DRIFT_CONSTANT: number;
-    pos: Vector;
+    position: Vector;
     velocity: Vector;
     acceleration: Vector;
     angle: number;
@@ -39,14 +39,14 @@ class Car {
 
 
     constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0) {
-        let turnFactor = .3;
+        let turnFactor = .2;
         this.turnRateStatic = 0.04 * turnFactor
         this.turnRateDynamic = 0.06 * turnFactor
         this.turnRate = this.turnRateStatic;
         this.gripStatic = 1.4;
-        this.gripDynamic = .1;
-        this.DRIFT_CONSTANT = 9.;
-        this.pos = new Vector(posX, posY);
+        this.gripDynamic = .2;
+        this.DRIFT_CONSTANT = 8.;
+        this.position = new Vector(posX, posY);
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
         this.angle = angle;
@@ -78,11 +78,7 @@ class Car {
      *  Safely read car variables
      ******************************************************************************/
     getPos(): Coordinates {
-        return {x: this.pos.x, y: this.pos.y}
-    }
-
-    isDrift(): boolean {
-        return this.isDrifting;
+        return {x: this.position.x, y: this.position.y}
     }
 
     getAngle(): number {
@@ -97,7 +93,7 @@ class Car {
     update(keys, deltaTime) {
         let timeFactor = .4;
 
-            // let force = this.isDrifting ? this.force * 0.5 : this.force; // Reduce the force by half when drifting
+        // let force = this.isDrifting ? this.force * 0.5 : this.force; // Reduce the force by half when drifting
         // if (this.isDrifting) {
         //     console.log("drifting")
         // }
@@ -182,11 +178,13 @@ class Car {
         // Physics Engine
         this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
         this.velocity.add(this.acceleration);
+        if (this.handbrake)
+            this.velocity = this.isDrifting ? this.velocity.mult(0.99) : this.velocity.mult(0.95);
         //
         if (this.velocity.mag() > 50) {
             console.log("velocity: ", this.velocity.mag())
         }
-        this.targetPosition = this.pos.copy().add(this.velocity.mult(deltaTime * timeFactor));
+        this.targetPosition = this.position.copy().add(this.velocity.mult(deltaTime * timeFactor));
         this.acceleration = new Vector(0, 0); // Reset acceleration for next frame
 
 
@@ -202,14 +200,14 @@ class Car {
     interpolatePosition() {
         if (this.targetPosition) {
             // console.log("interpolating position")
-            let distance = Vector.dist(this.pos, this.targetPosition);
+            let distance = Vector.dist(this.position, this.targetPosition);
             // if difference is too large, just teleport
             if (distance > 500) {
-                this.pos = new Vector(this.targetPosition.x, this.targetPosition.y);
+                this.position = new Vector(this.targetPosition.x, this.targetPosition.y);
                 this.targetPosition = null;
             } else {
                 let targetPos = new Vector(this.targetPosition.x, this.targetPosition.y);
-                this.pos = Vector.lerp(this.pos, targetPos, 0.1);
+                this.position = Vector.lerp(this.position, targetPos, 0.1);
             }
             if (distance < 1) {
                 this.targetPosition = null;
@@ -243,7 +241,7 @@ class Car {
         curCar.interpolatePosition();
 
         // Set color
-        if (!curCar.isDrift()) {
+        if (!curCar.isDrifting) {
             curCar.color = new HSLColor(0, 0, 100);
         }
         if (curCar.isColliding) {
@@ -254,7 +252,7 @@ class Car {
         ctx.save();
 
         // Translate and rotate the context
-        ctx.translate(this.pos.x, this.pos.y);
+        ctx.translate(this.position.x, this.position.y);
         ctx.rotate(this.angle);
 
         // Set stroke and fill styles
@@ -281,10 +279,10 @@ class Car {
         let corners = [];
 
         // Calculate the corners relative to the car's center point
-        let frontLeft = new Vector(width / 2, height / 2);
-        let frontRight = new Vector(width / 2, height / 2);
-        let backLeft = new Vector(width / 2, height / 2);
-        let backRight = new Vector(width / 2, height / 2);
+        let frontLeft = new Vector(this.position.x - width / 2, this.position.y - height / 2);
+        let frontRight = new Vector(this.position.x + width / 2, this.position.y - height / 2);
+        let backLeft = new Vector(this.position.x - width / 2, this.position.y + height / 2);
+        let backRight = new Vector(this.position.x + width / 2, this.position.y + height / 2);
 
         corners.push(frontLeft);
         corners.push(frontRight);
@@ -294,7 +292,7 @@ class Car {
         let rotatedCorners = [];
         for (let i = 0; i < corners.length; i++) {
             let corner = corners[i];
-            let rotatedCorner = Vector.rotatePoint(corner, new Vector(0, 0), this.angle);
+            let rotatedCorner = Vector.rotatePoint(corner, this.position , this.angle);
             rotatedCorners.push(rotatedCorner);
         }
         return rotatedCorners;

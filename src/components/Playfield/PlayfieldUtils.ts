@@ -1,6 +1,6 @@
 export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number[][][], scale: number) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; // Equivalent to p5.stroke(255, 100);
-    ctx.lineWidth = 1; // Equivalent to p5.strokeWeight(1);
+    // ctx.strokeStyle = 'rgba(255,255,255,0.4)'; // Equivalent to p5.stroke(255, 100);
+    // ctx.lineWidth = 1; // Equivalent to p5.strokeWeight(1);
     ctx.beginPath();
 
     // Draw the track on the minimap
@@ -14,7 +14,6 @@ export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number
     }
 
     ctx.closePath()
-    ctx.stroke();
 
     // Fill the track
     let outerBoundary = bounds[0];
@@ -25,9 +24,10 @@ export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number
     }
     ctx.closePath(); // Equivalent to p5.endShape(p5.CLOSE);
     ctx.fill();
+    ctx.stroke();
 
     // Define the inner boundary
-    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalCompositeOperation = 'xor';
     let innerBoundary = bounds[1];
     ctx.beginPath();
     for (let point of innerBoundary) {
@@ -38,6 +38,7 @@ export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number
     ctx.fillStyle = 'rgba(0,0,0,1)';
 // Fill the inner boundary
     ctx.fill();
+    ctx.stroke();
 
 // Reset the composite operation to 'source-over'
     ctx.globalCompositeOperation = 'source-over';
