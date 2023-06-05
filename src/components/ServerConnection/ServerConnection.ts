@@ -50,8 +50,15 @@ export default class ServerConnection {
                 this.socketId = this.socket.id;
                 this.connected = true;
                 let playerId = this.socket.id;
-                this.updateLocalPlayer(playerId, new Player(playerId, new Car(300, 1800, 0), new Score()));
+                this.updateLocalPlayer(playerId, new Player(playerId, playerId, new Car(300, 1800, 0), new Score()));
             });
+
+        this.socket.on('disconnect', () => {
+            this.connected = false;
+        });
+        this.socket.on('remove player', (id: string) => {
+            this.updateLocalPlayer(id, null);
+        });
 
         this.socket.on('update car', (array: any[]) => {
             // console.log("Received update")

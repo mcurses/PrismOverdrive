@@ -36,11 +36,6 @@ class Trail {
             player.car.isDrifting,
             player.score
         ));
-
-        // let simTrail = this.points.map(p => p.drifting?~~p.position.x:0)
-        // console.log(simTrail)
-        // console.log(this.points.length + " " + player.car.trailCounter)
-
         let trailCutOff = Math.min(this.TRAIL_MAX_LENGTH, 10 + player.score.highScore / 30);
         if (this.points.length > trailCutOff)
             this.points.splice(0, this.points.length - trailCutOff);
@@ -48,21 +43,10 @@ class Trail {
     }
 
     drawPoint(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
-        // let p = new TrailPoint(
-        //     player.car.getPos(),
-        //     player.car.getAngle(),
-        //     player.car.isDrifting,
-        //     player.score
-        // );
         let opacity = 255;
-        // console.log(ctx.strokeStyle)
-        // ctx.fillStyle = `hsla(${trailPointColor.h}, ${trailPointColor.s}%, ${trailPointColor.l}%, ${opacity / 255})`;
-
         let trailPointColor = driftColor(player.score.driftScore, player.score.frameScore, player.score.highScore);
         trailPointColor.b = Math.min(50, trailPointColor.b);
         trailPointColor.a = opacity / 255;
-        // console.log(player.score, colorString)
-        // ctx.strokeStyle = colorString;
         ctx.fillStyle = trailPointColor.toCSS();
 
         let weight = player.score.frameScore * .4 * Math.max(1, player.score.driftScore / 1000);
@@ -71,44 +55,22 @@ class Trail {
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
         this.prevWeight = weight
 
-
-        // console.log("weight", p.score, weight, p.score.frameScore, p.score.totalScore / 1000)
-
-        // Mapping p5.circle to a combination of ctx.arc and ctx.stroke or ctx.fill
         let corners = player.car.getCorners() //getCarCorners({
-        // width: car.width,
-        // height: car.length
-        // }, p.angle);
         ctx.beginPath();
         for (let [index, corner] of corners.entries()) {
             let factor = index == 3 || index == 2 ? 1.5 : 2;
             let radius = weight * factor / 2;
-            ctx.rect(corner.x -radius, corner.y -radius, weight * factor, weight * factor)
-            // ctx.arc(corner.x - radius, corner.y - radius, weight * factor, -12, 2 * Math.PI);
-            // ctx.stroke();
+            ctx.rect(
+                (corner.x - radius),
+                (corner.y - radius),
+                radius * 2,
+                radius * 2)
             ctx.fill();
-
-            // draw a circle
-            // ctx.lineWidth = weight;
-            // ctx.strokeStyle = "red";
-            // ctx.fillStyle = "red";
-            // ctx.rect(player.car.position.x, player.car.position.y, 10, 10)
-            // ctx.beginPath();
-            // ctx.arc(p.position.x, p.position.y, weight, 0, 2 * Math.PI);
-            //
-            // ctx.closePath();
-
-            // ctx.stroke();
-            // ctx.fill();
-            // ctx.closePath();
-
         }
         ctx.closePath();
-
-
     }
 
-    render(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
+    renderAllPoints(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
         // console.log("rendering trail", this.points.length, isLocal);
         player.car.trailCounter = isLocal
             ? player.car.trailCounter + (1)

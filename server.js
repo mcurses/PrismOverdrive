@@ -21,7 +21,8 @@ io.on('connection', (socket) => {
     console.log('User connected');
 
     socket.on('disconnect', () => {
-        console.log('User disconnected');
+        console.log('User disconnected!');
+        socket.broadcast.emit('remove player', socket.id);
     });
 
     socket.on('alive', () => {

@@ -12,7 +12,8 @@ export default class Player {
     lastDriftTime: number;
     id: string;
 
-    constructor(name: string, car: Car, score: Score) {
+    constructor(id : string, name: string, car: Car, score: Score) {
+        this.id = id;
         this.name = name;
         this.car = car;
         this.score = score;
