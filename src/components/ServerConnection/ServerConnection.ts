@@ -47,7 +47,7 @@ export default class ServerConnection {
                 socketUrl = 'http://localhost:3000';
                 break;
             case 'cars.puhoy.net':
-                socketUrl = 'https://cars.puhoy.net';
+                socketUrl = 'https://cars.puhoy.net/api';
                 break;
         }
         this.socket = io.connect(socketUrl);
