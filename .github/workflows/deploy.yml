@@ -25,6 +25,8 @@ jobs:
         cd /home/cars/cars  # Set your app directory path here
         git pull
         npm install
+        npm run build
         sudo systemctl restart cars.service  # Set your systemd service name here
+        sudo systemctl restart cars-server.service  
         ENDSSH
 
