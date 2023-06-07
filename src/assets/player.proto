@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+message CarState {
+  Position position = 1;
+  bool drifting = 2;
+  float angle = 3;
+
+  message Position {
+    float x = 1;
+    float y = 2;
+  }
+}
+
+message ScoreState {
+  float frameScore = 1;
+  float driftScore = 2;
+  float highScore = 3;
+}
+
+message PlayerState {
+  string id = 1;
+  string name = 2;
+  ScoreState score = 3;
+  CarState car = 4;
+}
