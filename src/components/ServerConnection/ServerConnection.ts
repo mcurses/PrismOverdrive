@@ -42,6 +42,14 @@ export default class ServerConnection {
 
     connect() {
         let socketUrl = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://cars.puhoy.net';
+        switch (location.hostname) {
+            case 'localhost':
+                socketUrl = 'http://localhost:3000';
+                break;
+            case 'cars.puhoy.net':
+                socketUrl = 'https://cars.puhoy.net';
+                break;
+        }
         this.socket = io.connect(socketUrl);
 
         this.socket.on(
@@ -50,8 +58,15 @@ export default class ServerConnection {
                 this.socketId = this.socket.id;
                 this.connected = true;
                 let playerId = this.socket.id;
-                this.updateLocalPlayer(playerId, new Player(playerId, new Car(300, 1800, 0), new Score()));
+                this.updateLocalPlayer(playerId, new Player(playerId, playerId, new Car(300, 1800, 0), new Score()));
             });
+
+        this.socket.on('disconnect', () => {
+            this.connected = false;
+        });
+        this.socket.on('remove player', (id: string) => {
+            this.updateLocalPlayer(id, null);
+        });
 
         this.socket.on('update car', (array: any[]) => {
             // console.log("Received update")

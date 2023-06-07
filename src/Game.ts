@@ -37,12 +37,13 @@ class Game {
     private trailsCtx: CanvasRenderingContext2D;
     private trailsCanvas: HTMLCanvasElement;
 
-    private trackDrawInterval: NodeJS.Timeout;
+    private trackBlurInterval: NodeJS.Timeout;
     private lastUdpate: number;
     private sendUpdateInterval: NodeJS.Timer;
     private highscoreTable: HighScoreTable;
     private nameInput: HTMLInputElement;
     private prevKeys: { [p: string]: boolean } = {};
+    private trackOverpaintInterval: NodeJS.Timer;
 
     constructor() {
         this.canvasSize = {
@@ -70,11 +71,6 @@ class Game {
             loadImage('assets/layer1.png'),
             loadImage('assets/layer2.png')
         ]);
-
-        // The images are now loaded, you can safely use them.
-        // background.src = 'assets/track2-grad.png';
-        // layer1.src = 'assets/layer1.png';
-        // layer2.src = 'assets/layer2.png';
     }
 
 
@@ -115,24 +111,30 @@ class Game {
         this.highscoreTable = new HighScoreTable();
         this.lastUdpate = 0;
 
-        this.trackDrawInterval = setInterval(() => {
+        this.trackOverpaintInterval = setInterval(() => {
+            this.trailsCtx.globalAlpha = 0.02;
+            this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+            // this.trailsCtx.globalCompositeOperation = 'exclusion';
+            this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
+            this.trailsCtx.globalAlpha = 1;
+
+        }, 1000 / 24);
+        this.trackBlurInterval = setInterval(() => {
             // Draw a semi-transparent white rectangle over the entire trailsCanvas
             // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
             // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
 
-            this.trailsCtx.globalAlpha = 0.04;
-            this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
-            this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
-            this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-18,18), gaussianRandom(-18,18));
-
+            this.trailsCtx.globalAlpha = 0.09;
+            this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-28,28), gaussianRandom(-28,28));
             this.trailsCtx.globalAlpha = 1;
 
-// Convert white pixels to transparent
-//             this.trailsCtx.globalCompositeOperation = 'destination-in';
-//             // this.trailsCtx.globalAlpha = 0.995;
-//             this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
-//             // this.trailsCtx.globalAlpha = 1;
-//             this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+
+            // Convert white pixels to transparent
+            //             this.trailsCtx.globalCompositeOperation = 'destination-in';
+            //             // this.trailsCtx.globalAlpha = 0.995;
+            //             this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
+            //             // this.trailsCtx.globalAlpha = 1;
+                        this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
 
         }, 1000 / 4);
 
@@ -178,6 +180,7 @@ class Game {
                 this.updatePlayer(this.serverConnection.socketId,
                     new Player(
                         this.serverConnection.socketId,
+                        this.serverConnection.socketId,
                         new Car(500, 1900, 0),
                         new Score()));
                 console.log("Added player", this.serverConnection.socketId)
@@ -204,7 +207,8 @@ class Game {
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
-        this.ctx.translate(this.camera.position.x, this.camera.position.y);
+        // console.log(~~this.camera.position.x, ~~this.camera.position.y)
+        this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
         this.ctx.drawImage(this.trackCanvas, 0, 0);
 
 
@@ -232,42 +236,14 @@ class Game {
             localPlayer.score.endDrift()
         }
 
-        // Check for idling
-        // for (let playerId in this.players) {
-        //     let player = this.players[playerId];
-        //     if (playerId === this.serverConnection.socketId) continue;
-        //     if (player.car.velocity.mag() < .1) {
-        //         player.incrementIdleTime();
-        //     } else {
-        //         player.score.resetScore()
-        //     }
-        // }
+        this.checkIdlePlayers();
 
-        // if not moving, increase idle time
-        // if (curCar.velocity.mag() < 0.1) {
-        //     curCar.idleTime++;
-        // } else {
-        //     curCar.idleTime = 0;
-        // }
-        // if idle for 60 seconds, remove from game
-        // but for others not for self
-        // if (playerCar.idleTime > 60 * 60) {
-        //     delete cars[playerCar.id];
-        // }
-
-
-        // cars[playerCar.id] = playerCar;
-
-        // console.log('frame')
 
         // render the trails
         for (let id in this.players) {
-            // renderTrail(id);
             this.players[id].car.trail.drawPoint(this.trailsCtx, this.players[id], true);
-            // console.log(id)
             // this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
         }
-
         this.ctx.drawImage(this.trailsCanvas, 0, 0);
 
 
@@ -291,18 +267,52 @@ class Game {
 
 
     private updatePlayer(id: string, player: Player) {
-        // console.log("Update player", player.name, player)
-        if (this.players[player.name]) {
+        // console.log("Update player", player.name, player, id)
+        if (!player) {
+            this.removePlayer(id);
+            return;
+        }
+        if (this.players[player.id]) {
             // console.log(this.players[id])
-            this.players[player.name].handleServerUpdate(player);
+            this.players[player.id].handleServerUpdate(player);
         } else {
-            this.players[player.name] = new Player(id, new Car(), new Score());
+            this.players[player.id] = new Player(id,id, new Car(), new Score());
         }
 
     }
 
     private removePlayer(id: string) {
+        console.log("Remove player", id)
         delete this.players[id];
+    }
+
+    private checkIdlePlayers() {
+        return
+        // implement later
+
+        // Check for idling
+        // for (let playerId in this.players) {
+        //     let player = this.players[playerId];
+        //     if (playerId === this.serverConnection.socketId) continue;
+        //     if (player.car.velocity.mag() < .1) {
+        //         player.incrementIdleTime();
+        //     } else {
+        //         player.score.resetScore()
+        //     }
+        // }
+
+        // if not moving, increase idle time
+        // if (curCar.velocity.mag() < 0.1) {
+        //     curCar.idleTime++;
+        // } else {
+        //     curCar.idleTime = 0;
+        // }
+        // if idle for 60 seconds, remove from game
+        // but for others not for self
+        // if (playerCar.idleTime > 60 * 60) {
+        //     delete cars[playerCar.id];
+        // }
+
     }
 }
 

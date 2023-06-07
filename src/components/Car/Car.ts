@@ -91,7 +91,7 @@ class Car {
 
 
     update(keys, deltaTime) {
-        let timeFactor = .4;
+        let timeFactor = .2;
 
         // let force = this.isDrifting ? this.force * 0.5 : this.force; // Reduce the force by half when drifting
         // if (this.isDrifting) {
