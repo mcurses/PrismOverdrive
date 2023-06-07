@@ -37,12 +37,13 @@ class Game {
     private trailsCtx: CanvasRenderingContext2D;
     private trailsCanvas: HTMLCanvasElement;
 
-    private trackDrawInterval: NodeJS.Timeout;
+    private trackBlurInterval: NodeJS.Timeout;
     private lastUdpate: number;
     private sendUpdateInterval: NodeJS.Timer;
     private highscoreTable: HighScoreTable;
     private nameInput: HTMLInputElement;
     private prevKeys: { [p: string]: boolean } = {};
+    private trackOverpaintInterval: NodeJS.Timer;
 
     constructor() {
         this.canvasSize = {
@@ -110,24 +111,30 @@ class Game {
         this.highscoreTable = new HighScoreTable();
         this.lastUdpate = 0;
 
-        this.trackDrawInterval = setInterval(() => {
+        this.trackOverpaintInterval = setInterval(() => {
+            this.trailsCtx.globalAlpha = 0.02;
+            this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+            // this.trailsCtx.globalCompositeOperation = 'exclusion';
+            this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
+            this.trailsCtx.globalAlpha = 1;
+
+        }, 1000 / 24);
+        this.trackBlurInterval = setInterval(() => {
             // Draw a semi-transparent white rectangle over the entire trailsCanvas
             // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
             // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
 
-            this.trailsCtx.globalAlpha = 0.04;
-            this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
-            this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
+            this.trailsCtx.globalAlpha = 0.09;
             this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-28,28), gaussianRandom(-28,28));
-
             this.trailsCtx.globalAlpha = 1;
+
 
             // Convert white pixels to transparent
             //             this.trailsCtx.globalCompositeOperation = 'destination-in';
             //             // this.trailsCtx.globalAlpha = 0.995;
             //             this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
             //             // this.trailsCtx.globalAlpha = 1;
-            //             this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+                        this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
 
         }, 1000 / 4);
 
@@ -201,7 +208,7 @@ class Game {
 
         // Apply the camera translation
         // console.log(~~this.camera.position.x, ~~this.camera.position.y)
-        this.ctx.translate(this.camera.position.x, this.camera.position.y);
+        this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
         this.ctx.drawImage(this.trackCanvas, 0, 0);
 
 

@@ -42,6 +42,14 @@ export default class ServerConnection {
 
     connect() {
         let socketUrl = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://cars.puhoy.net';
+        switch (location.hostname) {
+            case 'localhost':
+                socketUrl = 'http://localhost:3000';
+                break;
+            case 'cars.puhoy.net':
+                socketUrl = 'https://cars.puhoy.net';
+                break;
+        }
         this.socket = io.connect(socketUrl);
 
         this.socket.on(

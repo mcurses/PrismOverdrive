@@ -49,13 +49,15 @@ class Trail {
         trailPointColor.a = opacity / 255;
         ctx.fillStyle = trailPointColor.toCSS();
 
-        let weight = player.score.frameScore * .4 * Math.max(1, player.score.driftScore / 1000);
+        let weight = player.score.frameScore * .1 * Math.max(1, player.score.driftScore / 1000);
         let weightDiff = weight - this.prevWeight;
         weight = this.prevWeight + weightDiff * .1;
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
         this.prevWeight = weight
 
         let corners = player.car.getCorners() //getCarCorners({
+        ctx.globalCompositeOperation = "overlay";
+        ctx.globalAlpha = .5;
         ctx.beginPath();
         for (let [index, corner] of corners.entries()) {
             let factor = index == 3 || index == 2 ? 1.5 : 2;
@@ -68,6 +70,7 @@ class Trail {
             ctx.fill();
         }
         ctx.closePath();
+        ctx.globalCompositeOperation = "source-over";
     }
 
     renderAllPoints(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
