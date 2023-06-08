@@ -18,6 +18,7 @@ export default class ServerConnection {
     connected: boolean = false;
     socketId: string = "";
     sessionMap: Map<string, string>;
+    private sessionId: string;
 
     constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
         this.updateLocalPlayer = updatePlayer;
@@ -45,6 +46,7 @@ export default class ServerConnection {
     generateUniqueSessionId() {
         return Math.random().toString(36).substring(2) + Date.now().toString(36);
     }
+
 
     connect() {
         let socketUrl = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://cars.puhoy.net';
@@ -77,6 +79,10 @@ export default class ServerConnection {
                 //     this.updateLocalPlayer(sessionId, new Player(sessionId, sessionId, new Car(300, 1800, 0), new Score()));
                 // }
             });
+
+        this.socket.on('alive', () => {
+            this.socket.emit('alive', this.sessionId);
+        });
 
         this.socket.on('disconnect', () => {
             this.connected = false;
