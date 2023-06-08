@@ -97,10 +97,6 @@ class Game {
         this.trackCanvas.height = this.mapSize.height;
         // this.trackCtx = this.trackCanvas.getContext('2d');
 
-        this.serverConnection = new ServerConnection(
-            (id, player) => this.updatePlayer(id, player),
-            (id) => this.removePlayer(id));
-        this.serverConnection.connect();
         let bounds = bounds2
         bounds = scaleTo(bounds, this.mapSize);
 
@@ -125,7 +121,8 @@ class Game {
             // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
 
             this.trailsCtx.globalAlpha = 0.09;
-            this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-28,28), gaussianRandom(-28,28));
+            this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
+            // this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-28,28), gaussianRandom(-28,28));
             this.trailsCtx.globalAlpha = 1;
 
 
@@ -134,7 +131,7 @@ class Game {
             //             // this.trailsCtx.globalAlpha = 0.995;
             //             this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
             //             // this.trailsCtx.globalAlpha = 1;
-                        this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
+            this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
 
         }, 1000 / 4);
 
@@ -144,7 +141,12 @@ class Game {
             // console.log("Sending update")
         }, 1000 / 60);
 
+        this.serverConnection = new ServerConnection(
+            (id, player) => this.updatePlayer(id, player),
+            (id) => this.removePlayer(id));
+        this.serverConnection.connect()
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+
 
         // Create the input field
         this.nameInput = document.createElement('input');
@@ -169,6 +171,7 @@ class Game {
         }
     }
 
+
     gameLoop(timestamp) {
         const deltaTime = timestamp - this.lastTimestamp;
         this.lastTimestamp = timestamp;
@@ -187,7 +190,7 @@ class Game {
             }
         } else {
             console.log("Waiting for server connection")
-            requestAnimationFrame((time) => this.gameLoop(time));
+            setTimeout(() => requestAnimationFrame((time) => this.gameLoop(time)), 1000);
             return
         }
 
@@ -257,7 +260,7 @@ class Game {
         this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, this.track, Object.values(this.players).map(player => player.car));
         this.highscoreTable.updateScores(
-            Object.values(this.players).map(player => ({ playerName: player.name, score: player.score }))
+            Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
         );
         this.highscoreTable.displayScores(this.ctx);
 
@@ -276,7 +279,7 @@ class Game {
             // console.log(this.players[id])
             this.players[player.id].handleServerUpdate(player);
         } else {
-            this.players[player.id] = new Player(id,id, new Car(), new Score());
+            this.players[player.id] = new Player(id, id, new Car(), new Score());
         }
 
     }

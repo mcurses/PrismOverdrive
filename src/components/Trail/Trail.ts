@@ -56,7 +56,7 @@ class Trail {
         this.prevWeight = weight
 
         let corners = player.car.getCorners() //getCarCorners({
-        ctx.globalCompositeOperation = "overlay";
+        // ctx.globalCompositeOperation = "overlay";
         ctx.globalAlpha = .5;
         ctx.beginPath();
         for (let [index, corner] of corners.entries()) {

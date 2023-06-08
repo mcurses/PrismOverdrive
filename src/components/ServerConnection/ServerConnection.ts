@@ -17,10 +17,12 @@ export default class ServerConnection {
     private updateLocalPlayer: (id: string, player: Player) => void;
     connected: boolean = false;
     socketId: string = "";
+    sessionMap: Map<string, string>;
 
     constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
         this.updateLocalPlayer = updatePlayer;
         this.loadCarState()
+        this.sessionMap = new Map();
     }
 
     alive() {
@@ -40,6 +42,10 @@ export default class ServerConnection {
         });
     }
 
+    generateUniqueSessionId() {
+        return Math.random().toString(36).substring(2) + Date.now().toString(36);
+    }
+
     connect() {
         let socketUrl = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://cars.puhoy.net';
         switch (location.hostname) {
@@ -47,18 +53,29 @@ export default class ServerConnection {
                 socketUrl = 'http://localhost:3000';
                 break;
             case 'cars.puhoy.net':
-                socketUrl = 'https://cars.puhoy.net/api';
+                socketUrl = 'https://cars.puhoy.net/';
                 break;
         }
-        this.socket = io.connect(socketUrl);
+
+        // Client-side code
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            sessionId = this.generateUniqueSessionId();  // Replace this with your own function to generate unique session IDs
+            localStorage.setItem('sessionId', sessionId);
+        }
+        this.socket = io.connect(socketUrl, {query: {sessionId: sessionId}});
+        // this.socket = io.connect(socketUrl);
 
         this.socket.on(
             'connect', () => {
                 // On successful connection, assign the socket id to the car
                 this.socketId = this.socket.id;
                 this.connected = true;
-                let playerId = this.socket.id;
-                this.updateLocalPlayer(playerId, new Player(playerId, playerId, new Car(300, 1800, 0), new Score()));
+                this.updateLocalPlayer(this.socket.id, new Player(this.socket.id, this.socket.id, new Car(300, 1800, 0), new Score()));
+                // let sessionId = this.socket.handshake.query.sessionId;
+                // if (!this.players[sessionId]) {
+                //     this.updateLocalPlayer(sessionId, new Player(sessionId, sessionId, new Car(300, 1800, 0), new Score()));
+                // }
             });
 
         this.socket.on('disconnect', () => {
