@@ -71,7 +71,7 @@ class Trail {
             let bgColor = trailPointColor.clone()
             bgColor.s = 5;
             bgColor.a = .5;
-            bgColor.b = 70;
+            bgColor.b = mapValues(player.score.driftScore, 30000, 60000, 100, 0)
             ctx.fillStyle = bgColor.toCSS();
             // console.log(player.car.acceleration)
             // rotate around player.car.position

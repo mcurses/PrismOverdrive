@@ -115,6 +115,10 @@ class Game {
             this.trailsCtx.globalAlpha = 1;
 
         }, 1000 / 24);
+
+        this.trailsCtx.globalAlpha = 1;
+        this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
+        this.ctx.drawImage(this.trailsCanvas, 0, 0);
         this.trackBlurInterval = setInterval(() => {
             // Draw a semi-transparent white rectangle over the entire trailsCanvas
             // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
@@ -212,7 +216,6 @@ class Game {
         // Apply the camera translation
         // console.log(~~this.camera.position.x, ~~this.camera.position.y)
         this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
-        this.ctx.drawImage(this.trackCanvas, 0, 0);
 
 
         let keys = this.inputController.getKeys();
