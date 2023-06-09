@@ -28,6 +28,9 @@ export function loadImage(src: string): Promise<void> {
         img.src = src;
     });
 }
+export function clamp(min: number, value: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
+}
 
 export function gaussianRand() {
   var rand = 0;

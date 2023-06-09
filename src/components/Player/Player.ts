@@ -28,7 +28,10 @@ export default class Player {
         this.car.targetPosition = player.car.position;
         this.car.angle = player.car.angle;
         this.car.isDrifting = player.car.isDrifting;
-        this.score = player.score;
+        // this.score = player.score;
+        this.score.highScore = player.score.highScore;
+        this.score.frameScore = player.score.frameScore;
+        this.score.driftScore = player.score.driftScore;
         this.name = player.name;
     }
 
@@ -43,7 +46,7 @@ export default class Player {
             this.score.driftScore = 0;
         }
 
-        let carColor = driftColor(this.score.driftScore, this.score.frameScore, this.score.highScore);
+        let carColor = driftColor(this.score);
         this.car.color = new HSLColor(carColor.h, carColor.s + 20, 80);
 
     }

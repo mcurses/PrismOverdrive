@@ -216,6 +216,10 @@ class Game {
 
 
         let keys = this.inputController.getKeys();
+        if (keys['ArrowUp'] && keys['ArrowDown'] && keys['ArrowLeft'] && keys['ArrowRight']) {
+            this.players[this.serverConnection.socketId].score.driftScore = 30000
+        }
+
         localPlayer.car.update(keys, deltaTime);
         localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
         if (localPlayer.car.isDrifting) {
@@ -263,6 +267,7 @@ class Game {
             Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
         );
         this.highscoreTable.displayScores(this.ctx);
+        // this.highscoreTable.displayScoresTable();
 
         requestAnimationFrame((time) => this.gameLoop(time));
 

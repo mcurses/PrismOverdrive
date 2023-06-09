@@ -14,11 +14,13 @@
   "dependencies": {
     "@larsgw/svg-path": "^0.1.0",
     "cors": "^2.8.5",
+    "directory-tree": "^3.5.1",
     "express": "^4.18.2",
     "p5": "^1.6.0",
     "pbjs": "^0.0.14",
     "protobufjs": "^7.2.3",
-    "socket.io": "^4.6.1"
+    "socket.io": "^4.6.1",
+    "ts-morph": "^18.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.22.1",

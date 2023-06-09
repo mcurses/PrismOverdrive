@@ -11,11 +11,15 @@ export class HSLColor {
         this.a = a;
     }
 
-    toCSS() {
+    toCSS() : string {
         return `hsla(${this.h},${this.s}%,${this.b}%,${this.a})`;
     }
 
     toCSSWithAlpha(alpha: number) {
         return `hsla(${this.h},${this.s}%,${this.b}%,${alpha})`;
+    }
+
+    clone() : HSLColor {
+        return new HSLColor(this.h, this.s, this.b, this.a);
     }
 }

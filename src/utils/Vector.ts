@@ -35,6 +35,10 @@ class Vector {
         return Math.sqrt(Math.pow(this.x - v.x, 2) + Math.pow(this.y - v.y, 2));
     }
 
+    angle() {
+        return Math.atan2(this.y, this.x);
+    }
+
     static dist(v1: Vector, v2: Vector) {
         return v1.sub(v2).mag();
     }
@@ -86,6 +90,15 @@ class Vector {
 
     static add(start: Vector, mult: any) {
         return new Vector(start.x + mult.x, start.y + mult.y);
+    }
+
+    static up = new Vector(0, -1);
+    static down = new Vector(0, 1);
+    static left = new Vector(-1, 0);
+    static right = new Vector(1, 0);
+
+    static cross(v1: Vector, v2: Vector) {
+        return v1.x * v2.y - v1.y * v2.x;
     }
 }
 

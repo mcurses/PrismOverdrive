@@ -3,6 +3,8 @@ import Car from "../Car/Car";
 import {driftColor} from "../Score/ScoreVisualize";
 import Player from "../Player/Player";
 import Score from "../Score/Score";
+import {HSLColor} from "../../utils/HSLColor";
+import car from "../Car/Car";
 
 class TrailPoint {
     position: { x: number, y: number };
@@ -44,10 +46,9 @@ class Trail {
 
     drawPoint(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
         let opacity = 255;
-        let trailPointColor = driftColor(player.score.driftScore, player.score.frameScore, player.score.highScore);
+        let trailPointColor: HSLColor = driftColor(player.score);
         trailPointColor.b = Math.min(50, trailPointColor.b);
         trailPointColor.a = opacity / 255;
-        ctx.fillStyle = trailPointColor.toCSS();
 
         let weight = player.score.frameScore * .1 * Math.max(1, player.score.driftScore / 1000);
         let weightDiff = weight - this.prevWeight;
@@ -55,13 +56,46 @@ class Trail {
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
         this.prevWeight = weight
 
+
         let corners = player.car.getCorners() //getCarCorners({
         // ctx.globalCompositeOperation = "overlay";
         ctx.globalAlpha = .5;
+
+        ctx.save()
+        ctx.beginPath();
+        let overScore = player.score.driftScore > 30000;
+        if (overScore) {
+
+            // trailPointColor.s /= 4;
+            weight *= 2;
+            let bgColor = trailPointColor.clone()
+            bgColor.s = 5;
+            bgColor.a = .5;
+            bgColor.b = 70;
+            ctx.fillStyle = bgColor.toCSS();
+            console.log(player.car.acceleration)
+            // rotate around player.car.position
+            ctx.translate(player.car.position.x, player.car.position.y);
+            ctx.rotate(player.car.getAngle());
+            ctx.rect(
+               -weight / 2,
+                -weight / 2,
+                weight,
+                weight)
+            ctx.fill();
+            trailPointColor.s = 100;
+            weight /= 10;
+
+        }
+        ctx.closePath();
+        ctx.restore()
+
+        ctx.save()
         ctx.beginPath();
         for (let [index, corner] of corners.entries()) {
             let factor = index == 3 || index == 2 ? 1.5 : 2;
             let radius = weight * factor / 2;
+            ctx.fillStyle = trailPointColor.toCSS();
             ctx.rect(
                 (corner.x - radius),
                 (corner.y - radius),
@@ -99,7 +133,7 @@ class Trail {
                 // console.log("drifting")
                 // ... Processing of trailPointColor and opacity
 
-                let trailPointColor = driftColor(p.score.driftScore, p.score.frameScore, p.score.highScore);
+                let trailPointColor = driftColor(p.score);
                 // p5.colorMode(p5.HSB, 100);
                 let opacity = 255;
 
