@@ -73,7 +73,7 @@ class Trail {
             bgColor.a = .5;
             bgColor.b = 70;
             ctx.fillStyle = bgColor.toCSS();
-            console.log(player.car.acceleration)
+            // console.log(player.car.acceleration)
             // rotate around player.car.position
             ctx.translate(player.car.position.x, player.car.position.y);
             ctx.rotate(player.car.getAngle());
