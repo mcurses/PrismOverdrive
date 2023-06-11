@@ -9,6 +9,7 @@ class Score {
     frameScore: number;
     driftCount: number;
     frameScoreHistory: number[] = [];
+    curveScore: number;
 
     constructor(frameScore = 0, totalScore = 0, driftScore = 0) {
         this.frameScore = 0;
@@ -22,7 +23,9 @@ class Score {
 
         // Calculate the score based on the angle difference and the velocity
         this.frameScore = (1 - Math.sin(angleDifference)) * velocity.mag();
+        // console.log('frameScore', this.frameScore)
         this.driftScore += this.frameScore;
+        this.curveScore += this.frameScore;
         this.pushFrameScore(this.frameScoreHistory, this.frameScore);
     }
 
@@ -41,6 +44,7 @@ class Score {
         return sum / range;
 
     }
+
 
     endDrift() {
         if (this.driftScore > this.highScore)

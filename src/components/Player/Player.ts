@@ -40,7 +40,7 @@ export default class Player {
         // Reset the score if not drifting for 3 seconds
         if (this.car.isDrifting) {
             this.lastDriftTime = Date.now();
-        } else if (this.car.lastDriftTime !== null && Date.now() - this.lastDriftTime > 3000) {
+        } else if (this.lastDriftTime !== null && Date.now() - this.lastDriftTime > 3000) {
             this.score.resetScore();
         } else {
             this.score.driftScore = 0;

@@ -6,7 +6,8 @@ export interface Coordinates {
 
 export interface Dimensions {
     width: number;
-    height: number;
+    height?: number;
+    length?: number;
 }
 
 export function lerp(start: number, end: number, amt: number) {

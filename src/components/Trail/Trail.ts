@@ -5,6 +5,7 @@ import Player from "../Player/Player";
 import Score from "../Score/Score";
 import {HSLColor} from "../../utils/HSLColor";
 import car from "../Car/Car";
+import Vector from "../../utils/Vector";
 
 class TrailPoint {
     position: { x: number, y: number };
@@ -50,14 +51,16 @@ class Trail {
         trailPointColor.b = Math.min(50, trailPointColor.b);
         trailPointColor.a = opacity / 255;
 
-        let weight = player.score.frameScore * .1 * Math.max(1, player.score.driftScore / 1000);
+        let weight = player.score.frameScore * .1
+            * Math.max(1, player.score.driftScore / 1000)
+            * (1+ player.score.curveScore / 4000)
         let weightDiff = weight - this.prevWeight;
         weight = this.prevWeight + weightDiff * .1;
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
         this.prevWeight = weight
 
 
-        let corners = player.car.getCorners() //getCarCorners({
+        // let corners = player.car.getCorners() //getCarCorners({
         // ctx.globalCompositeOperation = "overlay";
         ctx.globalAlpha = .5;
 
@@ -75,11 +78,11 @@ class Trail {
             ctx.fillStyle = bgColor.toCSS();
             // console.log(player.car.acceleration)
             // rotate around player.car.position
-            ctx.translate(player.car.position.x, player.car.position.y);
-            ctx.rotate(player.car.getAngle());
+            ctx.translate(Math.floor(player.car.position.x), Math.floor(player.car.position.y));
+            ctx.rotate(Math.floor(player.car.getAngle()*360)/360);
             ctx.rect(
-               -weight / 2,
-                -weight / 2,
+                Math.floor(-weight / 2),
+                Math.floor(-weight / 2),
                 weight,
                 weight)
             ctx.fill();
@@ -92,6 +95,8 @@ class Trail {
 
         ctx.save()
         ctx.beginPath();
+        let corners = player.car.getCorners()
+
         for (let [index, corner] of corners.entries()) {
             let factor = index == 3 || index == 2 ? 1.5 : 2;
             let radius = weight * factor / 2;

@@ -1,81 +1,53 @@
-import {Dimensions, Coordinates, constrain} from "../../utils/Utils"
+import {Coordinates, Dimensions} from "../../utils/Utils"
 import Vector from "../../utils/Vector";
 import {HSLColor} from "../../utils/HSLColor";
 import {vectBodyToWorld, vectWorldToBody} from "./CarUtils";
 import Trail from "../Trail/Trail";
 import Weight from "./Weight";
+import {CarType} from "./CarType";
+import CarTypePresets from "./CarTypePresets";
 
 
 class Car {
-    turnRateStatic: number;
-    turnRateDynamic: number;
+    // dynamic state
     turnRate: number;
-    gripStatic: number;
-    gripDynamic: number;
-    DRIFT_CONSTANT: number;
-    position: Vector;
-    velocity: Vector;
-    acceleration: Vector;
-    angle: number;
-    mass: number;
-    width: number;
-    length: number;
-    force: number;
+
     isDrifting: boolean;
-    color: HSLColor;
+    isColliding: boolean;
     id: string;
     trail: Trail;
-    trailCounter: number;
-    targetPosition: Vector | null;
-    targetAngle: number | null;
-    lastDriftTime: number;
-    idleTime: number;
-    isColliding: boolean;
     weight: Weight;
+    trailCounter: number;
 
-    steeringForce: number;
-    maxSteeringForce: number;
-    steeringAcceleration: number;
-    centerOfMass: number;
+    position: Vector;
+    acceleration: Vector;
+    velocity: Vector;
+    targetPosition: Vector | null;
+
+    angle: number;
+    targetAngle: number | null;
+    color: HSLColor;
+
     handbrake: boolean;
     private angularVelocity: number;
+    carType: CarType;
 
 
-    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0) {
+    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0, carType = CarTypePresets.DefaultCarType) {
         let turnFactor = .2;
-        this.turnRateStatic = 0.04 * turnFactor
-        this.turnRateDynamic = 0.06 * turnFactor
-        this.turnRate = this.turnRateStatic;
-        this.gripStatic = 1.4;
-        this.gripDynamic = .2;
-        this.DRIFT_CONSTANT = 8.;
+        this.carType = carType;
+
+        this.turnRate = this.carType.turnRate.gripping;
         this.position = new Vector(posX, posY);
+        this.targetPosition = null;
+        this.targetAngle = null;
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
         this.angle = angle;
-        this.mass = 29;
-        this.width = 18;
-        this.length = 30;
-        this.force = 0.19;
         this.isDrifting = false;
-        this.color = new HSLColor(0, 100, 50);
-        this.id = "";
-        this.trail = new Trail();
-        this.trailCounter = 0;
-        this.targetPosition = null;
-        this.targetAngle = null;
-        this.lastDriftTime = 0;
-        this.idleTime = 0;
-
-        this.steeringForce = 0;
-        // Set the maximum steering force and the steering acceleration
-        this.maxSteeringForce = 0.005; // Adjust as needed
-        this.steeringAcceleration = 0.0005; // Adjust as needed
-        this.centerOfMass = 0.5; // Adjust as needed, 0.5 is the middle, higher values towards the rear
-
         this.handbrake = false;
-
-        this.angularVelocity = 0;
+        this.color = this.carType.baseColor;
+        this.trail = new Trail();
 
 
         // this.weight = new Weight(this.mass, 0.6, this.position);
@@ -99,86 +71,33 @@ class Car {
 
 
     update(keys, deltaTime) {
-        this.acceleration = new Vector(0, 0); // Reset acceleration for next frame
+        this.acceleration.x = 0;
+        this.acceleration.y = 0;
+
         let timeFactor = .2;
         if (deltaTime > 100) {
             deltaTime = 100;
         }
-
-        // let force = this.isDrifting ? this.force * 0.5 : this.force; // Reduce the force by half when drifting
-        // if (this.isDrifting) {
-        //     console.log("drifting")
-        // }
-
-        // deltaTime = deltaTime * timeFactor;
-        // Add input forces
-        if (keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
-            // ACCELERATING (BODY-FIXED to WORLD)
-            if (keys['ArrowUp']) {
-                let bodyAcc = new Vector(0, this.force);
-                // let bodyAcc = this.position.copy().sub(this.weight.position).normalize().mult(this.force);
-                let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
-                this.acceleration.add(worldAcc);
-            }
-            // BRAKING (BODY-FIXED TO WORLD)
-            if (keys['ArrowDown']) {
-                let bodyAcc = new Vector(0, -this.force);
-                let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
-                this.acceleration.add(worldAcc);
-            }
-            if (keys['ArrowLeft']) {
-                this.angle -= this.turnRate * deltaTime * timeFactor;
-            }
-            if (keys['ArrowRight']) {
-                this.angle += this.turnRate * deltaTime * timeFactor;
-            }
-        }
-        this.handbrake = keys['Space'];
-        // if all arrow keys are pressed
-
-        // If a direction key is pressed, increase the steeringForce
-        // if (keys['ArrowLeft']) {
-        //     this.steeringForce = Math.max(this.steeringForce - this.steeringAcceleration * deltaTime, -this.maxSteeringForce);
-        // } else if (keys['ArrowRight']) {
-        //     this.steeringForce = Math.min(this.steeringForce + this.steeringAcceleration * deltaTime, this.maxSteeringForce);
-        // } else {
-        //     // If no direction key is pressed, gradually reduce the steeringForce
-        //     if (this.steeringForce > 0) {
-        //         this.steeringForce = Math.max(this.steeringForce - this.steeringAcceleration * deltaTime, 0);
-        //     } else if (this.steeringForce < 0) {
-        //         this.steeringForce = Math.min(this.steeringForce + this.steeringAcceleration * deltaTime, 0);
-        //     }
-        // }
-        //
-        // // Modify the car's angle based on the steeringForce
-        // this.angle += this.steeringForce * deltaTime;
-
-        // If there's no steering input, gradually align the car with its direction of travel.
-
-        // Car steering and drifting physics
-
-        // Rotate the global velocity vector into a body-fixed one. x = sideways
-        // velocity, y = forward/backwards
+        let changes = this.handleInput(keys, deltaTime, timeFactor);
+        // this.updatePhysics(deltaTime, timeFactor, changes);
+        this.acceleration.add(changes.acceleration);
+        this.angle += changes.angle;
         let vB = vectWorldToBody(this.velocity, this.angle);
-        // this.velAngleDiff(vB, keys, deltaTime, timeFactor);
 
         let bodyFixedDrag;
         let grip;
-        if (Math.abs(vB.x) < this.DRIFT_CONSTANT && !this.handbrake) {
+        if (Math.abs(vB.x) < this.carType.driftThreshold && !this.handbrake) {
             // Gripping
-            grip = this.gripStatic
-            this.turnRate = this.turnRateStatic;
+            grip = this.carType.grip.gripping
+            this.turnRate = this.carType.turnRate.gripping
             this.isDrifting = false;
-            // bodyFixedDrag = new Vector(vB.x * -this.gripStatic, vB.y * 0.05);
+            // bodyFixedDrag = new Vector(vB.x * -this.model.gripStatic, vB.y * 0.05);
 
         } else {
             // Drifting
-            grip = this.gripDynamic;
-            this.turnRate = this.turnRateDynamic;
+            grip = this.carType.grip.drifting
+            this.turnRate = this.carType.turnRate.drifting;
             this.isDrifting = true;
-            // let frontGrip = this.gripDynamic;
-            // let rearGrip = this.gripDynamic * (1 - this.centerOfMass);
-            // bodyFixedDrag = new Vector(vB.x * -frontGrip, vB.y * -rearGrip);
         }
         bodyFixedDrag = new Vector(vB.x * -grip, vB.y * 0.10);
 
@@ -186,7 +105,7 @@ class Car {
         let worldFixedDrag =
             vectBodyToWorld(bodyFixedDrag, this.angle)
         this.acceleration.add(
-            worldFixedDrag.div(this.mass)); // Include inertia
+            worldFixedDrag.div(this.carType.mass)); // Include inertia
 
 
         // Physics Engine
@@ -199,41 +118,43 @@ class Car {
             console.log("velocity: ", this.velocity.mag())
         }
         if (this.weight) {
-            let tensionForce = this.force;
+            let tensionForce = this.carType.engineForce;
             // console.log(this.position.sub(this.weight.position).mag())
             let springVector = this.weight.update(deltaTime, this.position.sub(this.weight.position), this.position);
             this.velocity.add(springVector.mult(2));
-
-
-            // // Calculate the torque exerted by the weight on the car
-            // // The torque is proportional to the cross product of the distance vector and the spring force vector
-            // let distanceVector = Vector.sub(this.weight.position, this.position);
-            // let torque = Vector.cross(distanceVector, springVector);
-            //
-            // // Apply the torque to the car's angular velocity
-            // // The angular velocity is proportional to the torque divided by the car's moment of inertia
-            // // For simplicity, we can assume the car's moment of inertia is a constant
-            // let momentOfInertia = this.mass * (this.width * this.width + this.length * this.length) / 2;
-            // this.angularVelocity += torque / momentOfInertia * deltaTime;
-            //
-            // let targetWeightPos = this.position.copy().sub(Vector.up.mult(100))
-            // let weightDistanceVector = Vector.sub(this.weight.position, targetWeightPos);
-            // weightDistanceVector.normalize()
-            // this.weight.velocity.add(weightDistanceVector.mult(this.angularVelocity * deltaTime * 0.7))
-
-
-            // Apply the opposite torque to the weight's angular velocity
-            // let momentOfInertiaWeight = this.weight.mass * (this.weight.width * this.weight.width + this.weight.height * this.weight.height) / 12;
-            // this.weight.angularVelocity -= torque / momentOfInertiaWeight * deltaTime;
-
-
-            // Update the car's angle based on its angular velocity
-            // this.angle += this.angularVelocity * deltaTime;
-            // this.angularVelocity *= 0.9; // Dampen angular velocity
         }
         this.targetPosition = this.position.copy().add(this.velocity.mult(deltaTime * timeFactor));
+        // this.interpolatePosition();
 
 
+    }
+
+    private handleInput(keys, deltaTime, timeFactor: number) {
+        let changes = {acceleration: new Vector(0, 0), angle: 0};
+
+        if (keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
+            // ACCELERATING (BODY-FIXED to WORLD)
+            if (keys['ArrowUp']) {
+                let bodyAcc = new Vector(0, this.carType.engineForce);
+                // let bodyAcc = this.position.copy().sub(this.weight.position).normalize().mult(this.model.force);
+                let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
+                changes.acceleration.add(worldAcc);
+            }
+            // BRAKING (BODY-FIXED TO WORLD)
+            if (keys['ArrowDown']) {
+                let bodyAcc = new Vector(0, -this.carType.engineForce);
+                let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
+                changes.acceleration.add(worldAcc);
+            }
+            if (keys['ArrowLeft']) {
+                this.angle -= this.turnRate * deltaTime * timeFactor;
+            }
+            if (keys['ArrowRight']) {
+                this.angle += this.turnRate * deltaTime * timeFactor;
+            }
+        }
+        this.handbrake = keys['Space'];
+        return changes;
     }
 
     private velAngleDiff(vB, keys, deltaTime, timeFactor: number) {
@@ -259,7 +180,7 @@ class Car {
                 this.targetPosition = null;
             }
         }
-        if (this.targetAngle !== null) {
+        if (this.targetAngle) {
             let difference = this.targetAngle - this.angle;
             while (difference < -Math.PI) difference += Math.PI * 2;
             while (difference > Math.PI) difference -= Math.PI * 2;
@@ -281,17 +202,19 @@ class Car {
 
     render(ctx) {
 
-        let curCar = this
-        let id = curCar.id;
 
-        curCar.interpolatePosition();
+        let id = this.id;
+
 
         // Set color
-        if (!curCar.isDrifting) {
-            curCar.color = new HSLColor(0, 0, 100);
-        }
-        if (curCar.isColliding) {
-            curCar.color = new HSLColor(255, 255, 255);
+        // if (!curCar.isDrifting) {
+        //     curCar.color = new HSLColor(0, 0, 100);
+        // }
+
+        if (this.isColliding) {
+            this.color = new HSLColor(255, 255, 255);
+        } else {
+            this.color = this.carType.baseColor;
         }
 
         // Save the current context
@@ -303,15 +226,16 @@ class Car {
 
         // Set stroke and fill styles
         ctx.lineWidth = this.isDrifting ? 3 : 2;
-        ctx.fillStyle = this.color;
         ctx.strokeStyle = '#000';  // Assuming the stroke color to be black
 
+        ctx.fillStyle = this.color.toCSS();
         // Draw the car body and front side indicator
-        ctx.fillRect(-this.width / 2, -this.length / 2, this.width, this.length);
-        ctx.strokeRect(-this.width / 2, -this.length / 2, this.width, this.length);
+        ctx.fillRect(-this.carType.dimensions.width / 2, -this.carType.dimensions.length / 2, this.carType.dimensions.width, this.carType.dimensions.length);
+        ctx.strokeRect(-this.carType.dimensions.width / 2, -this.carType.dimensions.length / 2, this.carType.dimensions.width, this.carType.dimensions.length);
 
-        ctx.fillRect(-this.width / 2 + 1, 0, this.width - 2, 6);
-        ctx.strokeRect(-this.width / 2 + 1, 0, this.width - 2, 6);
+        ctx.fillStyle = new HSLColor(100, 30, 60).toCSS();
+        ctx.fillRect(-this.carType.dimensions.width / 2 + 1, 0, this.carType.dimensions.width - 2, 6);
+        ctx.strokeRect(-this.carType.dimensions.width / 2 + 1, 0, this.carType.dimensions.width - 2, 6);
 
 
         // Restore the context to its original state
@@ -326,8 +250,8 @@ class Car {
 
     getCorners() {
 
-        let width = this.width;
-        let height = this.length;
+        let width = this.carType.dimensions.width;
+        let height = this.carType.dimensions.length;
         let corners = [];
 
         // Calculate the corners relative to the car's center point
@@ -349,6 +273,7 @@ class Car {
         }
         return rotatedCorners;
     }
+
 }
 
 export default Car;

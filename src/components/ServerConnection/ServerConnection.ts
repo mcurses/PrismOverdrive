@@ -39,7 +39,6 @@ export default class ServerConnection {
             this.CarState = root.lookupType("CarState");
             this.PlayerState = root.lookupType("PlayerState");
             this.ScoreState = root.lookupType("ScoreState");
-            console.log(this.CarState);
         });
     }
 

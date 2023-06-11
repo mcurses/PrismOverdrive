@@ -1,4 +1,6 @@
-export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number[][][], scale: number) {
+import {Dimensions} from "../../utils/Utils";
+
+export function drawPolylineShape(ctx: CanvasRenderingContext2D, bounds: number[][][], scale: number) {
     // ctx.strokeStyle = 'rgba(255,255,255,0.4)'; // Equivalent to p5.stroke(255, 100);
     // ctx.lineWidth = 1; // Equivalent to p5.strokeWeight(1);
     // ctx.beginPath();
@@ -50,4 +52,31 @@ export function drawPolylineShape(ctx: CanvasRenderingContext2D , bounds: number
     // }
 
     // ctx.fillStyle = 'rgba(0,0,0,0.9)'; // Equivalent to p5.fill(0, 0, 0, 90);
+}
+
+export function scaleTo(bounds: number[][][], size: Dimensions) {
+    // Find current bounds
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let array of bounds) {
+        for (let point of array) {
+            minX = Math.min(minX, point[0]);
+            minY = Math.min(minY, point[1]);
+            maxX = Math.max(maxX, point[0]);
+            maxY = Math.max(maxY, point[1]);
+        }
+    }
+
+    // Calculate scale factors
+    let scaleX = size.width / (maxX - minX);
+    let scaleY = size.height / (maxY - minY);
+
+    // Scale bounds
+    return bounds.map(array => {
+        return array.map(point => {
+            return [
+                (point[0] - minX) * scaleX,
+                (point[1] - minY) * scaleY
+            ];
+        });
+    });
 }

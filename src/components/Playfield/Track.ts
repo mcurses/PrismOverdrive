@@ -21,10 +21,10 @@ class Track {
     color2Location: WebGLUniformLocation;
     texture: WebGLTexture;
 
-    constructor(trackCanvas: HTMLCanvasElement, mapSize: Dimensions, boundaries: number[][][]) {
+    constructor(trackCtx: CanvasRenderingContext2D, mapSize: Dimensions, boundaries: number[][][]) {
         this.mapSize = mapSize;
         this.boundaries = boundaries;
-        this.draw(trackCanvas.getContext('2d'));
+        // this.draw(trackCtx);
 
         // const vertexShaderSource = `
         //     attribute vec2 a_position;
@@ -61,6 +61,12 @@ class Track {
         // this.texture = createTexture(gl, distanceField, width, height);
     }
 
+    setBounds(boundaries: number[][][], ctx) {
+        this.boundaries = boundaries;
+        this.draw(ctx);
+
+    }
+
     getWallHit(car): WallHit {
         // Iterate over each boundary line
         for (let side = 0; side < this.boundaries.length; side++) {
@@ -74,7 +80,7 @@ class Track {
                 let lineDist = Vector.dist(carPos, this.closestPointOnLine(start, end, carPos));
 
                 // Check if the distance is less than the car's size (assuming the car is a circle with diameter of car.l)
-                if (lineDist < car.length / 2) {
+                if (lineDist < car.carType.dimensions.length / 2) {
                     // Calculate the normal vector
                     let boundaryVector = Vector.sub(end, start);
                     let normalVector = new Vector(-boundaryVector.y, boundaryVector.x).mult(side === 0 ? -1 : 1);
@@ -95,6 +101,7 @@ class Track {
     }
 
     draw(ctx: CanvasRenderingContext2D) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
         // Set the style for the track
         ctx.fillStyle = 'rgb(160,160,160)'; // Change this to the color of your track
         ctx.strokeStyle = 'rgb(0,0,0)'; // Change this to the color of your track's border
