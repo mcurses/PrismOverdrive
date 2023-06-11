@@ -114,9 +114,6 @@ class Car {
         if (this.handbrake)
             this.velocity = this.isDrifting ? this.velocity.mult(0.99) : this.velocity.mult(0.95);
         //
-        if (this.velocity.mag() > 50) {
-            console.log("velocity: ", this.velocity.mag())
-        }
         if (this.weight) {
             let tensionForce = this.carType.engineForce;
             // console.log(this.position.sub(this.weight.position).mag())

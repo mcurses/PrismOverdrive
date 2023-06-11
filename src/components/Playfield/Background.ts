@@ -36,7 +36,12 @@ export default class Background {
                 canvas.width = layer.size.width;
                 canvas.height = layer.size.height;
                 let ctx = canvas.getContext('2d');
-                ctx.drawImage(layer.img, 0, 0);
+                ctx.drawImage(layer.img,
+                    layer.offset.x, layer.offset.y,
+                    layer.cropSize.width, layer.cropSize.height,
+                    0, 0,
+                    layer.size.width, layer.size.height,
+                    );
                 layer.canvas = canvas;
                 this.layers.push(layer);
             });
@@ -44,26 +49,31 @@ export default class Background {
         }
     }
 
-    draw(ctx: CanvasRenderingContext2D, cameraPos: Vector) {
+    draw(ctx: CanvasRenderingContext2D, cameraPos: Vector, canvasSize: Dimensions) {
         let parallaxFactor = 0;
         for (let layer of this.layers) {
             parallaxFactor += layer.z
-            this.drawParallaxLayer(ctx, layer, cameraPos, this.mapSize);
+            this.drawParallaxLayer(ctx, layer, cameraPos, canvasSize, this.mapSize);
         }
     }
 
     drawParallaxLayer(ctx: CanvasRenderingContext2D, layer: ParallaxLayer,
-                      cameraPos: Vector, MapSize: Dimensions) {
+                      cameraPos: Vector, canvasSize: Dimensions, MapSize: Dimensions) {
         // Calculate the offset for this layer
         let offsetX = cameraPos.x * layer.z % layer.canvas.width;
         let offsetY = cameraPos.y * layer.z % layer.canvas.height;
 
         // Otherwise replace Map.width and Map.height with appropriate values
-        for (let x = -offsetX - layer.canvas.width; x < MapSize.width; x += layer.canvas.width) {
-            for (let y = -offsetY - layer.canvas.height; y < MapSize.height; y += layer.canvas.height) {
+        for (let x = -offsetX - layer.canvas.width;
+             x < MapSize.width + canvasSize.width / 2;
+             x += layer.canvas.width) {
+            for (let y = -offsetY - layer.canvas.height;
+                 y < MapSize.height + canvasSize.height / 2;
+                 y += layer.canvas.height) {
                 ctx.globalCompositeOperation = 'lighter'
+                ctx.globalAlpha = 1 - (layer.z/ 2);
                 ctx.drawImage(layer.canvas,
-                    layer.offset.x, layer.offset.y,
+                    0, 0,
                     layer.cropSize.width, layer.cropSize.height,
                     x, y,
                     layer.size.width, layer.size.height,
@@ -71,6 +81,7 @@ export default class Background {
                 ctx.globalCompositeOperation = 'source-over'
             }
         }
+        ctx.globalAlpha = 1;
     }
 
 }

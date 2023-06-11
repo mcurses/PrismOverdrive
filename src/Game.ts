@@ -101,17 +101,24 @@ class Game {
             layers: [
                 {
                     img: paralaxLayer1,
-                    z: 0.4,
+                    z: 0.8,
                     offset: new Vector(600, 600),
-                    cropSize: {width: 1500, height: 1500},
+                    cropSize: {width: 1600, height: 1600},
                     size: {width: 1900, height: 1900},
                 },
                 {
                     img: paralaxLayer1,
-                    z: 0.54,
+                    z: 0.88,
                     offset: new Vector(0, 0),
+                    cropSize: {width: 1800, height: 1800},
+                    size: {width: 1600, height: 1600},
+                },
+                {
+                    img: paralaxLayer1,
+                    z: 0.94,
+                    offset: new Vector(100, 100),
                     cropSize: {width: 1900, height: 1900},
-                    size: {width: 1900, height: 1900},
+                    size: {width: 1300, height: 1300},
                 },
             ]
         });
@@ -305,7 +312,10 @@ class Game {
         // Apply the camera translation
         // console.log(~~this.camera.position.x, ~~this.camera.position.y)
         this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
-        this.background.draw(this.ctx, this.camera.position);
+        this.background.draw(this.ctx, this.camera.position, {
+            width: this.ctx.canvas.width,
+            height: this.ctx.canvas.height
+        });
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
 
 
