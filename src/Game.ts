@@ -12,6 +12,8 @@ import Score from "./components/Score/Score";
 import HighScoreTable from "./components/Score/HighscoreTable";
 import CarTypePresets from "./components/Car/CarTypePresets";
 import TrackData from "./components/Playfield/TrackData";
+import Background from "./components/Playfield/Background";
+import Vector from "./utils/Vector";
 
 
 class Game {
@@ -49,6 +51,7 @@ class Game {
     private trailsOverdrawCounter: number;
     private carSelector: HTMLSelectElement;
     private trackSelector: HTMLSelectElement;
+    private background: Background;
 
     constructor() {
         this.canvasSize = {
@@ -89,6 +92,29 @@ class Game {
         this.inputController = new InputController(InputType.KEYBOARD);
         this.highscoreTable = new HighScoreTable();
         this.lastUdpate = 0;
+
+        let paralaxLayer1 = new Image();
+        paralaxLayer1.src = 'assets/stars2.jpg';
+        // scale the image
+        this.background = new Background({
+            mapSize: this.mapSize,
+            layers: [
+                {
+                    img: paralaxLayer1,
+                    z: 0.4,
+                    offset: new Vector(600, 600),
+                    cropSize: {width: 1500, height: 1500},
+                    size: {width: 1900, height: 1900},
+                },
+                {
+                    img: paralaxLayer1,
+                    z: 0.54,
+                    offset: new Vector(0, 0),
+                    cropSize: {width: 1900, height: 1900},
+                    size: {width: 1900, height: 1900},
+                },
+            ]
+        });
 
         this.canvas = document.createElement('canvas');
         this.canvas.width = this.canvasSize.width;
@@ -273,12 +299,13 @@ class Game {
         // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Draw the background
-        this.ctx.fillStyle = 'rgb(40,30,30)';
+        this.ctx.fillStyle = 'rgb(0, 0, 0)';
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
         // console.log(~~this.camera.position.x, ~~this.camera.position.y)
         this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
+        this.background.draw(this.ctx, this.camera.position);
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
 
 
@@ -306,10 +333,10 @@ class Game {
         let wallHit = this.track.getWallHit(localPlayer.car);
         if (wallHit !== null) {
             // Push the car back
+            localPlayer.car.velocity = localPlayer.car.velocity.mult(0.99);
             let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.carType.dimensions.length / 2 - wallHit.distance) * .4);
 
-            localPlayer.car.position.add(pushBack);
-            localPlayer.car.velocity.mult(0.95);
+            localPlayer.car.position.add(pushBack.mult(4));
             localPlayer.car.velocity.add(pushBack);
             localPlayer.score.endDrift()
         }

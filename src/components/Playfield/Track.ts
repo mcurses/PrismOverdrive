@@ -103,7 +103,7 @@ class Track {
     draw(ctx: CanvasRenderingContext2D) {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
         // Set the style for the track
-        ctx.fillStyle = 'rgb(160,160,160)'; // Change this to the color of your track
+        ctx.fillStyle = 'rgb(40,40,40)'; // Change this to the color of your track
         ctx.strokeStyle = 'rgb(0,0,0)'; // Change this to the color of your track's border
         ctx.lineWidth = 20; // Change this to the width of your track's border
         // Draw the track
