@@ -24,7 +24,6 @@ jobs:
         ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_SERVER_PORT }} ${{ secrets.SSH_SERVER_USER }}@${{ secrets.SSH_SERVER_IP }} <<'ENDSSH'
         cd /home/cars/cars  # Set your app directory path here
         git pull
-        npm install
         npm run build
         sudo systemctl restart cars.service  # Set your systemd service name here
         sudo systemctl restart cars-server.service  
