@@ -1,5 +1,5 @@
 import Car from "./components/Car/Car";
-import {bounds2, bounds3, scaleTo} from "./components/Playfield/bounds";
+// import {bounds2, bounds3, scaleTo} from "./components/Playfield/bounds";
 import * as socketio from "socket.io-client";
 import {Dimensions, gaussianRandom, loadImage} from "./utils/Utils";
 import {InputController, InputType} from "./InputController";
@@ -10,10 +10,15 @@ import Player from "./components/Player/Player";
 import ServerConnection from "./components/ServerConnection/ServerConnection";
 import Score from "./components/Score/Score";
 import HighScoreTable from "./components/Score/HighscoreTable";
-import CarTypePresets from "./components/Car/CarTypePresets";
+import CarData from "./components/Car/CarData";
 import TrackData from "./components/Playfield/TrackData";
 import Background from "./components/Playfield/Background";
+import {scaleTo} from "./components/Playfield/PlayfieldUtils";
+import {CarType} from "./components/Car/CarType";
 import Vector from "./utils/Vector";
+import Session from "./components/Session/Session";
+import BackgroundData from "./components/Playfield/BackgroundData";
+import Menu from "./components/UI/Menu";
 
 
 class Game {
@@ -23,6 +28,7 @@ class Game {
     layer1: HTMLImageElement;
     layer2: HTMLImageElement;
     players: { [key: string]: Player } = {};
+    localPlayer: Player;
     car: Car;
     ctx: CanvasRenderingContext2D;
     canvas: HTMLCanvasElement;
@@ -45,13 +51,13 @@ class Game {
     private lastUdpate: number;
     private sendUpdateInterval: NodeJS.Timer;
     private highscoreTable: HighScoreTable;
-    private nameInput: HTMLInputElement;
     private prevKeys: { [p: string]: boolean } = {};
     private trackOverpaintInterval: NodeJS.Timer;
     private trailsOverdrawCounter: number;
-    private carSelector: HTMLSelectElement;
-    private trackSelector: HTMLSelectElement;
     private background: Background;
+    private session: Session;
+    private intervals: { [name: string]: GameTimeInterval } = {};
+    private menu: Menu;
 
     constructor() {
         this.canvasSize = {
@@ -83,44 +89,46 @@ class Game {
 
 
     setup() {
+
+        this.localPlayer =
+            new Player(
+                "",
+                "",
+                new Car(500, 1900, 0),
+                new Score());
+
+        // if there is a session, load it
+        let storedSession = Session.loadFromLocalStorage();
+        if (storedSession) {
+            this.session = storedSession;
+        } else {
+            this.session = new Session("Player");
+        }
+
+        this.addInterval('save', () => {
+            this.session.saveToLocalStorage();
+        }, 1000);
+
         console.log("Setup");
-        let bounds = bounds2
+
+        let bounds = TrackData.getByName(this.session.trackName).bounds;
         bounds = scaleTo(bounds, this.mapSize);
 
-        this.track = new Track(this.trackCtx, this.mapSize, bounds)
+        this.track = new Track(this.session.trackName, this.trackCtx, this.mapSize, bounds)
         this.camera = new Camera({canvasSize: this.canvasSize});
         this.inputController = new InputController(InputType.KEYBOARD);
         this.highscoreTable = new HighScoreTable();
         this.lastUdpate = 0;
 
-        let paralaxLayer1 = new Image();
-        paralaxLayer1.src = 'assets/stars2.jpg';
+        // let paralaxLayer1 = new Image();
+        // paralaxLayer1.src = 'assets/stars2.jpg';
         // scale the image
-        this.background = new Background({
-            mapSize: this.mapSize,
-            layers: [
-                {
-                    img: paralaxLayer1,
-                    z: 0.8,
-                    offset: new Vector(600, 600),
-                    cropSize: {width: 1600, height: 1600},
-                    size: {width: 1900, height: 1900},
-                },
-                {
-                    img: paralaxLayer1,
-                    z: 0.88,
-                    offset: new Vector(0, 0),
-                    cropSize: {width: 1800, height: 1800},
-                    size: {width: 1600, height: 1600},
-                },
-                {
-                    img: paralaxLayer1,
-                    z: 0.94,
-                    offset: new Vector(100, 100),
-                    cropSize: {width: 1900, height: 1900},
-                    size: {width: 1300, height: 1300},
-                },
-            ]
+        let backgroundData = new BackgroundData();
+        backgroundData.getLayers('starField').then((layers) => {
+            this.background = new Background({
+                mapSize: this.mapSize,
+                layers: layers
+            });
         });
 
         this.canvas = document.createElement('canvas');
@@ -172,120 +180,62 @@ class Game {
         // }, 1000 / 4);
 
         this.sendUpdateInterval = setInterval(() => {
-            if (this.players[this.serverConnection.socketId])
-                this.serverConnection.sendUpdate(this.players[this.serverConnection.socketId]);
+            if (this.localPlayer)
+                this.serverConnection.sendUpdate(this.localPlayer);
             // console.log("Sending update")
         }, 1000 / 6);
 
         this.serverConnection = new ServerConnection(
             (id, player) => this.updatePlayer(id, player),
             (id) => this.removePlayer(id));
-        this.serverConnection.connect()
-        requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
-        this.createMenuElements();
 
-    }
-
-    private createMenuElements() {
-        // create a input wrapper
-        let inputWrapper = document.createElement('div');
-        inputWrapper.style.position = 'absolute';
-        inputWrapper.style.top = '10px';
-        inputWrapper.style.left = '10px';
-        inputWrapper.style.display = 'flex';
-        document.body.appendChild(inputWrapper);
-
-        // Create the input field
-        this.nameInput = document.createElement('input');
-        this.nameInput.style.position = 'relative';
-        this.nameInput.style.display = 'none';  // Initially hidden
-        this.nameInput.style.top = '10px';
-        this.nameInput.addEventListener('input', () => {
-            this.players[this.serverConnection.socketId].name = this.nameInput.value;
+        this.menu = new Menu({
+            session: this.session,
+            loadTrack: (trackName) => this.loadTrack(trackName),
+            setCarType: (carType) => this.setCarType(carType),
+            setPlayerName: (name) => this.setPlayerName(name),
         });
-        inputWrapper.appendChild(this.nameInput);
-
-        // create a select dropdown menu
-        this.carSelector = document.createElement('select');
-        this.carSelector.style.position = 'relative';
-        this.carSelector.style.left = '180px';
-        this.carSelector.style.top = '10px';
-        this.carSelector.style.display = 'none';  // Initially hidden
-        // set the options
-        for (let carType in CarTypePresets) {
-            let option = document.createElement('option');
-            option.value = carType;
-            option.text = carType;
-            this.carSelector.appendChild(option);
-        }
-        this.carSelector.addEventListener('change', () => {
-            this.players[this.serverConnection.socketId].car.carType = CarTypePresets[this.carSelector.value];
-        });
-        inputWrapper.appendChild(this.carSelector);
-
-        // track selector
-        this.trackSelector = document.createElement('select');
-        this.trackSelector.style.position = 'relative';
-        this.trackSelector.style.left = '280px';
-        this.trackSelector.style.top = '10px';
-        this.trackSelector.style.display = 'none';  // Initially hidden
-        // set the options
-        for (let trackType in TrackData) {
-            let option = document.createElement('option');
-            option.value = trackType;
-            option.text = trackType;
-            this.trackSelector.appendChild(option);
-        }
-        this.trackSelector.addEventListener('change', () => {
-            this.track.setBounds(TrackData[this.trackSelector.value], this.trackCtx);
-            this.miniMap.setTrack(this.track, this.miniMapCtx);
-            this.trailsCtx.clearRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
-            this.track.draw(this.trackCtx);
-        });
-        inputWrapper.appendChild(this.trackSelector);
-
-
         this.inputController.handleKey('Escape', () => {
-            this.toggleNameInput();
-            this.toggleCarSelector();
-            this.toggleTrackSelector();
+            this.menu.toggleNameInput();
+            this.menu.toggleCarSelector();
+            this.menu.toggleTrackSelector();
         });
-        this.inputController.handleKey('Enter', () => this.nameInput.style.display = 'none');
-    }
+        this.serverConnection.connect().then(() => {
+            // this.createMenuElements();
 
-    toggleCarSelector() {
-        this.carSelector.style.display = this.carSelector.style.display === 'none' ? 'block' : 'none';
-    }
+            // this.session.playerName = this.serverConnection.socketId;
+        });
 
-    toggleTrackSelector() {
-        this.trackSelector.style.display = this.trackSelector.style.display === 'none' ? 'block' : 'none';
-    }
+        this.setCarType(this.session.carType);
+        this.loadTrack(this.session.trackName)
+        this.setPlayerName(this.session.playerName)
 
-    toggleNameInput() {
-        this.nameInput.value = this.players[this.serverConnection.socketId].name.slice(0, 8);
-        this.nameInput.style.display = this.nameInput.style.display === 'none' ? 'block' : 'none';
-        if (this.nameInput.style.display === 'block') {
-            this.nameInput.focus();
-        } else {
-            this.nameInput.blur();
-        }
+        this.setTrackScore(this.session.scores[this.session.trackName]);
+
+
+        requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+
     }
 
 
     gameLoop(timestamp) {
+        this.players['local'] = this.localPlayer;
         const deltaTime = timestamp - this.lastTimestamp;
+
+        this.updateIntervals(deltaTime);
+
         this.lastTimestamp = timestamp;
         this.lastUdpate = this.lastUdpate === 0 ? timestamp : this.lastUdpate;
         // this.serverConnection.alive();
 
         if (this.serverConnection.socketId) {
-            if (!this.players[this.serverConnection.socketId]) {
-                this.updatePlayer(this.serverConnection.socketId,
+            if (!this.localPlayer) {
+                this.localPlayer =
                     new Player(
                         this.serverConnection.socketId,
                         this.serverConnection.socketId,
                         new Car(500, 1900, 0),
-                        new Score()));
+                        new Score());
                 console.log("Added player", this.serverConnection.socketId)
             }
         } else {
@@ -295,11 +245,11 @@ class Game {
         }
 
 
-        if (!this.players || !this.players[this.serverConnection.socketId] || !this.serverConnection.connected) {
+        if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
             requestAnimationFrame((time) => this.gameLoop(time));
             return
         }
-        const localPlayer = this.players[this.serverConnection.socketId];
+        const localPlayer = this.localPlayer;
         this.camera.moveTowards(localPlayer.car.position);
 
         // Clear the canvas
@@ -321,11 +271,13 @@ class Game {
 
         let keys = this.inputController.getKeys();
         if (keys['ArrowUp'] && keys['ArrowDown'] && keys['ArrowLeft'] && keys['ArrowRight']) {
-            this.players[this.serverConnection.socketId].score.driftScore = 30000
+            this.localPlayer.score.driftScore = 30000
         }
 
         localPlayer.car.update(keys, deltaTime);
         localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
+        this.session.scores[this.session.trackName] = localPlayer.score;
+
         if (localPlayer.car.isDrifting) {
             localPlayer.lastDriftTime = timestamp;
             // console.log(localPlayer.score.curveScore)
@@ -394,16 +346,36 @@ class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
         this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, Object.values(this.players).map(player => player.car));
-        // this.highscoreTable.updateScores(
-        //     Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
-        // );
-        // this.highscoreTable.displayScores(this.ctx);
+        this.highscoreTable.updateScores(
+            Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
+        );
+        this.highscoreTable.displayScores(this.ctx);
         // this.highscoreTable.displayScoresTable();
 
         requestAnimationFrame((time) => this.gameLoop(time));
 
     }
 
+    setCarType(carTypeName: string) {
+        this.session.carType = carTypeName;
+        this.localPlayer.car.carType = CarData.getByName(carTypeName);
+    }
+
+    loadTrack(name: string) {
+        this.session.trackName = name;
+
+        let bounds = TrackData.getByName(name).bounds;
+
+        this.track.setBounds(bounds, this.trackCtx);
+        this.miniMap.setTrack(this.track, this.miniMapCtx);
+        this.trailsCtx.clearRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
+        this.track.draw(this.trackCtx);
+    }
+
+    private setPlayerName(name: string) {
+        this.session.playerName = name;
+        this.localPlayer.name = name;
+    }
 
     private updatePlayer(id: string, player: Player) {
         // console.log("Update player", player.name, player, id)
@@ -453,9 +425,46 @@ class Game {
         // }
 
     }
+
+    private addInterval(name: string, param: () => void, number: number) {
+        this.intervals[name] = new GameTimeInterval(param, number);
+    }
+
+    private updateIntervals(deltaTime: number) {
+        for (let interval in this.intervals) {
+            this.intervals[interval].update(deltaTime);
+        }
+    }
+
+    private setTrackScore(score: Score) {
+        if (score)
+            this.localPlayer.score = score;
+
+    }
 }
 
 // on load start the game
+
+class GameTimeInterval {
+    interval: number;
+    counter: number;
+    callback: () => void;
+
+    constructor(callback: () => void, interval: number) {
+        this.callback = callback;
+        this.interval = interval;
+        this.counter = 0;
+        return this;
+    }
+
+    update(deltaTime: number) {
+        this.counter += deltaTime;
+        if (this.counter > this.interval) {
+            this.callback();
+            this.counter = 0;
+        }
+    }
+}
 
 window.addEventListener('load', () => {
     let game = new Game();

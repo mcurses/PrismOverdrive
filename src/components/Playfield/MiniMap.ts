@@ -25,7 +25,6 @@ export default class MiniMap {
     }
 
     initBackground(ctx) {
-        console.log(ctx)
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; // semi-transparent black
         ctx.strokeStyle = 'rgb(255,255,255)'; // white border

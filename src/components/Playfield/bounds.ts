@@ -872,30 +872,3 @@ export const bounds3 = [
         [4209.5199999999995, 1993.9899999999998]
     ]
 ]
-
-export function scaleTo(bounds: number[][][], size: Dimensions) {
-    // Find current bounds
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (let array of bounds) {
-        for (let point of array) {
-            minX = Math.min(minX, point[0]);
-            minY = Math.min(minY, point[1]);
-            maxX = Math.max(maxX, point[0]);
-            maxY = Math.max(maxY, point[1]);
-        }
-    }
-
-    // Calculate scale factors
-    let scaleX = size.width / (maxX - minX);
-    let scaleY = size.height / (maxY - minY);
-
-    // Scale bounds
-    return bounds.map(array => {
-        return array.map(point => {
-            return [
-                (point[0] - minX) * scaleX,
-                (point[1] - minY) * scaleY
-            ];
-        });
-    });
-}

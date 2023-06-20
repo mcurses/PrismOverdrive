@@ -5,7 +5,7 @@ import {vectBodyToWorld, vectWorldToBody} from "./CarUtils";
 import Trail from "../Trail/Trail";
 import Weight from "./Weight";
 import {CarType} from "./CarType";
-import CarTypePresets from "./CarTypePresets";
+import CarData from "./CarData";
 
 
 class Car {
@@ -33,7 +33,7 @@ class Car {
     carType: CarType;
 
 
-    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0, carType = CarTypePresets.DefaultCarType) {
+    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0, carType = CarData.types[0]) {
         let turnFactor = .2;
         this.carType = carType;
 
@@ -71,6 +71,10 @@ class Car {
 
 
     update(keys, deltaTime) {
+        if (!this.carType) {
+            return;
+        }
+
         this.acceleration.x = 0;
         this.acceleration.y = 0;
 

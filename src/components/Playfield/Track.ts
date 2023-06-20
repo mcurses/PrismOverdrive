@@ -12,6 +12,7 @@ interface WallHit {
 }
 
 class Track {
+    name: string;
     boundaries: number[][][];
     mapSize: Dimensions
     program: WebGLProgram;
@@ -21,7 +22,7 @@ class Track {
     color2Location: WebGLUniformLocation;
     texture: WebGLTexture;
 
-    constructor(trackCtx: CanvasRenderingContext2D, mapSize: Dimensions, boundaries: number[][][]) {
+    constructor(name: string,trackCtx: CanvasRenderingContext2D, mapSize: Dimensions, boundaries: number[][][]) {
         this.mapSize = mapSize;
         this.boundaries = boundaries;
         // this.draw(trackCtx);
@@ -103,7 +104,7 @@ class Track {
     draw(ctx: CanvasRenderingContext2D) {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
         // Set the style for the track
-        ctx.fillStyle = 'rgb(40,40,40)'; // Change this to the color of your track
+        ctx.fillStyle = 'rgb(60,60,60)'; // Change this to the color of your track
         ctx.strokeStyle = 'rgb(0,0,0)'; // Change this to the color of your track's border
         ctx.lineWidth = 20; // Change this to the width of your track's border
         // Draw the track

@@ -12,9 +12,9 @@ class Score {
     curveScore: number;
 
     constructor(frameScore = 0, totalScore = 0, driftScore = 0) {
-        this.frameScore = 0;
-        this.highScore = 0;
-        this.driftScore = 0;
+        this.frameScore = frameScore;
+        this.highScore =   totalScore;
+        this.driftScore = driftScore;
 
     }
 

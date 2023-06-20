@@ -91,10 +91,10 @@ class HighScoreTable {
         // ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // Clear the canvas
         ctx.fillStyle = 'white'; // Set the text color
         ctx.font = '20px Arial'; // Set the font
-        ctx.fillText("High Scores:", 10, 180); // Draw the title
+        ctx.fillText("High Scores:", 10, 240); // Draw the title
 
         for (let i = 0; i < this.scores.length; i++) {
-            let y = 210 + i * 30; // Calculate the y position for each score
+            let y = 270 + i * 30; // Calculate the y position for each score
             let text = `${i + 1}. ${this.scores[i].name.slice(0, 8)} - Current: ${~~this.scores[i].score.driftScore}, Best: ${~~this.scores[i].score.highScore}`;
             ctx.fillText(text, 10, y); // Draw the score
         }

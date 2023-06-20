@@ -11,6 +11,7 @@ interface Grip {
     gripping: number;
 }
 export interface CarType {
+    name: string;
     turnRate: TurnRate;
     grip: Grip;
     driftThreshold: number;
