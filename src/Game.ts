@@ -252,20 +252,19 @@ class Game {
         const localPlayer = this.localPlayer;
         this.camera.moveTowards(localPlayer.car.position);
 
-        // Clear the canvas
-        // this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-
-        // Draw the background
+        // Clear the canvas and reset transform
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.fillStyle = 'rgb(0, 0, 0)';
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
         // Apply the camera translation
-        // console.log(~~this.camera.position.x, ~~this.camera.position.y)
         this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
-        this.background.draw(this.ctx, this.camera.position, {
-            width: this.ctx.canvas.width,
-            height: this.ctx.canvas.height
-        });
+        if (this.background) {
+            this.background.draw(this.ctx, this.camera.position, {
+                width: this.ctx.canvas.width,
+                height: this.ctx.canvas.height
+            });
+        }
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
 
 

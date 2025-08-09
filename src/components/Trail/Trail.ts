@@ -126,16 +126,10 @@ class Trail {
         let maxTrailWeight = 50;
 
         for (let p of this.points) {
-            // let p = this.points[0];
-            // if (p) {
-            // if (trailIndex>0) return
             trailIndex++;
-            console.log(trailIndex, p)
-            // console.log(p)
 
             let weight = 0;
             if (p.drifting) {
-                // console.log("drifting")
                 // ... Processing of trailPointColor and opacity
 
                 let trailPointColor = driftColor(p.score);

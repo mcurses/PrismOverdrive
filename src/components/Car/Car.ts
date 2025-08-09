@@ -78,12 +78,11 @@ class Car {
         this.acceleration.x = 0;
         this.acceleration.y = 0;
 
-        let timeFactor = .2;
+        let timeFactor = 0.2;
         if (deltaTime > 100) {
             deltaTime = 100;
         }
         let changes = this.handleInput(keys, deltaTime, timeFactor);
-        // this.updatePhysics(deltaTime, timeFactor, changes);
         this.acceleration.add(changes.acceleration);
         this.angle += changes.angle;
         let vB = vectWorldToBody(this.velocity, this.angle);
@@ -95,7 +94,6 @@ class Car {
             grip = this.carType.grip.gripping
             this.turnRate = this.carType.turnRate.gripping
             this.isDrifting = false;
-            // bodyFixedDrag = new Vector(vB.x * -this.model.gripStatic, vB.y * 0.05);
 
         } else {
             // Drifting
@@ -103,57 +101,48 @@ class Car {
             this.turnRate = this.carType.turnRate.drifting;
             this.isDrifting = true;
         }
-        bodyFixedDrag = new Vector(vB.x * -grip, vB.y * 0.10);
+        bodyFixedDrag = new Vector(-vB.x * grip, 0.10 * vB.y);
 
         // Rotate body fixed forces into world fixed and add to acceleration
-        let worldFixedDrag =
-            vectBodyToWorld(bodyFixedDrag, this.angle)
-        this.acceleration.add(
-            worldFixedDrag.div(this.carType.mass)); // Include inertia
-
+        let worldFixedDrag = vectBodyToWorld(bodyFixedDrag, this.angle);
+        this.acceleration.add(worldFixedDrag.div(this.carType.mass));
 
         // Physics Engine
         this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
         this.velocity.add(this.acceleration);
-        if (this.handbrake)
+        if (this.handbrake) {
             this.velocity = this.isDrifting ? this.velocity.mult(0.99) : this.velocity.mult(0.95);
-        //
+        }
+        
         if (this.weight) {
-            let tensionForce = this.carType.engineForce;
-            // console.log(this.position.sub(this.weight.position).mag())
             let springVector = this.weight.update(deltaTime, this.position.sub(this.weight.position), this.position);
             this.velocity.add(springVector.mult(2));
         }
         this.targetPosition = this.position.copy().add(this.velocity.mult(deltaTime * timeFactor));
-        // this.interpolatePosition();
-
-
     }
 
     private handleInput(keys, deltaTime, timeFactor: number) {
         let changes = {acceleration: new Vector(0, 0), angle: 0};
 
-        if (keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
-            // ACCELERATING (BODY-FIXED to WORLD)
-            if (keys['ArrowUp']) {
-                let bodyAcc = new Vector(0, this.carType.engineForce);
-                // let bodyAcc = this.position.copy().sub(this.weight.position).normalize().mult(this.model.force);
-                let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
-                changes.acceleration.add(worldAcc);
-            }
-            // BRAKING (BODY-FIXED TO WORLD)
-            if (keys['ArrowDown']) {
-                let bodyAcc = new Vector(0, -this.carType.engineForce);
-                let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
-                changes.acceleration.add(worldAcc);
-            }
-            if (keys['ArrowLeft']) {
-                this.angle -= this.turnRate * deltaTime * timeFactor;
-            }
-            if (keys['ArrowRight']) {
-                this.angle += this.turnRate * deltaTime * timeFactor;
-            }
+        // ACCELERATING (BODY-FIXED to WORLD)
+        if (keys['ArrowUp']) {
+            let bodyAcc = new Vector(0, this.carType.engineForce);
+            let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
+            changes.acceleration.add(worldAcc);
         }
+        // BRAKING (BODY-FIXED TO WORLD)
+        if (keys['ArrowDown']) {
+            let bodyAcc = new Vector(0, -this.carType.engineForce);
+            let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
+            changes.acceleration.add(worldAcc);
+        }
+        if (keys['ArrowLeft']) {
+            changes.angle -= this.turnRate * deltaTime * timeFactor;
+        }
+        if (keys['ArrowRight']) {
+            changes.angle += this.turnRate * deltaTime * timeFactor;
+        }
+        
         this.handbrake = keys['Space'];
         return changes;
     }
