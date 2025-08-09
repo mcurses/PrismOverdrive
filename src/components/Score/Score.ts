@@ -3,19 +3,18 @@ import Vector from "../../utils/Vector";
 
 class Score {
 
-    highScore: number;
-    driftScore: number;
+    highScore: number = 0;
+    driftScore: number = 0;
     driftBoard: number[];
-    frameScore: number;
+    frameScore: number = 0;
     driftCount: number;
     frameScoreHistory: number[] = [];
-    curveScore: number;
+    curveScore: number = 0;
 
     constructor(frameScore = 0, totalScore = 0, driftScore = 0) {
         this.frameScore = frameScore;
-        this.highScore =   totalScore;
+        this.highScore = totalScore;
         this.driftScore = driftScore;
-
     }
 
     update(velocity: Vector, angle: number) {
@@ -37,12 +36,16 @@ class Score {
     }
 
     getFrameScoreAverage(range: number) {
+        if (this.frameScoreHistory.length === 0) {
+            return 0;
+        }
+        
+        const actualRange = Math.min(range, this.frameScoreHistory.length);
         let sum = 0;
-        for (let i = 0; i < range; i++) {
+        for (let i = this.frameScoreHistory.length - actualRange; i < this.frameScoreHistory.length; i++) {
             sum += this.frameScoreHistory[i];
         }
-        return sum / range;
-
+        return sum / actualRange;
     }
 
 

@@ -19,7 +19,7 @@ export function mapValues(value: number, start1: number, stop1: number, start2: 
 }
 
 export function constrain(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max);
+    return clamp(min, value, max);
 }
 export function loadImage(src: string): Promise<void> {
     return new Promise((resolve, reject) => {

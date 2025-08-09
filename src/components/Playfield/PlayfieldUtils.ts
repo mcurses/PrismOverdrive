@@ -28,22 +28,24 @@ export function drawPolylineShape(ctx: CanvasRenderingContext2D, bounds: number[
     ctx.fill();
     ctx.stroke();
 
-    // Define the inner boundary
-    ctx.globalCompositeOperation = 'xor';
-    let innerBoundary = bounds[1];
-    ctx.beginPath();
-    for (let point of innerBoundary) {
-        ctx.lineTo(point[0] * scale, point[1] * scale);
+    // Define the inner boundary only if it exists
+    if (bounds.length > 1) {
+        ctx.globalCompositeOperation = 'xor';
+        let innerBoundary = bounds[1];
+        ctx.beginPath();
+        for (let point of innerBoundary) {
+            ctx.lineTo(point[0] * scale, point[1] * scale);
+        }
+        ctx.closePath();
+
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+    // Fill the inner boundary
+        ctx.fill();
+        ctx.stroke();
+
+    // Reset the composite operation to 'source-over'
+        ctx.globalCompositeOperation = 'source-over';
     }
-    ctx.closePath();
-
-    ctx.fillStyle = 'rgba(0,0,0,1)';
-// Fill the inner boundary
-    ctx.fill();
-    ctx.stroke();
-
-// Reset the composite operation to 'source-over'
-    ctx.globalCompositeOperation = 'source-over';
     // let innerBoundaryReversed = innerBoundary.slice().reverse();
     //
     // for (let i = 0; i < innerBoundaryReversed.length - 1; i++) {
