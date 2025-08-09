@@ -4,6 +4,9 @@ export enum InputType {
 }
 export class InputController {
     private keys: { [key: string]: boolean };
+    private onKeyDown: (e: KeyboardEvent) => void;
+    private onKeyUp: (e: KeyboardEvent) => void;
+    private keyHandlers: Map<string, Function> = new Map();
 
     constructor(type: InputType) {
         switch (type) {
@@ -17,7 +20,8 @@ export class InputController {
                     'Escape': false,
                     'Enter': false,
                 };
-                window.addEventListener('keydown', (e) => {
+
+                this.onKeyDown = (e: KeyboardEvent) => {
                     if (this.keys.hasOwnProperty(e.key)) {
                         this.keys[e.key] = true;
                     }
@@ -25,9 +29,16 @@ export class InputController {
                         e.preventDefault();
                         this.keys['Space'] = true;
                     }
-                });
 
-                window.addEventListener('keyup', (e) => {
+                    // Check for registered handlers
+                    const handlerKey = e.key === ' ' ? 'Space' : e.key;
+                    const handler = this.keyHandlers.get(handlerKey);
+                    if (handler) {
+                        handler();
+                    }
+                };
+
+                this.onKeyUp = (e: KeyboardEvent) => {
                     if (this.keys.hasOwnProperty(e.key)) {
                         this.keys[e.key] = false;
                     }
@@ -35,20 +46,20 @@ export class InputController {
                         e.preventDefault();
                         this.keys['Space'] = false;
                     }
-                });
+                };
+
+                window.addEventListener('keydown', this.onKeyDown);
+                window.addEventListener('keyup', this.onKeyUp);
         }
     }
-    handleKey(name: string, handler: Function ) {
-        window.addEventListener('keydown', (e) => {
-            if (e.key === name) {
-                handler();
-            }
-        });
+
+    handleKey(name: string, handler: Function) {
+        this.keyHandlers.set(name, handler);
     }
 
     destroy() {
-        window.removeEventListener('keydown', () => {});
-        window.removeEventListener('keyup', () => {});
+        window.removeEventListener('keydown', this.onKeyDown);
+        window.removeEventListener('keyup', this.onKeyUp);
     }
 
     setKey(key: string, value: boolean) {

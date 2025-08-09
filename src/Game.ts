@@ -372,8 +372,9 @@ class Game {
     }
 
     private setPlayerName(name: string) {
-        this.session.playerName = name;
-        this.localPlayer.name = name;
+        const trimmed = name.slice(0, 8);
+        this.session.playerName = trimmed;
+        this.localPlayer.name = trimmed;
     }
 
     private updatePlayer(id: string, player: Player) {
