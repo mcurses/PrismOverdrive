@@ -1,6 +1,8 @@
+const DEBUG_TILE_PAINT = false;
+
 export default class TiledCanvas {
     private static readonly TILE_MARGIN_PX = 2;
-    private static readonly DRAW_BLEED_PX = 1;
+    private static readonly DRAW_BLEED_PX = 0;
     
     private tiles: HTMLCanvasElement[][];
     private tileSize: number;
@@ -37,6 +39,19 @@ export default class TiledCanvas {
         const endTileX = Math.min(this.tilesX - 1, Math.floor((bounds.x + bounds.w + TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
         const startTileY = Math.max(0, Math.floor((bounds.y - TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
         const endTileY = Math.min(this.tilesY - 1, Math.floor((bounds.y + bounds.h + TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
+
+        if (DEBUG_TILE_PAINT && (endTileX > startTileX || endTileY > startTileY)) {
+            const now = performance.now ? performance.now() : Date.now();
+            if (!((this as any)._lastTileLogMs) || now - (this as any)._lastTileLogMs > 500) {
+                (this as any)._lastTileLogMs = now;
+                // Keep it short to avoid spam
+                console.log('[tile-paint-cross]', {
+                    bounds,
+                    tiles: { startTileX, endTileX, startTileY, endTileY },
+                    tileSize: this.tileSize
+                });
+            }
+        }
 
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
@@ -79,6 +94,10 @@ export default class TiledCanvas {
                 ctx.drawImage(tile, dx, dy, dW, dH);
             }
         }
+    }
+
+    public getTileSize(): number { 
+        return this.tileSize; 
     }
 
     overlayImage(imageCanvas: HTMLCanvasElement, globalAlpha: number = 1): void {

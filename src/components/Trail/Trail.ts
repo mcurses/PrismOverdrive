@@ -32,6 +32,7 @@ class Trail {
     private lastDrawMs: number = 0;
     private desiredHz: number = 60;
     private minIntervalMs: number = 1000 / this.desiredHz;
+    private lastBoundaryLogMs: number = 0;
 
     constructor() {
         this.points = [];
@@ -72,6 +73,7 @@ class Trail {
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
         this.prevWeight = weight
 
+        const overscoreSquareWeight = weight;
         let overScore = player.score.driftScore > 30000;
         let corners = player.car.getCorners();
 
@@ -90,13 +92,43 @@ class Trail {
             bounds.h += 2 * weight;
         }
 
+        // Diagnostic: check if bounds cross tile boundaries
+        const tileSize = (trails as any).getTileSize ? (trails as any).getTileSize() : 1024;
+        const startTileX = Math.max(0, Math.floor(bounds.x / tileSize));
+        const endTileX = Math.min(Math.ceil((bounds.x + bounds.w) / tileSize) - 1, 99999);
+        const startTileY = Math.max(0, Math.floor(bounds.y / tileSize));
+        const endTileY = Math.min(Math.ceil((bounds.y + bounds.h) / tileSize) - 1, 99999);
+        const crossesX = endTileX > startTileX;
+        const crossesY = endTileY > startTileY;
+
+        // Compute actual overscore-square extents
+        const carX = player.car.position.x;
+        const carY = player.car.position.y;
+        const sqMinX = carX - overscoreSquareWeight / 2;
+        const sqMaxX = carX + overscoreSquareWeight / 2;
+        const sqMinY = carY - overscoreSquareWeight / 2;
+        const sqMaxY = carY + overscoreSquareWeight / 2;
+
+        // const now = performance.now ? performance.now() : Date.now();
+        // if (overScore && (crossesX || crossesY) && (now - this.lastBoundaryLogMs > 1000)) {
+        //     this.lastBoundaryLogMs = now;
+        //     console.log('[overscore-cross]', {
+        //         pos: { x: carX, y: carY },
+        //         angle: player.car.getAngle(),
+        //         weight: overscoreSquareWeight,
+        //         bounds,
+        //         squareAABB: { x0: sqMinX, y0: sqMinY, x1: sqMaxX, y1: sqMaxY },
+        //         tiles: { startTileX, endTileX, startTileY, endTileY },
+        //         tileSize
+        //     });
+        // }
+
         trails.paint(bounds, (ctx) => {
             ctx.save();
             
             // ctx.globalCompositeOperation = "overlay";
             ctx.globalAlpha = .5;
 
-            ctx.beginPath();
             if (overScore) {
                 const bgColor = trailPointColor.clone();
                 bgColor.s = 5;
@@ -107,17 +139,15 @@ class Trail {
                 ctx.save();
                 ctx.fillStyle = bgColor.toCSS();
                 ctx.translate(player.car.position.x, player.car.position.y);
-                // rotating by quantized radians is optional; plain angle is fine:
                 ctx.rotate(player.car.getAngle());
-                ctx.beginPath();
-                ctx.rect(-weight / 2, -weight / 2, weight, weight);
-                ctx.fill();
-                ctx.restore(); // ← important
+                ctx.fillRect(-overscoreSquareWeight / 2, -overscoreSquareWeight / 2,
+                    overscoreSquareWeight, overscoreSquareWeight);
+                ctx.restore();
 
                 trailPointColor.s = 100;
-                weight /= 10;
+                const smallWeight = overscoreSquareWeight / 10;
+                weight = smallWeight;
             }
-            ctx.closePath();
 
             ctx.beginPath();
             for (let [index, corner] of corners.entries()) {
