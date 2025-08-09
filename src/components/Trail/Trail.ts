@@ -4,6 +4,7 @@ import {driftColor, driftColorFromValues} from "../Score/ScoreVisualize";
 import Player from "../Player/Player";
 import {HSLColor} from "../../utils/HSLColor";
 import Vector from "../../utils/Vector";
+import TiledCanvas from "../../utils/TiledCanvas";
 
 class TrailPoint {
     position: { x: number, y: number };
@@ -51,15 +52,13 @@ class Trail {
 
     }
 
-    drawPoint(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean, timestampMs: number) {
+    drawPoint(trails: TiledCanvas, player: Player, isLocal: boolean, timestampMs: number) {
         // Throttle by time
         if (timestampMs - this.lastDrawMs < this.minIntervalMs) {
             return;
         }
         this.lastDrawMs = timestampMs;
 
-        ctx.save();
-        
         let opacity = 255;
         let trailPointColor: HSLColor = driftColor(player.score);
         trailPointColor.b = Math.min(50, trailPointColor.b);
@@ -73,53 +72,62 @@ class Trail {
         weight = weight > this.TRAIL_MAX_WEIGHT ? this.TRAIL_MAX_WEIGHT : weight;
         this.prevWeight = weight
 
-
-        // let corners = player.car.getCorners() //getCarCorners({
-        // ctx.globalCompositeOperation = "overlay";
-        ctx.globalAlpha = .5;
-
-        ctx.beginPath();
         let overScore = player.score.driftScore > 30000;
-        if (overScore) {
-            const bgColor = trailPointColor.clone();
-            bgColor.s = 5;
-            bgColor.a = .5;
-            bgColor.b = mapValues(player.score.driftScore, 30000, 60000, 100, 0);
+        let corners = player.car.getCorners();
 
-            // draw the rotated square in its own transform scope
+        // Compute conservative world-space bounding box
+        const minX = Math.min(...corners.map(c => c.x)) - weight * 2;
+        const minY = Math.min(...corners.map(c => c.y)) - weight * 2;
+        const maxX = Math.max(...corners.map(c => c.x)) + weight * 2;
+        const maxY = Math.max(...corners.map(c => c.y)) + weight * 2;
+        const bounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+
+        trails.paint(bounds, (ctx) => {
             ctx.save();
-            ctx.fillStyle = bgColor.toCSS();
-            ctx.translate(Math.floor(player.car.position.x), Math.floor(player.car.position.y));
-            // rotating by quantized radians is optional; plain angle is fine:
-            ctx.rotate(player.car.getAngle());
+            
+            // ctx.globalCompositeOperation = "overlay";
+            ctx.globalAlpha = .5;
+
             ctx.beginPath();
-            ctx.rect(Math.floor(-weight / 2), Math.floor(-weight / 2), weight, weight);
-            ctx.fill();
-            ctx.restore(); // ← important
+            if (overScore) {
+                const bgColor = trailPointColor.clone();
+                bgColor.s = 5;
+                bgColor.a = .5;
+                bgColor.b = mapValues(player.score.driftScore, 30000, 60000, 100, 0);
 
-            trailPointColor.s = 100;
-            weight /= 10;
-        }
-        ctx.closePath();
+                // draw the rotated square in its own transform scope
+                ctx.save();
+                ctx.fillStyle = bgColor.toCSS();
+                ctx.translate(Math.floor(player.car.position.x), Math.floor(player.car.position.y));
+                // rotating by quantized radians is optional; plain angle is fine:
+                ctx.rotate(player.car.getAngle());
+                ctx.beginPath();
+                ctx.rect(Math.floor(-weight / 2), Math.floor(-weight / 2), weight, weight);
+                ctx.fill();
+                ctx.restore(); // ← important
 
-        ctx.beginPath();
-        let corners = player.car.getCorners()
+                trailPointColor.s = 100;
+                weight /= 10;
+            }
+            ctx.closePath();
 
-        for (let [index, corner] of corners.entries()) {
-            let factor = index == 3 || index == 2 ? 1.5 : 2;
-            let radius = weight * factor / 2;
-            ctx.fillStyle = trailPointColor.toCSS();
-            ctx.rect(
-                (corner.x - radius),
-                (corner.y - radius),
-                radius * 2,
-                radius * 2)
-            ctx.fill();
-        }
-        ctx.closePath();
-        ctx.globalCompositeOperation = "source-over";
-        
-        ctx.restore();
+            ctx.beginPath();
+            for (let [index, corner] of corners.entries()) {
+                let factor = index == 3 || index == 2 ? 1.5 : 2;
+                let radius = weight * factor / 2;
+                ctx.fillStyle = trailPointColor.toCSS();
+                ctx.rect(
+                    (corner.x - radius),
+                    (corner.y - radius),
+                    radius * 2,
+                    radius * 2)
+                ctx.fill();
+            }
+            ctx.closePath();
+            ctx.globalCompositeOperation = "source-over";
+            
+            ctx.restore();
+        });
     }
 
     renderAllPoints(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {

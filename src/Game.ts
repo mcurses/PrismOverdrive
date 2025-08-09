@@ -19,6 +19,7 @@ import Vector from "./utils/Vector";
 import Session from "./components/Session/Session";
 import BackgroundData from "./components/Playfield/BackgroundData";
 import Menu from "./components/UI/Menu";
+import TiledCanvas from "./utils/TiledCanvas";
 
 
 class Game {
@@ -44,8 +45,7 @@ class Game {
     private trackCtx: CanvasRenderingContext2D;
     private miniMapCanvas: HTMLCanvasElement;
     private miniMapCtx: CanvasRenderingContext2D;
-    private trailsCtx: CanvasRenderingContext2D;
-    private trailsCanvas: HTMLCanvasElement;
+    private trails: TiledCanvas;
 
     private trackBlurInterval: NodeJS.Timeout;
     private lastUdpate: number;
@@ -145,10 +145,7 @@ class Game {
         document.getElementById('sketch-holder').appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
-        this.trailsCanvas = document.createElement('canvas');
-        this.trailsCanvas.width = this.mapSize.width;
-        this.trailsCanvas.height = this.mapSize.height;
-        this.trailsCtx = this.trailsCanvas.getContext('2d');
+        this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
         this.trailsOverdrawCounter = 0;
 
         this.miniMapCanvas = document.createElement('canvas');
@@ -175,9 +172,6 @@ class Game {
         //
         // }, 1000 / 24);
 
-        this.trailsCtx.globalAlpha = 1;
-        this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
-        this.ctx.drawImage(this.trailsCanvas, 0, 0);
         // this.trackBlurInterval = setInterval(() => {
         // }, 1000 / 4);
 
@@ -317,21 +311,17 @@ class Game {
 
         // render the trails
         for (let id in this.players) {
-            this.players[id].car.trail.drawPoint(this.trailsCtx, this.players[id], true, timestamp);
+            this.players[id].car.trail.drawPoint(this.trails, this.players[id], true, timestamp);
         }
         
-        this.ctx.drawImage(this.trailsCanvas, 0, 0);
+        this.trails.drawTo(this.ctx, -this.camera.position.x, -this.camera.position.y, this.canvasSize.width, this.canvasSize.height);
 
         // Draw a semi-transparent white rectangle over the entire trailsCanvas
         // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
         // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
 
         if (this.trailsOverdrawCounter > 200) {
-            this.trailsCtx.save();
-            this.trailsCtx.globalAlpha = 0.09;
-            this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
-            // this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-28,28), gaussianRandom(-28,28));
-            this.trailsCtx.restore();
+            // this.trails.overlayImage(this.trackCanvas, 0.09);
             this.trailsOverdrawCounter = 0;
         } else {
             this.trailsOverdrawCounter += deltaTime
@@ -383,7 +373,7 @@ class Game {
         if (this.miniMap) {
             this.miniMap.setTrack(this.track, this.miniMapCtx);
         }
-        this.trailsCtx.clearRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
+        this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
     }
 
     private setPlayerName(name: string) {
