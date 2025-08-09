@@ -79,6 +79,10 @@ export default class Background {
         let offsetX = cameraPos.x * layer.z % layer.canvas.width;
         let offsetY = cameraPos.y * layer.z % layer.canvas.height;
 
+        // Set canvas state once before loops
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 1 - (layer.z / 2);
+
         // Otherwise replace Map.width and Map.height with appropriate values
         for (let x = -offsetX - layer.canvas.width;
              x < MapSize.width + canvasSize.width / 2;
@@ -86,17 +90,17 @@ export default class Background {
             for (let y = -offsetY - layer.canvas.height;
                  y < MapSize.height + canvasSize.height / 2;
                  y += layer.canvas.height) {
-                ctx.globalCompositeOperation = 'lighter'
-                ctx.globalAlpha = 1 - (layer.z / 2);
                 ctx.drawImage(layer.canvas,
                     0, 0,
                     layer.cropSize.width, layer.cropSize.height,
                     x, y,
                     layer.size.width, layer.size.height,
                 );
-                ctx.globalCompositeOperation = 'source-over'
             }
         }
+        
+        // Reset canvas state once after loops
+        ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
     }
 

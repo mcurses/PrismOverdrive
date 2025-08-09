@@ -259,6 +259,8 @@ class Game {
 
         // Apply the camera translation
         this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
+        
+        // Draw world-space elements in order: background → track → trails → cars
         if (this.background) {
             this.background.draw(this.ctx, this.camera.position, {
                 width: this.ctx.canvas.width,
@@ -310,6 +312,7 @@ class Game {
             this.players[id].car.trail.drawPoint(this.trailsCtx, this.players[id], true);
             // this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
         }
+        
         this.ctx.drawImage(this.trailsCanvas, 0, 0);
 
         // Draw a semi-transparent white rectangle over the entire trailsCanvas
@@ -317,10 +320,11 @@ class Game {
         // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
 
         if (this.trailsOverdrawCounter > 200) {
+            this.trailsCtx.save();
             this.trailsCtx.globalAlpha = 0.09;
             this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
             // this.trailsCtx.drawImage(this.trailsCanvas, gaussianRandom(-28,28), gaussianRandom(-28,28));
-            this.trailsCtx.globalAlpha = 1;
+            this.trailsCtx.restore();
             this.trailsOverdrawCounter = 0;
         } else {
             this.trailsOverdrawCounter += deltaTime
@@ -341,8 +345,10 @@ class Game {
             this.players[id].car.render(this.ctx);
         }
 
+        // Reset transform for UI drawing
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
         // Draw mini-map
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // equivalent to resetMatrix() in p5
         this.ctx.drawImage(this.miniMapCanvas, 0, 0);
         this.miniMap.draw(this.ctx, Object.values(this.players).map(player => player.car));
         this.highscoreTable.updateScores(

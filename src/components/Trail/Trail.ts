@@ -46,6 +46,8 @@ class Trail {
     }
 
     drawPoint(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
+        ctx.save();
+        
         let opacity = 255;
         let trailPointColor: HSLColor = driftColor(player.score);
         trailPointColor.b = Math.min(50, trailPointColor.b);
@@ -64,7 +66,6 @@ class Trail {
         // ctx.globalCompositeOperation = "overlay";
         ctx.globalAlpha = .5;
 
-        ctx.save()
         ctx.beginPath();
         let overScore = player.score.driftScore > 30000;
         if (overScore) {
@@ -91,9 +92,7 @@ class Trail {
 
         }
         ctx.closePath();
-        ctx.restore()
 
-        ctx.save()
         ctx.beginPath();
         let corners = player.car.getCorners()
 
@@ -110,6 +109,8 @@ class Trail {
         }
         ctx.closePath();
         ctx.globalCompositeOperation = "source-over";
+        
+        ctx.restore();
     }
 
     renderAllPoints(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
