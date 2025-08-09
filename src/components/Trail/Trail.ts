@@ -270,7 +270,7 @@ class Trail {
 
         trails.paint(bounds, (ctx) => {
             ctx.save();
-            ctx.globalAlpha = 0.5;
+            ctx.globalAlpha = (typeof stamp.a === 'number') ? stamp.a : 0.5;
 
             if (overScore) {
                 const bgColor = trailPointColor.clone();

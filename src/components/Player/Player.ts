@@ -14,6 +14,7 @@ export interface TrailStamp {
     b: number;
     overscore: boolean;
     tMs: number;
+    a?: number;
 }
 
 export default class Player {

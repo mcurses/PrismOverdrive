@@ -295,15 +295,16 @@ class Car {
         let corners = [];
 
         // Calculate the corners relative to the car's center point
+        // Corner order: 0=front-left, 1=front-right, 2=rear-left, 3=rear-right
         let frontLeft = new Vector(this.position.x - width / 2, this.position.y - height / 2);
         let frontRight = new Vector(this.position.x + width / 2, this.position.y - height / 2);
         let backLeft = new Vector(this.position.x - width / 2, this.position.y + height / 2);
         let backRight = new Vector(this.position.x + width / 2, this.position.y + height / 2);
 
-        corners.push(frontLeft);
-        corners.push(frontRight);
-        corners.push(backLeft);
-        corners.push(backRight);
+        corners.push(frontLeft);   // 0: front-left
+        corners.push(frontRight);  // 1: front-right
+        corners.push(backLeft);    // 2: rear-left
+        corners.push(backRight);   // 3: rear-right
 
         let rotatedCorners = [];
         for (let i = 0; i < corners.length; i++) {

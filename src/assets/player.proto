@@ -30,6 +30,7 @@ message TrailStamp {
   float b = 7;
   bool overscore = 8;
   uint32 tMs = 9;
+  float a = 10;
 }
 
 message PlayerState {

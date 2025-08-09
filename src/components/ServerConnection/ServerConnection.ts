@@ -3,6 +3,8 @@ import Player, { TrailStamp } from "../Player/Player";
 import Score from "../Score/Score";
 import { driftColor } from "../Score/ScoreVisualize";
 import { Snapshot } from "../../net/SnapshotBuffer";
+import { TrailEmitter } from "../../trails/TrailEmitter";
+import { getDefaultTrailStages } from "../../trails/TrailConfig";
 
 export default class ServerConnection {
     private ws: WebSocket | null = null;
@@ -15,7 +17,7 @@ export default class ServerConnection {
     socketId: string = "";
     private sessionId: string;
     private pendingTrailStamps: TrailStamp[] = [];
-    private lastTrailStampMs: number = 0;
+    private trailEmitter: TrailEmitter;
     private lastSentVx: number = 0;
     private lastSentVy: number = 0;
     private lastSentAngVel: number = 0;
@@ -47,6 +49,8 @@ export default class ServerConnection {
             this.ScoreState = root.lookupType("ScoreState");
             this.TrailStamp = root.lookupType("TrailStamp");
         });
+        
+        this.trailEmitter = new TrailEmitter(getDefaultTrailStages());
     }
 
     generateUniqueSessionId() {
@@ -148,7 +152,8 @@ export default class ServerConnection {
                         s: stamp.s,
                         b: stamp.b,
                         overscore: stamp.overscore,
-                        tMs: stamp.tMs
+                        tMs: stamp.tMs,
+                        a: stamp.a
                     }));
 
                     console.log('client RX stamps from', playerState.id, ':', stamps.length);
@@ -189,29 +194,9 @@ export default class ServerConnection {
         this.lastAngle = currentAngle;
         this.lastAngleTime = nowMs;
 
-        // Generate trail stamp every 100ms, but only when drifting
-        if (nowMs - this.lastTrailStampMs >= 100 && currentDrifting) {
-            this.lastTrailStampMs = nowMs;
-            
-            const raw = player.score.frameScore * 0.1 * Math.max(1, player.score.driftScore / 1000) * (1 + player.score.curveScore / 4000);
-            const weight = Math.max(1, Math.min(raw, 50)); // floor 1px so it shows
-            
-            const color = driftColor(player.score);
-            
-            const stamp: TrailStamp = {
-                x: currentPos.x,
-                y: currentPos.y,
-                angle: currentAngle,
-                weight: weight,
-                h: color.h,
-                s: color.s,
-                b: color.b,
-                overscore: player.score.driftScore > 30000,
-                tMs: nowMs
-            };
-            
-            this.pendingTrailStamps.push(stamp);
-        }
+        // Generate trail stamps using the trail emitter
+        const newStamps = this.trailEmitter.getStamps(nowMs, player);
+        this.pendingTrailStamps.push(...newStamps);
 
         // Take up to 3 stamps for this message
         const stampsToSend = this.pendingTrailStamps.splice(0, 3);
