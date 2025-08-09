@@ -102,7 +102,7 @@ class Car {
             deltaTime = 100;
         }
         let changes = this.handleInput(keys, deltaTime, timeFactor);
-        this.acceleration.add(changes.acceleration);
+        this.acceleration = this.acceleration.add(changes.acceleration);
         this.angle += changes.angle;
         let vB = vectWorldToBody(this.velocity, this.angle);
 
@@ -132,18 +132,18 @@ class Car {
         );
         // Rotate body fixed forces into world fixed and add to acceleration
         let worldFixedDrag = vectBodyToWorld(bodyFixedDrag, this.angle);
-        this.acceleration.add(worldFixedDrag.div(this.carType.mass));
+        this.acceleration = this.acceleration.add(worldFixedDrag.div(this.carType.mass));
 
         // Physics Engine
         this.angle = this.angle % (2 * Math.PI); // Restrict angle to one revolution
-        this.velocity.add(this.acceleration);
+        this.velocity = this.velocity.add(this.acceleration);
         if (this.handbrake) {
             this.velocity = this.isDrifting ? this.velocity.mult(0.99) : this.velocity.mult(0.95);
         }
         
         if (this.weight) {
             let springVector = this.weight.update(deltaTime, this.position.sub(this.weight.position), this.position);
-            this.velocity.add(springVector.mult(2));
+            this.velocity = this.velocity.add(springVector.mult(2));
         }
         this.targetPosition = this.position.copy().add(this.velocity.mult(deltaTime * timeFactor));
     }
@@ -155,13 +155,13 @@ class Car {
         if (keys['ArrowUp']) {
             let bodyAcc = new Vector(0, this.carType.engineForce);
             let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
-            changes.acceleration.add(worldAcc);
+            changes.acceleration = changes.acceleration.add(worldAcc);
         }
         // BRAKING (BODY-FIXED TO WORLD)
         if (keys['ArrowDown']) {
             let bodyAcc = new Vector(0, -this.carType.engineForce);
             let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
-            changes.acceleration.add(worldAcc);
+            changes.acceleration = changes.acceleration.add(worldAcc);
         }
         if (keys['ArrowLeft']) {
             changes.angle -= this.turnRate * deltaTime * timeFactor;

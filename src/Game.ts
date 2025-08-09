@@ -315,8 +315,8 @@ class Game {
             localPlayer.car.velocity = localPlayer.car.velocity.mult(0.99);
             let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.carType.dimensions.length / 2 - wallHit.distance) * .4);
 
-            localPlayer.car.position.add(pushBack.mult(4));
-            localPlayer.car.velocity.add(pushBack);
+            localPlayer.car.position = localPlayer.car.position.add(pushBack.mult(4));
+            localPlayer.car.velocity = localPlayer.car.velocity.add(pushBack);
             localPlayer.score.endDrift()
         }
 

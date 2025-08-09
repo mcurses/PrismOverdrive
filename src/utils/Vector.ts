@@ -8,9 +8,7 @@ class Vector {
     }
 
     add(v: Vector) {
-        this.x += v.x;
-        this.y += v.y;
-        return this;
+        return new Vector(this.x + v.x, this.y + v.y);
     }
 
     sub(v: Vector) {
@@ -22,9 +20,7 @@ class Vector {
     }
 
     div(n: number) {
-        this.x /= n;
-        this.y /= n;
-        return this;
+        return new Vector(this.x / n, this.y / n);
     }
 
     mag() {
@@ -71,9 +67,9 @@ class Vector {
     normalize() {
         let m = this.mag();
         if (m !== 0) {
-            this.div(m);
+            return this.div(m);
         }
-        return this;
+        return new Vector(this.x, this.y);
     }
 
     dot(v: Vector) {

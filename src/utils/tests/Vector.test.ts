@@ -56,8 +56,8 @@ describe('Vector_class', () => {
         const divided = vector.div(2);
         expect(divided.x).toBe(2);
         expect(divided.y).toBe(3);
-        expect(vector.x).toBe(2);
-        expect(vector.y).toBe(3);
+        expect(vector.x).toBe(4);
+        expect(vector.y).toBe(6);
     });
 
     // Tests adding two Vectors.
@@ -67,6 +67,8 @@ describe('Vector_class', () => {
         const added = vector1.add(vector2);
         expect(added.x).toBe(6);
         expect(added.y).toBe(8);
+        expect(vector1.x).toBe(2);
+        expect(vector1.y).toBe(3);
     });
 
     // Tests subtracting two Vectors.
