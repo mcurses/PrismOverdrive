@@ -18,41 +18,45 @@ export class TrailEmitter {
                 continue;
             }
 
-            // Compute weight and frequency
-            const rawWeight = stage.weight(player);
-            const scaledWeight = stage.sizeScale ? rawWeight * stage.sizeScale : rawWeight;
-            const clampedWeight = clamp(1, scaledWeight, MAX_TRAIL_WEIGHT);
-
-            // Compute adjusted frequency (inverse proportional to size)
-            const sizeFactor = clamp(clampedWeight / MAX_TRAIL_WEIGHT, 0.01, 1);
-            const desiredHz = clamp(stage.baseHz / Math.pow(sizeFactor, stage.invFreqWithWeightExponent), stage.minHz, stage.maxHz);
-
-            // Check timing
-            const lastEmit = this.lastEmitMs.get(stage.id) || 0;
-            const intervalMs = 1000 / desiredHz;
-            if (nowMs - lastEmit < intervalMs) {
-                continue;
-            }
-
-            // Update timing
-            this.lastEmitMs.set(stage.id, nowMs);
-
-            // Get target positions using robust resolver
+            // Get target positions with tags
             const targetPositions = this.resolveTargets(player, stage.tireTargets);
 
             // Get angle
             const angle = stage.angleSource === 'carAngle' ? player.car.getAngle() : 0;
 
-            // Get color
-            const color = stage.color(player);
+            // Get progress and color
+            const x = clamp(stage.progress(player), 0, 1);
+            const color = stage.color(player, x);
 
-            // Create stamps for each target position
-            for (const position of targetPositions) {
+            // Process each target separately for per-target timing and scaling
+            for (const target of targetPositions) {
+                const emitKey = `${stage.id}:${target.tag}`;
+                
+                // Compute weight and frequency per target
+                const rawWeight = stage.weight(player);
+                const targetScale = stage.perTargetScale?.[target.tag] ?? 1;
+                const targetWeight = clamp(1, rawWeight * targetScale, MAX_TRAIL_WEIGHT);
+
+                // Compute adjusted frequency (inverse proportional to size)
+                const sizeFactor = clamp(targetWeight / MAX_TRAIL_WEIGHT, 0.01, 1);
+                const desiredHz = clamp(stage.baseHz / Math.pow(sizeFactor, stage.invFreqWithWeightExponent), stage.minHz, stage.maxHz);
+
+                // Check timing per target
+                const lastEmit = this.lastEmitMs.get(emitKey) || 0;
+                const intervalMs = 1000 / desiredHz;
+                if (nowMs - lastEmit < intervalMs) {
+                    continue;
+                }
+
+                // Update timing
+                this.lastEmitMs.set(emitKey, nowMs);
+
+                // Create stamp for this target
                 stamps.push({
-                    x: position.x,
-                    y: position.y,
+                    x: target.x,
+                    y: target.y,
                     angle: angle,
-                    weight: clampedWeight,
+                    weight: targetWeight,
                     h: color.h,
                     s: color.s,
                     b: color.b,
@@ -66,7 +70,7 @@ export class TrailEmitter {
         return stamps;
     }
 
-    private resolveTargets(player: Player, tireTargets: TrailStageConfig['tireTargets']): Array<{x: number, y: number}> {
+    private resolveTargets(player: Player, tireTargets: TrailStageConfig['tireTargets']): Array<{x: number, y: number, tag: string}> {
         const pos = player.car.position;
         const angle = player.car.getAngle();
         
@@ -97,26 +101,31 @@ export class TrailEmitter {
         frontPair.sort((a, b) => a.side - b.side); // smallest side first (left)
         rearPair.sort((a, b) => a.side - b.side);
         
-        // Build target map
-        const targetMap = new Map<string, Array<{x: number, y: number}>>([
-            ['front-left', [{ x: frontPair[0].corner.x, y: frontPair[0].corner.y }]],
-            ['front-right', [{ x: frontPair[1].corner.x, y: frontPair[1].corner.y }]],
-            ['rear-left', [{ x: rearPair[0].corner.x, y: rearPair[0].corner.y }]],
-            ['rear-right', [{ x: rearPair[1].corner.x, y: rearPair[1].corner.y }]],
+        // Build target map with tags
+        const targetMap = new Map<string, Array<{x: number, y: number, tag: string}>>([
+            ['front-left', [{ x: frontPair[0].corner.x, y: frontPair[0].corner.y, tag: 'front-left' }]],
+            ['front-right', [{ x: frontPair[1].corner.x, y: frontPair[1].corner.y, tag: 'front-right' }]],
+            ['rear-left', [{ x: rearPair[0].corner.x, y: rearPair[0].corner.y, tag: 'rear-left' }]],
+            ['rear-right', [{ x: rearPair[1].corner.x, y: rearPair[1].corner.y, tag: 'rear-right' }]],
             ['front', [
-                { x: frontPair[0].corner.x, y: frontPair[0].corner.y },
-                { x: frontPair[1].corner.x, y: frontPair[1].corner.y }
+                { x: frontPair[0].corner.x, y: frontPair[0].corner.y, tag: 'front-left' },
+                { x: frontPair[1].corner.x, y: frontPair[1].corner.y, tag: 'front-right' }
             ]],
             ['rear', [
-                { x: rearPair[0].corner.x, y: rearPair[0].corner.y },
-                { x: rearPair[1].corner.x, y: rearPair[1].corner.y }
+                { x: rearPair[0].corner.x, y: rearPair[0].corner.y, tag: 'rear-left' },
+                { x: rearPair[1].corner.x, y: rearPair[1].corner.y, tag: 'rear-right' }
             ]],
-            ['all', corners.map(corner => ({ x: corner.x, y: corner.y }))],
-            ['center', [{ x: pos.x, y: pos.y }]]
+            ['all', [
+                { x: frontPair[0].corner.x, y: frontPair[0].corner.y, tag: 'front-left' },
+                { x: frontPair[1].corner.x, y: frontPair[1].corner.y, tag: 'front-right' },
+                { x: rearPair[0].corner.x, y: rearPair[0].corner.y, tag: 'rear-left' },
+                { x: rearPair[1].corner.x, y: rearPair[1].corner.y, tag: 'rear-right' }
+            ]],
+            ['center', [{ x: pos.x, y: pos.y, tag: 'center' }]]
         ]);
         
         // Collect positions without duplicates
-        const positions: Array<{x: number, y: number}> = [];
+        const positions: Array<{x: number, y: number, tag: string}> = [];
         const seen = new Set<string>();
         
         for (const target of tireTargets) {
