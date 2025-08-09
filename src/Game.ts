@@ -70,8 +70,8 @@ class Game {
         };
 
         this.mapSize = {
-            width: 8000,
-            height: 6000,
+            width: 5000,
+            height: 4000,
         }
         this.layer1 = new Image();
         this.layer2 = new Image();
@@ -317,8 +317,7 @@ class Game {
 
         // render the trails
         for (let id in this.players) {
-            this.players[id].car.trail.drawPoint(this.trailsCtx, this.players[id], true);
-            // this.players[id].car.trail.render(this.ctx, this.players[id], id === this.serverConnection.socketId);
+            this.players[id].car.trail.drawPoint(this.trailsCtx, this.players[id], true, timestamp);
         }
         
         this.ctx.drawImage(this.trailsCanvas, 0, 0);

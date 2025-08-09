@@ -1,32 +1,36 @@
 import {mapValues} from "../../utils/Utils";
 import Car from "../Car/Car";
-import {driftColor} from "../Score/ScoreVisualize";
+import {driftColor, driftColorFromValues} from "../Score/ScoreVisualize";
 import Player from "../Player/Player";
-import Score from "../Score/Score";
 import {HSLColor} from "../../utils/HSLColor";
-import car from "../Car/Car";
 import Vector from "../../utils/Vector";
 
 class TrailPoint {
     position: { x: number, y: number };
     angle: number;
     drifting: boolean;
-    score: Score;
+    frameScore: number;
+    driftScore: number;
+    curveScore: number;
 
-    constructor(position: { x: number, y: number }, angle: number, drifting: boolean, score: Score) {
+    constructor(position: { x: number, y: number }, angle: number, drifting: boolean, frameScore: number, driftScore: number, curveScore: number) {
         this.position = position;
         this.angle = angle;
         this.drifting = drifting;
-        this.score = score;
+        this.frameScore = frameScore;
+        this.driftScore = driftScore;
+        this.curveScore = curveScore;
     }
 }
 
 class Trail {
     points: TrailPoint[];
-    TRAIL_FREQUENCY = 15;
     TRAIL_MAX_LENGTH = 100;
     TRAIL_MAX_WEIGHT = 50;
     private prevWeight: number = 0;
+    private lastDrawMs: number = 0;
+    private desiredHz: number = 60;
+    private minIntervalMs: number = 1000 / this.desiredHz;
 
     constructor() {
         this.points = [];
@@ -37,7 +41,9 @@ class Trail {
             player.car.getPos(),
             player.car.getAngle(),
             player.car.isDrifting,
-            player.score
+            player.score.frameScore,
+            player.score.driftScore,
+            player.score.curveScore
         ));
         let trailCutOff = Math.min(this.TRAIL_MAX_LENGTH, 10 + player.score.highScore / 30);
         if (this.points.length > trailCutOff)
@@ -45,7 +51,13 @@ class Trail {
 
     }
 
-    drawPoint(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
+    drawPoint(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean, timestampMs: number) {
+        // Throttle by time
+        if (timestampMs - this.lastDrawMs < this.minIntervalMs) {
+            return;
+        }
+        this.lastDrawMs = timestampMs;
+
         ctx.save();
         
         let opacity = 255;
@@ -112,13 +124,6 @@ class Trail {
 
     renderAllPoints(ctx: CanvasRenderingContext2D, player: Player, isLocal: boolean) {
         // console.log("rendering trail", this.points.length, isLocal);
-        player.car.trailCounter = isLocal
-            ? player.car.trailCounter + (1)
-            : player.car.trailCounter + (1 / 3);
-        if (~~player.car.trailCounter >= this.TRAIL_FREQUENCY) {
-            player.car.trail.addPoint(player);
-            player.car.trailCounter = 0;
-        }
 
         let trailIndex = 0;
         let maxTrailWeight = 50;
@@ -130,7 +135,7 @@ class Trail {
             if (p.drifting) {
                 // ... Processing of trailPointColor and opacity
 
-                let trailPointColor = driftColor(p.score);
+                let trailPointColor = driftColorFromValues(p.driftScore, p.frameScore, p.curveScore, p.frameScore);
                 // p5.colorMode(p5.HSB, 100);
                 let opacity = 255;
 
@@ -147,10 +152,9 @@ class Trail {
                     opacity = mapValues(i, fadeInLength, trailLength, 255, 0);
                 }
 
-                if (p.score.driftScore > 500000) {
+                if (p.driftScore > 500000) {
                     // Use a sine wave to create a smooth wave of alternating opacity
                     // The speed of the wave is determined by the frameScore
-                    let waveSpeed = p.score;
                     let wave = Math.sin(i * 1.1);
 
                     // Map the wave value (which is between -1 and 1) to the opacity range (0 to 255)
@@ -172,10 +176,10 @@ class Trail {
                 // ctx.fillStyle = `hsla(${trailPointColor.h}, ${trailPointColor.s}%, ${trailPointColor.l}%, ${opacity / 255})`;
                 ctx.fillStyle = trailPointColor.toCSSWithAlpha(opacity / 255)
 
-                weight = p.score.frameScore * .1 * Math.max(1, p.score.highScore / 1000);
+                weight = p.frameScore * .1 * Math.max(1, p.driftScore / 1000);
                 weight = weight > maxTrailWeight ? maxTrailWeight : weight;
 
-                // console.log("weight", p.score, weight, p.score.frameScore, p.score.totalScore / 1000)
+                // console.log("weight", weight, p.frameScore, p.driftScore / 1000)
 
                 // Mapping p5.circle to a combination of ctx.arc and ctx.stroke or ctx.fill
                 let corners = player.car.getCorners() //getCarCorners({
@@ -197,9 +201,6 @@ class Trail {
     }
 
 
-    createTrailPoint(car: Car, score: Score): TrailPoint {
-        return
-    }
 
     getTrail() {
         return this.points;

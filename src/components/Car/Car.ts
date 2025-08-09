@@ -32,6 +32,13 @@ class Car {
     private angularVelocity: number;
     carType: CarType;
 
+    // Corner caching
+    cachedCorners: Vector[];
+    lastCornerPosX: number;
+    lastCornerPosY: number;
+    lastCornerAngle: number;
+    cacheDirty: boolean;
+
 
     constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0, carType?) {
         let turnFactor = .2;
@@ -68,6 +75,12 @@ class Car {
         this.color = this.carType.baseColor;
         this.trail = new Trail();
 
+        // Initialize corner caching
+        this.cachedCorners = [];
+        this.lastCornerPosX = 0;
+        this.lastCornerPosY = 0;
+        this.lastCornerAngle = 0;
+        this.cacheDirty = true;
 
         // this.weight = new Weight(this.mass, 0.6, this.position);
         // this.weight.position = this.position;
@@ -146,6 +159,7 @@ class Car {
             this.velocity = this.velocity.add(springVector.mult(2));
         }
         this.targetPosition = this.position.copy().add(this.velocity.mult(deltaTime * timeFactor));
+        this.cacheDirty = true;
     }
 
     private handleInput(keys, deltaTime, timeFactor: number) {
@@ -266,6 +280,13 @@ class Car {
     }
 
     getCorners() {
+        // Check if cache is valid
+        if (!this.cacheDirty && 
+            this.position.x === this.lastCornerPosX && 
+            this.position.y === this.lastCornerPosY && 
+            this.angle === this.lastCornerAngle) {
+            return this.cachedCorners;
+        }
 
         let width = this.carType.dimensions.width;
         let height = this.carType.dimensions.length;
@@ -288,6 +309,14 @@ class Car {
             let rotatedCorner = Vector.rotatePoint(corner, this.position, this.angle);
             rotatedCorners.push(rotatedCorner);
         }
+
+        // Update cache
+        this.cachedCorners = rotatedCorners;
+        this.lastCornerPosX = this.position.x;
+        this.lastCornerPosY = this.position.y;
+        this.lastCornerAngle = this.angle;
+        this.cacheDirty = false;
+
         return rotatedCorners;
     }
 

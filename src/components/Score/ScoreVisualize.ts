@@ -46,6 +46,30 @@ export function driftColor(score: Score) {
     )
 }
 
+export function driftColorFromValues(driftScore: number, frameScore: number, curveScore: number, frameScoreAvg?: number): HSLColor {
+    const frameScoreAverage = frameScoreAvg !== undefined ? frameScoreAvg : frameScore;
+    
+    let hue = (curveScore / 10) % 360
+    // a sine wave that oscillates between 0 and 1 once per second and gets faster with higher frameScore
+    let sine = .5 + .5 * Math.sin(Date.now() / 1000 / 5 /
+        clamp(1, 1 + frameScoreAverage / 100, 4))
+
+    let frameScoreNormalized = mapValues(frameScore, 0, 10, 0, 1)
+    let saturation = mapValues(curveScore, 0, 6000, 0, 100) * frameScoreNormalized
+
+    if (driftScore > 30000) {
+        let overScore = ((driftScore - 30000) / 1000)
+        saturation = saturation / 800
+    }
+    saturation = saturation > 100 ? 100 : saturation
+
+    return new HSLColor(
+        hue,
+        saturation,
+        driftScore / 1000 + frameScore * frameScore / 10,
+    )
+}
+
 export function driftWeight(driftScore: number, frameScore: number) {
     let weight = frameScore * .1 * Math.max(1, driftScore / 1000);
     return weight > 50 ? 50 : weight
