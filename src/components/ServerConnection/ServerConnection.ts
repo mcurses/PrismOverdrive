@@ -198,8 +198,8 @@ export default class ServerConnection {
         const newStamps = this.trailEmitter.getStamps(nowMs, player);
         this.pendingTrailStamps.push(...newStamps);
 
-        // Take up to 3 stamps for this message
-        const stampsToSend = this.pendingTrailStamps.splice(0, 3);
+        // Take up to 5 stamps for this message (tuning lever if bandwidth allows)
+        const stampsToSend = this.pendingTrailStamps.splice(0, 5);
 
         let score = player.score ? player.score : new Score();
         

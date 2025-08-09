@@ -18,6 +18,13 @@ export interface TrailStageConfig {
     sizeScale?: number;
 }
 
+/**
+ * Target resolution is now independent of corner array ordering.
+ * Uses car angle and dot products to identify front/rear/left/right positions:
+ * - front/rear determined by forward vector dot product
+ * - left/right determined by right vector dot product within each pair
+ * This ensures "rear tires" always hits the correct wheels regardless of getCorners() order.
+ */
 export function getDefaultTrailStages(): TrailStageConfig[] {
     return [
         {
@@ -29,14 +36,15 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
             },
             color: (player: Player) => {
                 const color = driftColor(player.score);
-                return { h: color.h, s: color.s, b: color.b, a: 0.5 };
+                return { h: color.h, s: color.s, b: color.b, a: 0.45 };
             },
             tireTargets: ['center'],
             baseHz: 10,
             minHz: 10,
             maxHz: 30,
             invFreqWithWeightExponent: 0.6,
-            angleSource: 'carAngle'
+            angleSource: 'carAngle',
+            sizeScale: 1.0
         },
         {
             id: 'drift-rear-tires',
@@ -47,12 +55,12 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
             },
             color: (player: Player) => {
                 const color = driftColor(player.score);
-                return { h: color.h, s: color.s, b: color.b, a: 0.5 };
+                return { h: color.h, s: color.s, b: color.b, a: 0.6 };
             },
             tireTargets: ['rear-left', 'rear-right'],
-            baseHz: 8,
-            minHz: 8,
-            maxHz: 24,
+            baseHz: 12,
+            minHz: 12,
+            maxHz: 36,
             invFreqWithWeightExponent: 0.6,
             angleSource: 'carAngle',
             sizeScale: 0.6
