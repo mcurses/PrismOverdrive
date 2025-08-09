@@ -82,6 +82,14 @@ class Trail {
         const maxY = Math.max(...corners.map(c => c.y)) + weight * 2;
         const bounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 
+        // Expand bounds when overscore is active to ensure stamp selects both tiles
+        if (overScore) {
+            bounds.x -= weight;
+            bounds.y -= weight;
+            bounds.w += 2 * weight;
+            bounds.h += 2 * weight;
+        }
+
         trails.paint(bounds, (ctx) => {
             ctx.save();
             
@@ -98,11 +106,11 @@ class Trail {
                 // draw the rotated square in its own transform scope
                 ctx.save();
                 ctx.fillStyle = bgColor.toCSS();
-                ctx.translate(Math.floor(player.car.position.x), Math.floor(player.car.position.y));
+                ctx.translate(player.car.position.x, player.car.position.y);
                 // rotating by quantized radians is optional; plain angle is fine:
                 ctx.rotate(player.car.getAngle());
                 ctx.beginPath();
-                ctx.rect(Math.floor(-weight / 2), Math.floor(-weight / 2), weight, weight);
+                ctx.rect(-weight / 2, -weight / 2, weight, weight);
                 ctx.fill();
                 ctx.restore(); // ← important
 

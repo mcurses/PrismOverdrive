@@ -1,4 +1,7 @@
 export default class TiledCanvas {
+    private static readonly TILE_MARGIN_PX = 2;
+    private static readonly DRAW_BLEED_PX = 1;
+    
     private tiles: HTMLCanvasElement[][];
     private tileSize: number;
     private tilesX: number;
@@ -29,11 +32,11 @@ export default class TiledCanvas {
     }
 
     paint(bounds: {x: number, y: number, w: number, h: number}, painter: (ctx: CanvasRenderingContext2D) => void): void {
-        // Compute tile index range overlapped by bounds
-        const startTileX = Math.max(0, Math.floor(bounds.x / this.tileSize));
-        const endTileX = Math.min(this.tilesX - 1, Math.floor((bounds.x + bounds.w) / this.tileSize));
-        const startTileY = Math.max(0, Math.floor(bounds.y / this.tileSize));
-        const endTileY = Math.min(this.tilesY - 1, Math.floor((bounds.y + bounds.h) / this.tileSize));
+        // Compute tile index range overlapped by bounds, expanded by margin
+        const startTileX = Math.max(0, Math.floor((bounds.x - TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
+        const endTileX = Math.min(this.tilesX - 1, Math.floor((bounds.x + bounds.w + TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
+        const startTileY = Math.max(0, Math.floor((bounds.y - TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
+        const endTileY = Math.min(this.tilesY - 1, Math.floor((bounds.y + bounds.h + TiledCanvas.TILE_MARGIN_PX) / this.tileSize));
 
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
@@ -67,7 +70,13 @@ export default class TiledCanvas {
                 const tileOriginX = tileX * this.tileSize;
                 const tileOriginY = tileY * this.tileSize;
                 
-                ctx.drawImage(tile, tileOriginX, tileOriginY);
+                // Add small overlap to hide sampling seams
+                const dx = tileOriginX - TiledCanvas.DRAW_BLEED_PX;
+                const dy = tileOriginY - TiledCanvas.DRAW_BLEED_PX;
+                const dW = tile.width + 2 * TiledCanvas.DRAW_BLEED_PX;
+                const dH = tile.height + 2 * TiledCanvas.DRAW_BLEED_PX;
+                
+                ctx.drawImage(tile, dx, dy, dW, dH);
             }
         }
     }
