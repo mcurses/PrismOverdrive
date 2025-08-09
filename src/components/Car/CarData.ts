@@ -1,65 +1,31 @@
-import {CarType} from "./CarType";
-import {HSLColor} from "../../utils/HSLColor";
+import { CarType } from "./CarType";
+import { HSLColor } from "../../utils/HSLColor";
 
 export default class CarData {
+  static types: CarType[] = [];
+  static loaded: boolean = false;
 
-    static getByName(name: string): CarType {
-        for (let type of CarData.types) {
-            if (type.name === name) {
-                return type;
-            }
-        }
-        throw new Error("Car type not found: " + name);
-    }
+  static async loadFromJSON(url: string = 'assets/cars.json'): Promise<void> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to load cars: ${res.status} ${res.statusText}`);
+    const json = await res.json();
+    const raw = Array.isArray(json?.types) ? json.types : [];
+    CarData.types = raw.map((t: any) => ({
+      name: t.name,
+      turnRate: t.turnRate,
+      grip: t.grip,
+      driftThreshold: t.driftThreshold,
+      mass: t.mass,
+      dimensions: t.dimensions,
+      engineForce: t.engineForce,
+      baseColor: new HSLColor(t.baseColor.h, t.baseColor.s, t.baseColor.b, t.baseColor.a ?? 1),
+    }));
+    CarData.loaded = true;
+  }
 
-    static types: CarType[] = [
-        {
-            name: 'default',
-            turnRate: {
-                drifting: 0.012,
-                gripping: 0.008
-            },
-            grip: {
-                drifting: 0.2,
-                gripping: 1.4
-            },
-            driftThreshold: 8.,
-            mass: 29,
-            dimensions: {width: 18, length: 30},
-            engineForce: 0.19,
-            baseColor: new HSLColor(100, 20, 50)
-        },
-        {
-            name: 'speedy',
-            turnRate: {
-                drifting: 0.012,
-                gripping: 0.008
-            },
-            grip: {
-                drifting: 0.2,
-                gripping: 1.4
-            },
-            driftThreshold: 10,
-            mass: 29,
-            dimensions: {width: 18, length: 30},
-            engineForce: 0.25,
-            baseColor: new HSLColor(180, 100, 50)
-        },
-        {
-            name: 'hoonivan',
-            turnRate: {
-                drifting: 0.012,
-                gripping: 0.008
-            },
-            grip: {
-                drifting: 0.2,
-                gripping: 1.4
-            },
-            driftThreshold: 10,
-            mass: 29,
-            dimensions: {width: 23, length: 30},
-            engineForce: 0.35,
-            baseColor: new HSLColor(10, 100, 30)
-        }
-    ];
+  static getByName(name: string): CarType {
+    const type = CarData.types.find(t => t.name === name);
+    if (!type) throw new Error("Car type not found: " + name);
+    return type;
+  }
 }

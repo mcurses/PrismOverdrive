@@ -1,0 +1,76 @@
+{
+  "types": [
+    {
+      "name": "default",
+      "turnRate": {
+        "drifting": 0.012,
+        "gripping": 0.008
+      },
+      "grip": {
+        "drifting": 0.2,
+        "gripping": 1.4
+      },
+      "driftThreshold": 8,
+      "mass": 29,
+      "dimensions": {
+        "width": 18,
+        "length": 30
+      },
+      "engineForce": 0.19,
+      "baseColor": {
+        "h": 100,
+        "s": 20,
+        "b": 50,
+        "a": 1
+      }
+    },
+    {
+      "name": "speedy",
+      "turnRate": {
+        "drifting": 0.012,
+        "gripping": 0.008
+      },
+      "grip": {
+        "drifting": 0.2,
+        "gripping": 1.4
+      },
+      "driftThreshold": 10,
+      "mass": 29,
+      "dimensions": {
+        "width": 18,
+        "length": 30
+      },
+      "engineForce": 0.25,
+      "baseColor": {
+        "h": 180,
+        "s": 100,
+        "b": 50,
+        "a": 1
+      }
+    },
+    {
+      "name": "hoonivan",
+      "turnRate": {
+        "drifting": 0.012,
+        "gripping": 0.008
+      },
+      "grip": {
+        "drifting": 0.2,
+        "gripping": 1.4
+      },
+      "driftThreshold": 10,
+      "mass": 29,
+      "dimensions": {
+        "width": 23,
+        "length": 30
+      },
+      "engineForce": 0.35,
+      "baseColor": {
+        "h": 10,
+        "s": 100,
+        "b": 30,
+        "a": 1
+      }
+    }
+  ]
+}
