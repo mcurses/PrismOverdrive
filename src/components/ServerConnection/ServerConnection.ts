@@ -3,6 +3,7 @@ import * as io from "socket.io-client";
 import Car from "../Car/Car";
 import Player from "../Player/Player";
 import Score from "../Score/Score";
+import CarData from "../Car/CarData";
 
 
 export default class ServerConnection {
@@ -82,7 +83,12 @@ export default class ServerConnection {
                     // On successful connection, assign the socket id to the car
                     this.socketId = this.socket.id;
                     this.connected = true;
-                    this.updateLocalPlayer(this.socket.id, new Player(this.socket.id, this.socket.id, new Car(300, 1800, 0), new Score()));
+                    
+                    // Get carType from localStorage or use default
+                    const storedCarType = localStorage.getItem('carType');
+                    const carType = storedCarType ? CarData.getByName(storedCarType) : CarData.types[0];
+                    
+                    this.updateLocalPlayer(this.socket.id, new Player(this.socket.id, this.socket.id, new Car(300, 1800, 0, carType), new Score()));
                     // let sessionId = this.socket.handshake.query.sessionId;
                     // if (!this.players[sessionId]) {
                     //     this.updateLocalPlayer(sessionId, new Player(sessionId, sessionId, new Car(300, 1800, 0), new Score()));

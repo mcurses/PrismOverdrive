@@ -33,9 +33,28 @@ class Car {
     carType: CarType;
 
 
-    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0, carType = CarData.types[0]) {
+    constructor(posX = window.innerWidth / 2, posY = window.innerHeight / 2, angle = 0, carType?) {
         let turnFactor = .2;
-        this.carType = carType;
+        
+        // Handle missing carType argument safely
+        if (carType) {
+            this.carType = carType;
+        } else if (CarData.types && CarData.types[0]) {
+            this.carType = CarData.types[0];
+        } else {
+            // Minimal inline default to prevent crashes before JSON loads
+            const fallback: CarType = {
+                name: "default",
+                turnRate: { drifting: 0.012, gripping: 0.008 },
+                grip: { gripping: 1.4, drifting: 0.2 },
+                driftThreshold: 8,
+                mass: 29,
+                dimensions: { width: 18, length: 30 },
+                engineForce: 0.19,
+                baseColor: new HSLColor(100, 20, 50, 1)
+            };
+            this.carType = fallback;
+        }
 
         this.turnRate = this.carType.turnRate.gripping;
         this.position = new Vector(posX, posY);

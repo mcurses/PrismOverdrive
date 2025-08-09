@@ -88,13 +88,25 @@ class Game {
     }
 
 
-    setup() {
+    async setup() {
+
+        // Load car and track data before any other usage
+        await Promise.all([
+            CarData.loadFromJSON('assets/cars.json'),
+            TrackData.loadFromJSON('assets/tracks.json')
+        ]);
+
+        this.session = new Session("Player");
+
+        // Get carType from session or use first available
+        const carTypeName = this.session.carType || CarData.types[0]?.name;
+        const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
 
         this.localPlayer =
             new Player(
                 "",
                 "",
-                new Car(500, 1900, 0),
+                new Car(500, 1900, 0, carType),
                 new Score());
 
         // if there is a session, load it
@@ -189,6 +201,7 @@ class Game {
             (id, player) => this.updatePlayer(id, player),
             (id) => this.removePlayer(id));
 
+        // Create menu after data is loaded
         this.menu = new Menu({
             session: this.session,
             loadTrack: (trackName) => this.loadTrack(trackName),
@@ -230,11 +243,14 @@ class Game {
 
         if (this.serverConnection.socketId) {
             if (!this.localPlayer) {
+                const carTypeName = this.session.carType || CarData.types[0]?.name;
+                const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
+                
                 this.localPlayer =
                     new Player(
                         this.serverConnection.socketId,
                         this.serverConnection.socketId,
-                        new Car(500, 1900, 0),
+                        new Car(500, 1900, 0, carType),
                         new Score());
                 console.log("Added player", this.serverConnection.socketId)
             }
@@ -393,7 +409,8 @@ class Game {
             // console.log(this.players[id])
             this.players[player.id].handleServerUpdate(player);
         } else {
-            this.players[player.id] = new Player(id, id, new Car(), new Score());
+            const carType = CarData.types[0] || null;
+            this.players[player.id] = new Player(id, id, new Car(0, 0, 0, carType), new Score());
         }
 
     }
