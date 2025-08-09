@@ -120,8 +120,16 @@ class Car {
             this.turnRate = this.carType.turnRate.drifting;
             this.isDrifting = true;
         }
-        bodyFixedDrag = new Vector(-vB.x * grip, 0.10 * vB.y);
 
+        const Cd_side = grip;   // your 'grip' value for lateral
+        const Cd_long = this.isDrifting ? 0.06 : 0.10; // tune to taste
+        const Q_side = 0.001; // tweak tiny
+        const Q_long = 0.0005;
+
+        bodyFixedDrag = new Vector(
+            -vB.x * Cd_side - Math.sign(vB.x) * Q_side * vB.x * vB.x,
+            -vB.y * Cd_long - Math.sign(vB.y) * Q_long * vB.y * vB.y
+        );
         // Rotate body fixed forces into world fixed and add to acceleration
         let worldFixedDrag = vectBodyToWorld(bodyFixedDrag, this.angle);
         this.acceleration.add(worldFixedDrag.div(this.carType.mass));

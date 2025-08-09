@@ -11,11 +11,10 @@ export function vectBodyToWorld(vect: Vector, ang: number) {
 }
 
 // World to body rotation
-export function vectWorldToBody(vect: Vector, ang: number) {
-    let v = vect.copy();
-    let vn = new Vector(v.x * Math.cos(ang) + v.y * Math.sin(ang),
-        v.x * Math.sin(ang) - v.y * Math.cos(ang));
-    return vn;
+export function vectWorldToBody(v: Vector, a: number) {
+    const c = Math.cos(a), s = Math.sin(a);
+    // rotate by -a (transpose of +a)
+    return new Vector(v.x * c + v.y * s, -v.x * s + v.y * c);
 }
 export function closestPointOnLine(start, end, point) {
     let startToEnd = Vector.sub(end, start);

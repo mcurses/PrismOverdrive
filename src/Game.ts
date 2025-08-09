@@ -70,8 +70,8 @@ class Game {
         };
 
         this.mapSize = {
-            width: 5000,
-            height: 4000,
+            width: 8000,
+            height: 6000,
         }
         this.layer1 = new Image();
         this.layer2 = new Image();
