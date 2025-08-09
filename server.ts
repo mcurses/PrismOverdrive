@@ -1,45 +1,33 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const WS = require('ws');
 
 const app = express();
 const server = http.createServer(app);
-// const io = socketIo(server);
-const io = require('socket.io')(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-        allowedHeaders: ["my-custom-header"],
-        credentials: true
-    }
-});
 
-// app.use(express.static('dist'));
 app.use(cors());
 
-let aliveRequests = {}
-io.on('connection', (socket) => {
+const wss = new WS.Server({ server });
+
+wss.on('connection', (ws) => {
     console.log('User connected');
 
-    // send alive message to clients every 5 seconds
-    const heartbeat = setInterval(() => {
-        socket.emit('alive', 'alive');
-    }, 5000);
-
-    socket.on('disconnect', () => {
+    ws.on('close', () => {
         console.log('User disconnected!');
-        clearInterval(heartbeat);
-        socket.broadcast.emit('remove player', socket.id);
     });
 
-    socket.on('alive', () => {
-        console.log('alive')
+    ws.on('message', (data) => {
+        // Relay binary message to all other connected clients
+        wss.clients.forEach((client) => {
+            if (client !== ws && client.readyState === WS.OPEN) {
+                client.send(data);
+            }
+        });
     });
 
-    socket.on('update car', (data) => {
-        // Handle the updated car position and broadcast to all other connected clients
-        // console.log('Update car position to: ');
-        socket.broadcast.emit('update car', data);
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
     });
 });
 

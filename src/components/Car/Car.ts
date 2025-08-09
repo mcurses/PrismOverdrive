@@ -196,6 +196,8 @@ class Car {
     }
 
     interpolatePosition() {
+        // This method is now only used for local cars
+        // Remote cars get their position/angle set directly from interpolation in Game.ts
         if (this.targetPosition) {
             // console.log("interpolating position")
             let distance = Vector.dist(this.position, this.targetPosition);

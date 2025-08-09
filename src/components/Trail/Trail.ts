@@ -1,7 +1,7 @@
 import {mapValues} from "../../utils/Utils";
 import Car from "../Car/Car";
 import {driftColor, driftColorFromValues} from "../Score/ScoreVisualize";
-import Player from "../Player/Player";
+import Player, { TrailStamp } from "../Player/Player";
 import {HSLColor} from "../../utils/HSLColor";
 import Vector from "../../utils/Vector";
 import TiledCanvas from "../../utils/TiledCanvas";
@@ -250,6 +250,53 @@ class Trail {
 
     getTrail() {
         return this.points;
+    }
+
+    drawStamp(trails: TiledCanvas, stamp: TrailStamp): void {
+        const trailPointColor = new HSLColor(stamp.h, stamp.s, stamp.b, 0.5);
+        const weight = stamp.weight;
+        const overScore = stamp.overscore;
+
+        // Create a simple bounding box for the stamp
+        const bounds = {
+            x: stamp.x - weight * 2,
+            y: stamp.y - weight * 2,
+            w: weight * 4,
+            h: weight * 4
+        };
+
+        trails.paint(bounds, (ctx) => {
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+
+            if (overScore) {
+                const bgColor = trailPointColor.clone();
+                bgColor.s = 5;
+                bgColor.a = 0.5;
+                bgColor.b = 100;
+
+                // Draw the rotated square
+                ctx.save();
+                ctx.fillStyle = bgColor.toCSS();
+                ctx.translate(stamp.x, stamp.y);
+                ctx.rotate(stamp.angle);
+                ctx.fillRect(-weight / 2, -weight / 2, weight, weight);
+                ctx.restore();
+
+                trailPointColor.s = 100;
+                const smallWeight = weight / 10;
+                
+                // Draw small corners for overscore
+                ctx.fillStyle = trailPointColor.toCSS();
+                ctx.fillRect(stamp.x - smallWeight / 2, stamp.y - smallWeight / 2, smallWeight, smallWeight);
+            } else {
+                // Draw normal stamp as a rectangle
+                ctx.fillStyle = trailPointColor.toCSS();
+                ctx.fillRect(stamp.x - weight / 2, stamp.y - weight / 2, weight, weight);
+            }
+
+            ctx.restore();
+        });
     }
 
     clearTrail() {

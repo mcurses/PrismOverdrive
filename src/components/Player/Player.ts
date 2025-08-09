@@ -2,7 +2,19 @@ import Car from "../Car/Car";
 import Score from "../Score/Score";
 import {driftColor} from "../Score/ScoreVisualize";
 import {HSLColor} from "../../utils/HSLColor";
-import car from "../Car/Car";
+import SnapshotBuffer, { Snapshot } from "../../net/SnapshotBuffer";
+
+export interface TrailStamp {
+    x: number;
+    y: number;
+    angle: number;
+    weight: number;
+    h: number;
+    s: number;
+    b: number;
+    overscore: boolean;
+    tMs: number;
+}
 
 export default class Player {
     name: string;
@@ -11,6 +23,8 @@ export default class Player {
     idleTime: number;
     lastDriftTime: number;
     id: string;
+    snapshotBuffer: SnapshotBuffer;
+    pendingTrailStamps: TrailStamp[];
 
     constructor(id : string, name: string, car: Car, score: Score) {
         this.id = id;
@@ -19,20 +33,21 @@ export default class Player {
         this.score = score;
         this.idleTime = 0;
         this.lastDriftTime = 0;
+        this.snapshotBuffer = new SnapshotBuffer();
+        this.pendingTrailStamps = [];
     }
 
-    handleServerUpdate(player: Player) {
-        // console.log("Handling server update")
+    addSnapshot(snapshot: Snapshot): void {
+        this.snapshotBuffer.append(snapshot);
+        // Update score from snapshot
+        this.score.highScore = snapshot.score.highScore;
+        this.score.frameScore = snapshot.score.frameScore;
+        this.score.driftScore = snapshot.score.driftScore;
+        this.name = snapshot.name;
+    }
 
-        // update all properties of the player
-        this.car.targetPosition = player.car.position;
-        this.car.targetAngle = player.car.angle;
-        this.car.isDrifting = player.car.isDrifting;
-        // this.score = player.score;
-        this.score.highScore = player.score.highScore;
-        this.score.frameScore = player.score.frameScore;
-        this.score.driftScore = player.score.driftScore;
-        this.name = player.name;
+    addTrailStamps(stamps: TrailStamp[]): void {
+        this.pendingTrailStamps.push(...stamps);
     }
 
     update() {
@@ -48,7 +63,6 @@ export default class Player {
 
         let carColor = driftColor(this.score);
         this.car.color = new HSLColor(carColor.h, carColor.s + 20, 80);
-
     }
 
     incrementIdleTime() {

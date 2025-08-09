@@ -1,12 +1,11 @@
 import Car from "./components/Car/Car";
 // import {bounds2, bounds3, scaleTo} from "./components/Playfield/bounds";
-import * as socketio from "socket.io-client";
 import {Dimensions, gaussianRandom, loadImage} from "./utils/Utils";
 import {InputController, InputType} from "./InputController";
 import Track from "./components/Playfield/Track";
 import MiniMap from "./components/Playfield/MiniMap";
 import Camera from "./components/Camera/Camera";
-import Player from "./components/Player/Player";
+import Player, { TrailStamp } from "./components/Player/Player";
 import ServerConnection from "./components/ServerConnection/ServerConnection";
 import Score from "./components/Score/Score";
 import HighScoreTable from "./components/Score/HighscoreTable";
@@ -20,6 +19,8 @@ import Session from "./components/Session/Session";
 import BackgroundData from "./components/Playfield/BackgroundData";
 import Menu from "./components/UI/Menu";
 import TiledCanvas from "./utils/TiledCanvas";
+import { Snapshot } from "./net/SnapshotBuffer";
+import Interpolator from "./net/Interpolator";
 
 
 class Game {
@@ -179,10 +180,10 @@ class Game {
             if (this.localPlayer)
                 this.serverConnection.sendUpdate(this.localPlayer);
             // console.log("Sending update")
-        }, 1000 / 6);
+        }, 1000 / 20);
 
         this.serverConnection = new ServerConnection(
-            (id, player) => this.updatePlayer(id, player),
+            (id, snapshot, stamps) => this.updatePlayer(id, snapshot, stamps),
             (id) => this.removePlayer(id));
 
         // Create menu after data is loaded
@@ -271,75 +272,93 @@ class Game {
         }
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
 
-
         let keys = this.inputController.getKeys();
         if (keys['ArrowUp'] && keys['ArrowDown'] && keys['ArrowLeft'] && keys['ArrowRight']) {
             this.localPlayer.score.driftScore = 30000
         }
 
+        // Update local player physics
         localPlayer.car.update(keys, deltaTime);
         localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
         this.session.scores[this.session.trackName] = localPlayer.score;
 
         if (localPlayer.car.isDrifting) {
             localPlayer.lastDriftTime = timestamp;
-            // console.log(localPlayer.score.curveScore)
         } else {
             localPlayer.score.curveScore = 0;
             if (timestamp - localPlayer.lastDriftTime > 4000 && localPlayer.score.driftScore > 0) {
-                // console.log( timestamp - player.lastDriftTime )
-                // console.log("End drift")
                 localPlayer.score.endDrift();
             }
         }
 
-
         // Check for collisions
         let wallHit = this.track.getWallHit(localPlayer.car);
         if (wallHit !== null) {
-            // Push the car back
             localPlayer.car.velocity = localPlayer.car.velocity.mult(0.99);
             let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.carType.dimensions.length / 2 - wallHit.distance) * .4);
-
             localPlayer.car.position = localPlayer.car.position.add(pushBack.mult(4));
             localPlayer.car.velocity = localPlayer.car.velocity.add(pushBack);
             localPlayer.score.endDrift()
         }
 
+        // Interpolate remote players
+        const renderTime = Date.now() - 100; // 100ms delay
+        for (let id in this.players) {
+            const player = this.players[id];
+            if (id !== this.serverConnection.socketId) {
+                // Remote player - use interpolation
+                const { before, after } = player.snapshotBuffer.getBracketing(renderTime);
+                const interpolated = Interpolator.sample(before, after, renderTime);
+                
+                if (interpolated) {
+                    player.car.position.x = interpolated.x;
+                    player.car.position.y = interpolated.y;
+                    player.car.angle = interpolated.angle;
+                    if (before) {
+                        player.car.isDrifting = before.drifting;
+                    }
+                }
+                
+                // Prune old snapshots
+                player.snapshotBuffer.pruneOld(renderTime - 1000);
+            }
+        }
+
         this.checkIdlePlayers();
 
-
-        // render the trails
+        // Render trail stamps for all players
         for (let id in this.players) {
-            this.players[id].car.trail.drawPoint(this.trails, this.players[id], true, timestamp);
+            const player = this.players[id];
+            
+            // Process pending trail stamps
+            while (player.pendingTrailStamps.length > 0) {
+                const stamp = player.pendingTrailStamps.shift()!;
+                player.car.trail.drawStamp(this.trails, stamp);
+            }
+            
+            // For local player, also draw optimistic trail
+            if (id === this.serverConnection.socketId) {
+                player.car.trail.drawPoint(this.trails, player, true, timestamp);
+            }
         }
         
         this.trails.drawTo(this.ctx, -this.camera.position.x, -this.camera.position.y, this.canvasSize.width, this.canvasSize.height);
 
-        // Draw a semi-transparent white rectangle over the entire trailsCanvas
-        // this.trailsCtx.fillStyle = 'rgba(255, 255, 255, 0.004)'; // Adjust the alpha value (0.04) to control the rate of fading
-        // this.trailsCtx.fillRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
-
         if (this.trailsOverdrawCounter > 200) {
-            // this.trails.overlayImage(this.trackCanvas, 0.09);
             this.trailsOverdrawCounter = 0;
         } else {
             this.trailsOverdrawCounter += deltaTime
         }
 
-
-        // Convert white pixels to transparent
-        //             this.trailsCtx.globalCompositeOperation = 'destination-in';
-        //             // this.trailsCtx.globalAlpha = 0.995;
-        //             this.trailsCtx.drawImage(this.trailsCanvas, 0, 0);
-        //             // this.trailsCtx.globalAlpha = 1;
-        // this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
-
-
-        // Render the  cars
+        // Render the cars
         for (let id in this.players) {
-            this.players[id].car.interpolatePosition();
-            this.players[id].car.render(this.ctx);
+            const player = this.players[id];
+            if (id === this.serverConnection.socketId) {
+                // Local player - use normal interpolation for smooth movement
+                player.car.interpolatePosition();
+            }
+            // Remote players already have their position set from network interpolation
+            player.car.render(this.ctx);
         }
 
         // Reset transform for UI drawing
@@ -382,20 +401,22 @@ class Game {
         this.localPlayer.name = trimmed;
     }
 
-    private updatePlayer(id: string, player: Player) {
-        // console.log("Update player", player.name, player, id)
-        if (!player) {
+    private updatePlayer(id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) {
+        if (!snapshot) {
             this.removePlayer(id);
             return;
         }
-        if (this.players[player.id]) {
-            // console.log(this.players[id])
-            this.players[player.id].handleServerUpdate(player);
+        
+        if (this.players[id]) {
+            this.players[id].addSnapshot(snapshot);
+            this.players[id].addTrailStamps(stamps);
         } else {
             const carType = CarData.types[0] || null;
-            this.players[player.id] = new Player(id, id, new Car(0, 0, 0, carType), new Score());
+            const newPlayer = new Player(id, snapshot.name, new Car(0, 0, 0, carType), new Score());
+            newPlayer.addSnapshot(snapshot);
+            newPlayer.addTrailStamps(stamps);
+            this.players[id] = newPlayer;
         }
-
     }
 
     private removePlayer(id: string) {

@@ -4,6 +4,9 @@ message CarState {
   Position position = 1;
   bool drifting = 2;
   float angle = 3;
+  float vx = 4;
+  float vy = 5;
+  float angVel = 6;
 
   message Position {
     float x = 1;
@@ -17,9 +20,23 @@ message ScoreState {
   float highScore = 3;
 }
 
+message TrailStamp {
+  float x = 1;
+  float y = 2;
+  float angle = 3;
+  float weight = 4;
+  float h = 5;
+  float s = 6;
+  float b = 7;
+  bool overscore = 8;
+  uint32 tMs = 9;
+}
+
 message PlayerState {
   string id = 1;
   string name = 2;
   ScoreState score = 3;
   CarState car = 4;
+  repeated TrailStamp stamps = 5;
+  uint32 tMs = 6;
 }
