@@ -62,10 +62,10 @@ export default class ServerConnection {
             let socketUrl = location.hostname === 'localhost' ? 'ws://localhost:3000' : 'wss://cars.puhoy.net';
             switch (location.hostname) {
                 case 'localhost':
-                    socketUrl = 'ws://localhost:3000';
+                    socketUrl = 'ws://localhost:3000/ws';
                     break;
                 case 'cars.puhoy.net':
-                    socketUrl = 'wss://cars.puhoy.net/';
+                    socketUrl = 'wss://cars.puhoy.net/ws';
                     break;
             }
 

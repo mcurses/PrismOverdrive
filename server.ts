@@ -10,7 +10,7 @@ const server = http.createServer(app);
 
 app.use(cors());
 
-const wss = new WS.Server({ server });
+const wss = new WS.Server({ server, path: '/ws' });
 
 let PlayerState = null;
 const seqMap = new Map(); // WebSocket -> sequence number
@@ -28,10 +28,12 @@ protobuf.load(require('path').join(__dirname, 'src', 'assets', 'player.proto'), 
 
 wss.on('connection', (ws) => {
     console.log('User connected');
+    const iv = setInterval(() => { if (ws.readyState === WS.OPEN) ws.ping(); }, 30000);
     seqMap.set(ws, 0); // Initialize sequence counter
 
     ws.on('close', () => {
         console.log('User disconnected!');
+        clearInterval(iv);
         seqMap.delete(ws);
     });
 
@@ -82,6 +84,8 @@ wss.on('connection', (ws) => {
         console.error('WebSocket error:', error);
     });
 });
+
+app.get('/healthz', (_req,res)=>res.send('ok'));
 
 server.listen(3000, () => {
     console.log('Listening on port 3000');
