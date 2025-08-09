@@ -22,12 +22,13 @@ io.on('connection', (socket) => {
     console.log('User connected');
 
     // send alive message to clients every 5 seconds
-    setInterval(() => {
+    const heartbeat = setInterval(() => {
         socket.emit('alive', 'alive');
     }, 5000);
 
     socket.on('disconnect', () => {
         console.log('User disconnected!');
+        clearInterval(heartbeat);
         socket.broadcast.emit('remove player', socket.id);
     });
 

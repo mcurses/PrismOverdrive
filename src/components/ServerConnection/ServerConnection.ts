@@ -19,6 +19,14 @@ export default class ServerConnection {
     socketId: string = "";
     sessionMap: Map<string, string>;
     private sessionId: string;
+    private lastSentMs: number = 0;
+    private minSendIntervalMs: number = 1000 / 12;
+    private lastSentX: number = 0;
+    private lastSentY: number = 0;
+    private lastSentAngle: number = 0;
+    private lastSentDrifting: boolean = false;
+    private posThreshold: number = 2;
+    private angleThreshold: number = 0.01;
 
     constructor(updatePlayer: (id: string, player: Player) => void, removePlayer: (id: string) => void) {
         this.updateLocalPlayer = updatePlayer;
@@ -115,27 +123,54 @@ export default class ServerConnection {
 
         // this.socket.emit('alive');
         // console.log(this.Player)
-        if (this.PlayerState) {
-            let score = player.score? player.score : new Score();
-            // console.log("Sending update")
-            const playerState = {
-                id: player.id,
-                name: player.name,
-                car: this.CarState.create({
-                    position: player.car.getPos(),
-                    drifting: player.car.isDrifting,
-                    angle: player.car.getAngle(),
-                }),
-                score: this.ScoreState.create({
-                    frameScore: score.frameScore,
-                    driftScore: score.driftScore,
-                    highScore: score.highScore,
-                })
-            };
-            const message = this.PlayerState.create(playerState);  // Create a message
-            const buffer = this.PlayerState.encode(message).finish();  // Encode the message to a buffer
-            this.socket.emit('update car', Array.from(buffer));  // Convert the buffer to an array before emitting
+        if (!this.connected || !this.PlayerState) {
+            return;
         }
+
+        const nowMs = Date.now();
+        const currentPos = player.car.getPos();
+        const currentAngle = player.car.getAngle();
+        const currentDrifting = player.car.isDrifting;
+
+        // Check if enough time has passed
+        if (nowMs - this.lastSentMs < this.minSendIntervalMs) {
+            // Only proceed if significant changes occurred
+            const posChanged = Math.abs(currentPos.x - this.lastSentX) > this.posThreshold || 
+                              Math.abs(currentPos.y - this.lastSentY) > this.posThreshold;
+            const angleChanged = Math.abs(currentAngle - this.lastSentAngle) > this.angleThreshold;
+            const driftingChanged = currentDrifting !== this.lastSentDrifting;
+
+            if (!posChanged && !angleChanged && !driftingChanged) {
+                return;
+            }
+        }
+
+        let score = player.score? player.score : new Score();
+        // console.log("Sending update")
+        const playerState = {
+            id: player.id,
+            name: player.name,
+            car: this.CarState.create({
+                position: currentPos,
+                drifting: currentDrifting,
+                angle: currentAngle,
+            }),
+            score: this.ScoreState.create({
+                frameScore: score.frameScore,
+                driftScore: score.driftScore,
+                highScore: score.highScore,
+            })
+        };
+        const message = this.PlayerState.create(playerState);  // Create a message
+        const buffer = this.PlayerState.encode(message).finish();  // Encode the message to a buffer
+        this.socket.emit('update car', Array.from(buffer));  // Convert the buffer to an array before emitting
+
+        // Update tracking variables
+        this.lastSentMs = nowMs;
+        this.lastSentX = currentPos.x;
+        this.lastSentY = currentPos.y;
+        this.lastSentAngle = currentAngle;
+        this.lastSentDrifting = currentDrifting;
     }
 
     // updatePlayersFromMessage(cars: { [key: string]: Car }, carState: any) {

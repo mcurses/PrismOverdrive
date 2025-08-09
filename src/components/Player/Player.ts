@@ -26,7 +26,7 @@ export default class Player {
 
         // update all properties of the player
         this.car.targetPosition = player.car.position;
-        this.car.angle = player.car.angle;
+        this.car.targetAngle = player.car.angle;
         this.car.isDrifting = player.car.isDrifting;
         // this.score = player.score;
         this.score.highScore = player.score.highScore;
