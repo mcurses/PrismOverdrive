@@ -1,6 +1,5 @@
 import CarData from "../Car/CarData";
 import TrackData from "../Playfield/TrackData";
-import React from "react";
 import Session from "../Session/Session";
 
 interface MenuProps {
