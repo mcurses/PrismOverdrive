@@ -56,12 +56,14 @@ export default class Interpolator {
         const clampedT = Math.max(0, Math.min(1, t));
 
         // Cubic Hermite interpolation for position
+        const dtSec = totalTime / 1000;
         const pos = this.hermiteInterpolate(
             { x: p0.x, y: p0.y },
             { x: p0.vx, y: p0.vy },
             { x: p1.x, y: p1.y },
             { x: p1.vx, y: p1.vy },
-            clampedT
+            clampedT,
+            dtSec
         );
 
         // Shortest-arc slerp for angle
@@ -79,7 +81,8 @@ export default class Interpolator {
         v0: { x: number, y: number },
         p1: { x: number, y: number },
         v1: { x: number, y: number },
-        t: number
+        t: number,
+        dtSec: number
     ): { x: number, y: number } {
         const t2 = t * t;
         const t3 = t2 * t;
@@ -89,12 +92,9 @@ export default class Interpolator {
         const h01 = -2 * t3 + 3 * t2;
         const h11 = t3 - t2;
 
-        // Scale velocities by time interval (assuming 1 second for simplicity)
-        const dt = 1.0;
-
         return {
-            x: h00 * p0.x + h10 * v0.x * dt + h01 * p1.x + h11 * v1.x * dt,
-            y: h00 * p0.y + h10 * v0.y * dt + h01 * p1.y + h11 * v1.y * dt
+            x: h00 * p0.x + h10 * v0.x * dtSec + h01 * p1.x + h11 * v1.x * dtSec,
+            y: h00 * p0.y + h10 * v0.y * dtSec + h01 * p1.y + h11 * v1.y * dtSec
         };
     }
 

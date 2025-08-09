@@ -21,10 +21,19 @@ export default class ServerConnection {
     private lastSentAngVel: number = 0;
     private lastAngle: number = 0;
     private lastAngleTime: number = 0;
+    private serverOffsetMs: number | null = null;
+    private lastSeqById: Map<string, number> = new Map();
 
     constructor(updatePlayer: (id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) => void, removePlayer: (id: string) => void) {
         this.updateLocalPlayer = updatePlayer;
         this.loadCarState();
+    }
+
+    serverNowMs(): number {
+        if (this.serverOffsetMs === null) {
+            return Date.now();
+        }
+        return Date.now() - this.serverOffsetMs;
     }
 
     loadCarState() {
@@ -92,9 +101,28 @@ export default class ServerConnection {
                         bytes: String,
                     });
 
-                    // Convert to snapshot format
+                    // Time sync
+                    if (playerState.tServerMs) {
+                        const sampleOffset = Date.now() - playerState.tServerMs;
+                        if (this.serverOffsetMs === null) {
+                            this.serverOffsetMs = sampleOffset;
+                        } else {
+                            this.serverOffsetMs += 0.1 * (sampleOffset - this.serverOffsetMs);
+                        }
+                    }
+
+                    // Sequence ordering - drop old packets
+                    const lastSeq = this.lastSeqById.get(playerState.id) || 0;
+                    if (playerState.seq && playerState.seq <= lastSeq) {
+                        return; // Drop out-of-order packet
+                    }
+                    if (playerState.seq) {
+                        this.lastSeqById.set(playerState.id, playerState.seq);
+                    }
+
+                    // Convert to snapshot format using server timestamp
                     const snapshot: Snapshot = {
-                        tMs: playerState.tMs,
+                        tMs: playerState.tServerMs || playerState.tMs,
                         x: playerState.car.position.x,
                         y: playerState.car.position.y,
                         vx: playerState.car.vx,
@@ -122,6 +150,8 @@ export default class ServerConnection {
                         overscore: stamp.overscore,
                         tMs: stamp.tMs
                     }));
+
+                    console.log('client RX stamps from', playerState.id, ':', stamps.length);
 
                     this.updateLocalPlayer(playerState.id, snapshot, stamps);
                 }
@@ -159,14 +189,12 @@ export default class ServerConnection {
         this.lastAngle = currentAngle;
         this.lastAngleTime = nowMs;
 
-        // Generate trail stamp every 100ms
-        if (nowMs - this.lastTrailStampMs >= 100) {
+        // Generate trail stamp every 100ms, but only when drifting
+        if (nowMs - this.lastTrailStampMs >= 100 && currentDrifting) {
             this.lastTrailStampMs = nowMs;
             
-            const weight = Math.min(
-                player.score.frameScore * 0.1 * Math.max(1, player.score.driftScore / 1000) * (1 + player.score.curveScore / 4000),
-                50 // TRAIL_MAX_WEIGHT
-            );
+            const raw = player.score.frameScore * 0.1 * Math.max(1, player.score.driftScore / 1000) * (1 + player.score.curveScore / 4000);
+            const weight = Math.max(1, Math.min(raw, 50)); // floor 1px so it shows
             
             const color = driftColor(player.score);
             

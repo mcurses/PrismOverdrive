@@ -253,6 +253,9 @@ class Trail {
     }
 
     drawStamp(trails: TiledCanvas, stamp: TrailStamp): void {
+        // Bail if weight is too small to avoid zero-area bounds
+        if (stamp.weight < 0.5) return;
+
         const trailPointColor = new HSLColor(stamp.h, stamp.s, stamp.b, 0.5);
         const weight = stamp.weight;
         const overScore = stamp.overscore;

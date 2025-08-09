@@ -39,4 +39,6 @@ message PlayerState {
   CarState car = 4;
   repeated TrailStamp stamps = 5;
   uint32 tMs = 6;
+  uint32 tServerMs = 7;
+  uint32 seq = 8;
 }

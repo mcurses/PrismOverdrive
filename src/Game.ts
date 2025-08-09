@@ -302,7 +302,7 @@ class Game {
         }
 
         // Interpolate remote players
-        const renderTime = Date.now() - 100; // 100ms delay
+        const renderTime = this.serverConnection.serverNowMs() - 100; // 100ms delay
         for (let id in this.players) {
             const player = this.players[id];
             if (id !== this.serverConnection.socketId) {
@@ -330,15 +330,10 @@ class Game {
         for (let id in this.players) {
             const player = this.players[id];
             
-            // Process pending trail stamps
+            // Process pending trail stamps (unified for all players)
             while (player.pendingTrailStamps.length > 0) {
                 const stamp = player.pendingTrailStamps.shift()!;
                 player.car.trail.drawStamp(this.trails, stamp);
-            }
-            
-            // For local player, also draw optimistic trail
-            if (id === this.serverConnection.socketId) {
-                player.car.trail.drawPoint(this.trails, player, true, timestamp);
             }
         }
         
