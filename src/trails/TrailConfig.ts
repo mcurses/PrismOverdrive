@@ -186,20 +186,14 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
         {
             id: 'stage1-tires',
             enabled: true,
-            minScore: STAGE_BOUNDARIES.stage1,
-            maxScore: STAGE_BOUNDARIES.stage2,
-            when: (player: Player) => {
-                const score = player.score.driftScore;
-                return player.car.isDrifting && score >= STAGE_BOUNDARIES.stage1 && score < STAGE_BOUNDARIES.stage2;
-            },
+            minScore: b1.current,
+            maxScore: b1.next,
+            when: b1.when,
             weight: (player: Player) => {
                 const baseWeight = player.score.frameScore * 0.2 * Math.max(1, player.score.driftScore / 1000) * (1 + player.score.curveScore / 4000);
                 return Math.min(baseWeight, MAX_TRAIL_WEIGHT * 0.25);
             },
-            progress: (player: Player) => {
-                const stageRange = STAGE_BOUNDARIES.stage2 - STAGE_BOUNDARIES.stage1;
-                return clamp((player.score.driftScore - STAGE_BOUNDARIES.stage1 - 300) / (stageRange - 300), 0, 1);
-            },
+            progress: (player: Player) => b1.progress(player, { padStart: 300 }),
             color: (player: Player, x: number) => {
                 const fsHue = clamp(player.score.frameScore / 600, 0, 0.2);
                 const easeHue = (t: number) => Math.pow(t, 4);
@@ -231,20 +225,14 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
         {
             id: 'stage2-spectrum',
             enabled: true,
-            minScore: STAGE_BOUNDARIES.stage2,
-            maxScore: STAGE_BOUNDARIES.stage3,
-            when: (player: Player) => {
-                const score = player.score.driftScore;
-                return player.car.isDrifting && score >= STAGE_BOUNDARIES.stage2 && score < STAGE_BOUNDARIES.stage3;
-            },
+            minScore: b2.current,
+            maxScore: b2.next,
+            when: b2.when,
             weight: (player: Player) => {
                 const baseWeight = player.score.frameScore * 0.12 * Math.max(1, player.score.driftScore / 1000) * (1 + player.score.curveScore / 4000);
                 return Math.min(baseWeight, MAX_TRAIL_WEIGHT * 0.4);
             },
-            progress: (player: Player) => {
-                const stageRange = STAGE_BOUNDARIES.stage3 - STAGE_BOUNDARIES.stage2;
-                return clamp((player.score.driftScore - STAGE_BOUNDARIES.stage2) / stageRange, 0, 1);
-            },
+            progress: (player: Player) => b2.progress(player),
             color: (_player: Player, x: number) => {
                 const stage2Gradient = makeGradient(g => {
                     g.plateau(0.15, { h: 175, s: 85, b: 75 })
@@ -276,20 +264,14 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
         {
             id: 'stage3-cycles',
             enabled: true,
-            minScore: STAGE_BOUNDARIES.stage3,
-            maxScore: STAGE_BOUNDARIES.stage4,
-            when: (player: Player) => {
-                const score = player.score.driftScore;
-                return player.car.isDrifting && score >= STAGE_BOUNDARIES.stage3 && score < STAGE_BOUNDARIES.stage4;
-            },
+            minScore: b3.current,
+            maxScore: b3.next,
+            when: b3.when,
             weight: (player: Player) => {
                 const baseWeight = player.score.frameScore * 0.16 * Math.max(1, player.score.driftScore / 1000) * (1 + player.score.curveScore / 3500);
                 return Math.min(baseWeight, MAX_TRAIL_WEIGHT);
             },
-            progress: (player: Player) => {
-                const span = STAGE_BOUNDARIES.stage4 - STAGE_BOUNDARIES.stage3;
-                return clamp((player.score.driftScore - STAGE_BOUNDARIES.stage3) / span, 0, 1);
-            },
+            progress: (player: Player) => b3.progress(player),
             color: (player: Player, x: number) => {
                 const n = 7;
                 const fsPhase = clamp(player.score.frameScore / 600, 0, 0.2);
@@ -316,21 +298,15 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
         {
             id: 'stage4-final',
             enabled: true,
-            minScore: STAGE_BOUNDARIES.stage4,
-            maxScore: STAGE_BOUNDARIES.stage5,
-            when: (player: Player) => {
-                const s = player.score.driftScore;
-                return player.car.isDrifting && s >= STAGE_BOUNDARIES.stage4 && s < STAGE_BOUNDARIES.stage5;
-            },
+            minScore: b4.current,
+            maxScore: b4.next,
+            when: b4.when,
             weight: (player: Player) => {
                 // One base; perTargetScale will make center huge and wheels tight
                 const base = player.score.frameScore * 0.18 * Math.max(1, player.score.driftScore / 1200) * (1 + player.score.curveScore / 3500);
                 return Math.min(base, MAX_TRAIL_WEIGHT);
             },
-            progress: (player: Player) => {
-                const range = STAGE_BOUNDARIES.stage5 - STAGE_BOUNDARIES.stage4;
-                return clamp((player.score.driftScore - STAGE_BOUNDARIES.stage4) / range, 0, 1);
-            },
+            progress: (player: Player) => b4.progress(player),
             color: (player: Player, x: number, targetTag?: string) => {
                 // x is stage progress in [0..1]
                 if (targetTag === 'center') {
@@ -372,29 +348,23 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
         {
             id: 'stage5-dark',
             enabled: true,
-            minScore: STAGE_BOUNDARIES.stage5,
-            maxScore: STAGE_BOUNDARIES.stage6,
-            when: (player: Player) => {
-                const s = player.score.driftScore;
-                return player.car.isDrifting && s >= STAGE_BOUNDARIES.stage4 && s < STAGE_BOUNDARIES.stage5;
-            },
+            minScore: b5.current,
+            maxScore: b5.next,
+            when: b5.when,
             weight: (player: Player) => {
                 // One base; perTargetScale will make center huge and wheels tight
                 const base = player.score.frameScore * 0.18 * Math.max(1, player.score.driftScore / 1200) * (1 + player.score.curveScore / 3500);
                 return Math.min(base, MAX_TRAIL_WEIGHT);
             },
-            progress: (player: Player) => {
-                const range = STAGE_BOUNDARIES.stage5 - STAGE_BOUNDARIES.stage4;
-                return clamp((player.score.driftScore - STAGE_BOUNDARIES.stage4) / range, 0, 1);
-            },
+            progress: (player: Player) => b5.progress(player),
             color: (player: Player, x: number, targetTag?: string) => {
                 // x is stage progress in [0..1]
                 if (targetTag === 'center') {
                     // White for first 90%, then fade to black in last 10%
                     const inFade = x >= 0.9 ? (x - 0.9) / 0.1 : 0;
                     const s = 0;
-                    const b = lerp(100, 0, clamp(inFade, 0, 1));
-                    const a = lerp(0.1, 0.5, clamp(player.score.frameScore / 100, 0, 1)); // 0.3–0.8
+                    const b = lerp(0, 10, clamp(inFade, 0, 1));
+                    const a = lerp(0.5, 0.9, clamp(player.score.frameScore / 100, 0, 1)); // 0.3–0.8
                     return { h: 0, s, b, a };
                 } else {
                     // Tight rainbow wheels
@@ -402,8 +372,8 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
                     const fsPhase = clamp(player.score.frameScore / 600, 0, 0.25);
                     const phase = (x + fsPhase) * n;
                     const h = (phase * 360) % 360;
-                    const s = 80;
-                    const b = 50;
+                    const s = 100;
+                    const b = 80;
                     const a = lerp(0.8, 1.0, clamp(player.score.frameScore / 100, 0, 1)); // 0.8–1.0
                     console.log(`stage4 color for ${targetTag}: h=${h}, s=${s}, b=${b}, a=${a}`);
                     return { h, s, b, a };
@@ -420,7 +390,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
                 'front-right': 0.2
             },
             baseHz: 22,    // combined with small wheel size → very high wheel Hz
-            minHz: 30,
+            minHz: 60,
             maxHz: 140,
             invFreqWithWeightExponent: 0.7,
             angleSource: 'zero', // keep the big center square upright; wheels being upright is fine here
