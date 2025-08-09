@@ -69,27 +69,24 @@ class Trail {
         ctx.beginPath();
         let overScore = player.score.driftScore > 30000;
         if (overScore) {
-
-            // trailPointColor.s /= 4;
-            weight *= 2;
-            let bgColor = trailPointColor.clone()
+            const bgColor = trailPointColor.clone();
             bgColor.s = 5;
             bgColor.a = .5;
-            bgColor.b = mapValues(player.score.driftScore, 30000, 60000, 100, 0)
+            bgColor.b = mapValues(player.score.driftScore, 30000, 60000, 100, 0);
+
+            // draw the rotated square in its own transform scope
+            ctx.save();
             ctx.fillStyle = bgColor.toCSS();
-            // console.log(player.car.acceleration)
-            // rotate around player.car.position
             ctx.translate(Math.floor(player.car.position.x), Math.floor(player.car.position.y));
-            ctx.rotate(Math.floor(player.car.getAngle()*360)/360);
-            ctx.rect(
-                Math.floor(-weight / 2),
-                Math.floor(-weight / 2),
-                weight,
-                weight)
+            // rotating by quantized radians is optional; plain angle is fine:
+            ctx.rotate(player.car.getAngle());
+            ctx.beginPath();
+            ctx.rect(Math.floor(-weight / 2), Math.floor(-weight / 2), weight, weight);
             ctx.fill();
+            ctx.restore(); // ← important
+
             trailPointColor.s = 100;
             weight /= 10;
-
         }
         ctx.closePath();
 
