@@ -1,6 +1,11 @@
 import {Dimensions} from "../../utils/Utils";
 
 export function drawPolylineShape(ctx: CanvasRenderingContext2D, bounds: number[][][], scale: number) {
+    // Guard against undefined or empty bounds
+    if (!bounds || bounds.length === 0 || !bounds[0] || bounds[0].length === 0) {
+        return;
+    }
+
     // ctx.strokeStyle = 'rgba(255,255,255,0.4)'; // Equivalent to p5.stroke(255, 100);
     // ctx.lineWidth = 1; // Equivalent to p5.strokeWeight(1);
     // ctx.beginPath();

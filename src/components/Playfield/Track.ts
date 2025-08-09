@@ -65,7 +65,6 @@ class Track {
     setBounds(boundaries: number[][][], ctx) {
         this.boundaries = boundaries;
         this.draw(ctx);
-
     }
 
     getWallHit(car): WallHit {

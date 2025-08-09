@@ -98,16 +98,8 @@ class Game {
 
         this.session = new Session("Player");
 
-        // Get carType from session or use first available
-        const carTypeName = this.session.carType || CarData.types[0]?.name;
-        const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
-
-        this.localPlayer =
-            new Player(
-                "",
-                "",
-                new Car(500, 1900, 0, carType),
-                new Score());
+        // Local player will be created after socket connection
+        this.localPlayer = null;
 
         // if there is a session, load it
         let storedSession = Session.loadFromLocalStorage();
@@ -123,10 +115,8 @@ class Game {
 
         console.log("Setup");
 
-        let bounds = TrackData.getByName(this.session.trackName).bounds;
-        bounds = scaleTo(bounds, this.mapSize);
-
-        this.track = new Track(this.session.trackName, this.trackCtx, this.mapSize, bounds)
+        // Create track with placeholder bounds - loadTrack will set the correct scaled bounds
+        this.track = new Track(this.session.trackName, this.trackCtx, this.mapSize, [])
         this.camera = new Camera({canvasSize: this.canvasSize});
         this.inputController = new InputController(InputType.KEYBOARD);
         this.highscoreTable = new HighScoreTable();
@@ -161,12 +151,12 @@ class Game {
         this.trailsCtx = this.trailsCanvas.getContext('2d');
         this.trailsOverdrawCounter = 0;
 
-        this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 250});
         this.miniMapCanvas = document.createElement('canvas');
+        this.miniMapCtx = this.miniMapCanvas.getContext('2d');
+        this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 250});
         this.miniMapCanvas.width = this.mapSize.width * this.miniMap.scale;
         this.miniMapCanvas.height = this.mapSize.height * this.miniMap.scale;
-        this.miniMapCtx = this.miniMapCanvas.getContext('2d');
-        this.miniMap.initBackground(this.miniMapCtx);
+        // Don't initialize background here - will be done in loadTrack
 
         this.trackCanvas = document.createElement('canvas');
         this.trackCanvas.width = this.mapSize.width;
@@ -219,11 +209,7 @@ class Game {
             // this.session.playerName = this.serverConnection.socketId;
         });
 
-        this.setCarType(this.session.carType);
         this.loadTrack(this.session.trackName)
-        this.setPlayerName(this.session.playerName)
-
-        this.setTrackScore(this.session.scores[this.session.trackName]);
 
 
         requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
@@ -232,7 +218,6 @@ class Game {
 
 
     gameLoop(timestamp) {
-        this.players['local'] = this.localPlayer;
         const deltaTime = timestamp - this.lastTimestamp;
 
         this.updateIntervals(deltaTime);
@@ -246,12 +231,19 @@ class Game {
                 const carTypeName = this.session.carType || CarData.types[0]?.name;
                 const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
                 
-                this.localPlayer =
-                    new Player(
-                        this.serverConnection.socketId,
-                        this.serverConnection.socketId,
-                        new Car(500, 1900, 0, carType),
-                        new Score());
+                this.localPlayer = new Player(
+                    this.serverConnection.socketId,
+                    this.session.playerName,
+                    new Car(500, 1900, 0, carType),
+                    new Score()
+                );
+                this.players[this.serverConnection.socketId] = this.localPlayer;
+                
+                // Apply session settings now that localPlayer exists
+                this.setCarType(this.session.carType);
+                this.setPlayerName(this.session.playerName);
+                this.setTrackScore(this.session.scores[this.session.trackName]);
+                
                 console.log("Added player", this.serverConnection.socketId)
             }
         } else {
@@ -386,11 +378,13 @@ class Game {
         this.session.trackName = name;
 
         let bounds = TrackData.getByName(name).bounds;
+        let scaledBounds = scaleTo(bounds, this.mapSize);
 
-        this.track.setBounds(bounds, this.trackCtx);
-        this.miniMap.setTrack(this.track, this.miniMapCtx);
+        this.track.setBounds(scaledBounds, this.trackCtx);
+        if (this.miniMap) {
+            this.miniMap.setTrack(this.track, this.miniMapCtx);
+        }
         this.trailsCtx.clearRect(0, 0, this.trailsCanvas.width, this.trailsCanvas.height);
-        this.track.draw(this.trackCtx);
     }
 
     private setPlayerName(name: string) {

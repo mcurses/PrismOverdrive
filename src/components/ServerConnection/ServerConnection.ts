@@ -83,16 +83,6 @@ export default class ServerConnection {
                     // On successful connection, assign the socket id to the car
                     this.socketId = this.socket.id;
                     this.connected = true;
-                    
-                    // Get carType from localStorage or use default
-                    const storedCarType = localStorage.getItem('carType');
-                    const carType = storedCarType ? CarData.getByName(storedCarType) : CarData.types[0];
-                    
-                    this.updateLocalPlayer(this.socket.id, new Player(this.socket.id, this.socket.id, new Car(300, 1800, 0, carType), new Score()));
-                    // let sessionId = this.socket.handshake.query.sessionId;
-                    // if (!this.players[sessionId]) {
-                    //     this.updateLocalPlayer(sessionId, new Player(sessionId, sessionId, new Car(300, 1800, 0), new Score()));
-                    // }
                     resolve();
                 });
 
