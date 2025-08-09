@@ -341,8 +341,10 @@ class Game {
 
         if (this.trailsOverdrawCounter > 200) {
             this.trailsOverdrawCounter = 0;
+            // Overdraw the offscreen trails buffer with the clean track @ 2% alpha
+            this.trails.overlayImage(this.trackCanvas, 0.02);
         } else {
-            this.trailsOverdrawCounter += deltaTime
+            this.trailsOverdrawCounter += deltaTime;
         }
 
         // Render the cars

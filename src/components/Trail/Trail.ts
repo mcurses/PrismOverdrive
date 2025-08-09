@@ -275,7 +275,7 @@ class Trail {
             const alpha = (typeof stamp.a === 'number') ? stamp.a : 0.5;
             ctx.globalAlpha = alpha;
 
-            if (overScore) {
+            if (false && overScore) {
                 const bgColor = trailPointColor.clone();
                 bgColor.s = 5;
                 bgColor.a = 0.5;

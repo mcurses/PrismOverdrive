@@ -156,7 +156,7 @@ export default class ServerConnection {
                         a: stamp.a
                     }));
 
-                    console.log('client RX stamps from', playerState.id, ':', stamps.length);
+                    // console.log('client RX stamps from', playerState.id, ':', stamps.length);
 
                     this.updateLocalPlayer(playerState.id, snapshot, stamps);
                 }
