@@ -23,6 +23,8 @@ import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
 import { ParticleSystem } from "./particles/ParticleSystem";
 
+const STEP_MS = 1000 / 120;
+const MAX_STEPS = 8;
 
 class Game {
     canvasSize: Dimensions;
@@ -61,6 +63,8 @@ class Game {
     private session: Session;
     private intervals: { [name: string]: GameTimeInterval } = {};
     private menu: Menu;
+    private _accMs = 0;
+    private _lastNow = performance.now();
 
     constructor() {
         this.canvasSize = {
@@ -222,51 +226,127 @@ class Game {
         this.loadTrack(this.session.trackName)
 
 
-        requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+        requestAnimationFrame(this.frame);
 
     }
 
 
-    gameLoop(timestamp) {
-        const deltaTime = timestamp - this.lastTimestamp;
+    private frame = (now: number) => {
+        const deltaTime = Math.min(now - this._lastNow, 250);
+        this._lastNow = now;
+        this._accMs += deltaTime;
 
         this.updateIntervals(deltaTime);
 
-        this.lastTimestamp = timestamp;
-        this.lastUdpate = this.lastUdpate === 0 ? timestamp : this.lastUdpate;
-        // this.serverConnection.alive();
-
-        if (this.serverConnection.socketId) {
-            if (!this.localPlayer) {
-                const carTypeName = this.session.carType || CarData.types[0]?.name;
-                const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
-                
-                this.localPlayer = new Player(
-                    this.serverConnection.socketId,
-                    this.session.playerName,
-                    new Car(500, 1900, 0, carType),
-                    new Score()
-                );
-                this.players[this.serverConnection.socketId] = this.localPlayer;
-                
-                // Apply session settings now that localPlayer exists
-                this.setCarType(this.session.carType);
-                this.setPlayerName(this.session.playerName);
-                this.setTrackScore(this.session.scores[this.session.trackName]);
-                
-                console.log("Added player", this.serverConnection.socketId)
-            }
-        } else {
-            console.log("Waiting for server connection")
-            setTimeout(() => requestAnimationFrame((time) => this.gameLoop(time)), 1000);
-            return
+        let steps = 0;
+        while (this._accMs >= STEP_MS && steps < MAX_STEPS) {
+            this.simStep(STEP_MS);
+            this._accMs -= STEP_MS;
+            steps++;
         }
 
+        this.renderFrame();
+        requestAnimationFrame(this.frame);
+    }
+
+    private simStep(stepMs: number): void {
+        if (!this.serverConnection.socketId) {
+            return;
+        }
+
+        if (!this.localPlayer) {
+            const carTypeName = this.session.carType || CarData.types[0]?.name;
+            const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
+            
+            this.localPlayer = new Player(
+                this.serverConnection.socketId,
+                this.session.playerName,
+                new Car(500, 1900, 0, carType),
+                new Score()
+            );
+            this.players[this.serverConnection.socketId] = this.localPlayer;
+            
+            // Apply session settings now that localPlayer exists
+            this.setCarType(this.session.carType);
+            this.setPlayerName(this.session.playerName);
+            this.setTrackScore(this.session.scores[this.session.trackName]);
+            
+            console.log("Added player", this.serverConnection.socketId)
+        }
 
         if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
-            requestAnimationFrame((time) => this.gameLoop(time));
-            return
+            return;
         }
+
+        const localPlayer = this.localPlayer;
+        let keys = this.inputController.getKeys();
+        
+        if (keys['ArrowUp'] && keys['ArrowDown'] && keys['ArrowLeft'] && keys['ArrowRight']) {
+            this.localPlayer.score.driftScore = 30000
+        }
+
+        // Update local player physics
+        localPlayer.car.update(keys, stepMs);
+        localPlayer.car.interpolatePosition();
+        localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
+        this.session.scores[this.session.trackName] = localPlayer.score;
+
+        const now = performance.now();
+        if (localPlayer.car.isDrifting) {
+            localPlayer.lastDriftTime = now;
+        } else {
+            localPlayer.score.curveScore = 0;
+            if (now - localPlayer.lastDriftTime > 4000 && localPlayer.score.driftScore > 0) {
+                localPlayer.score.endDrift();
+            }
+        }
+
+        // Check for collisions
+        let wallHit = this.track.getWallHit(localPlayer.car);
+        if (wallHit !== null) {
+            localPlayer.car.velocity = localPlayer.car.velocity.mult(0.99);
+            let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.carType.dimensions.length / 2 - wallHit.distance) * .4);
+            localPlayer.car.position = localPlayer.car.position.add(pushBack.mult(4));
+            localPlayer.car.velocity = localPlayer.car.velocity.add(pushBack);
+            localPlayer.score.endDrift()
+        }
+
+        // Update particles
+        if (this.particleSystem) {
+            const carVelNearFn = (x: number, y: number) => {
+                let nearestCar = null;
+                let nearestDist = 200;
+                
+                for (const player of Object.values(this.players)) {
+                    const dist = Math.sqrt(
+                        Math.pow(player.car.position.x - x, 2) + 
+                        Math.pow(player.car.position.y - y, 2)
+                    );
+                    if (dist < nearestDist) {
+                        nearestCar = player.car;
+                        nearestDist = dist;
+                    }
+                }
+                
+                return nearestCar ? { vx: nearestCar.velocity.x, vy: nearestCar.velocity.y } : null;
+            };
+
+            const viewRect = {
+                x: -this.camera.position.x,
+                y: -this.camera.position.y,
+                w: this.canvasSize.width,
+                h: this.canvasSize.height
+            };
+
+            this.particleSystem.update(stepMs, carVelNearFn, viewRect);
+        }
+    }
+
+    private renderFrame(): void {
+        if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
+            return;
+        }
+
         const localPlayer = this.localPlayer;
         this.camera.moveTowards(localPlayer.car.position);
 
@@ -286,35 +366,6 @@ class Game {
             });
         }
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
-
-        let keys = this.inputController.getKeys();
-        if (keys['ArrowUp'] && keys['ArrowDown'] && keys['ArrowLeft'] && keys['ArrowRight']) {
-            this.localPlayer.score.driftScore = 30000
-        }
-
-        // Update local player physics
-        localPlayer.car.update(keys, deltaTime);
-        localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
-        this.session.scores[this.session.trackName] = localPlayer.score;
-
-        if (localPlayer.car.isDrifting) {
-            localPlayer.lastDriftTime = timestamp;
-        } else {
-            localPlayer.score.curveScore = 0;
-            if (timestamp - localPlayer.lastDriftTime > 4000 && localPlayer.score.driftScore > 0) {
-                localPlayer.score.endDrift();
-            }
-        }
-
-        // Check for collisions
-        let wallHit = this.track.getWallHit(localPlayer.car);
-        if (wallHit !== null) {
-            localPlayer.car.velocity = localPlayer.car.velocity.mult(0.99);
-            let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.carType.dimensions.length / 2 - wallHit.distance) * .4);
-            localPlayer.car.position = localPlayer.car.position.add(pushBack.mult(4));
-            localPlayer.car.velocity = localPlayer.car.velocity.add(pushBack);
-            localPlayer.score.endDrift()
-        }
 
         // Interpolate remote players
         const renderTime = this.serverConnection.serverNowMs() - 100; // 100ms delay
@@ -359,48 +410,19 @@ class Game {
             // Overdraw the offscreen trails buffer with the clean track @ 2% alpha
             this.trails.overlayImage(this.trackCanvas, 0.1);
         } else {
-            this.trailsOverdrawCounter += deltaTime;
+            this.trailsOverdrawCounter += performance.now() - this._lastNow;
         }
 
-        // Update and draw spark particles
-        const viewRect = {
-            x: -this.camera.position.x,
-            y: -this.camera.position.y,
-            w: this.canvasSize.width,
-            h: this.canvasSize.height
-        };
-        
-        // Optional: provide car velocity function for follow advection
-        const carVelNearFn = (x: number, y: number) => {
-            // Find nearest car within reasonable distance
-            let nearestCar = null;
-            let nearestDist = 200; // Max distance to consider
-            
-            for (const player of Object.values(this.players)) {
-                const dist = Math.sqrt(
-                    Math.pow(player.car.position.x - x, 2) + 
-                    Math.pow(player.car.position.y - y, 2)
-                );
-                if (dist < nearestDist) {
-                    nearestCar = player.car;
-                    nearestDist = dist;
-                }
-            }
-            
-            return nearestCar ? { vx: nearestCar.velocity.x, vy: nearestCar.velocity.y } : null;
-        };
-
-        this.particleSystem.update(deltaTime, carVelNearFn, viewRect);
-        this.particleSystem.draw(this.ctx);
+        // Draw spark particles
+        if (this.particleSystem) {
+            this.particleSystem.draw(this.ctx);
+        }
 
         // Render the cars
         for (let id in this.players) {
             const player = this.players[id];
-            if (id === this.serverConnection.socketId) {
-                // Local player - use normal interpolation for smooth movement
-                player.car.interpolatePosition();
-            }
             // Remote players already have their position set from network interpolation
+            // Local player position is already updated in simStep
             player.car.render(this.ctx);
         }
 
@@ -414,15 +436,11 @@ class Game {
             Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
         );
         this.highscoreTable.displayScores(this.ctx);
-        // this.highscoreTable.displayScoresTable();
 
         // Debug: show active particle count
         this.ctx.fillStyle = 'white';
         this.ctx.font = '16px Arial';
         this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
-
-        requestAnimationFrame((time) => this.gameLoop(time));
-
     }
 
     setCarType(carTypeName: string) {
@@ -540,6 +558,16 @@ class GameTimeInterval {
         }
     }
 }
+
+
+// --- FPS logger ---
+let last = performance.now();
+requestAnimationFrame(function loop(t) {
+    const fps = 1000 / (t - last);
+    last = t;
+    console.log(fps.toFixed(1));
+    requestAnimationFrame(loop);
+});
 
 window.addEventListener('load', () => {
     let game = new Game();
