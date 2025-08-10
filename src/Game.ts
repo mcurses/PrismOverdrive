@@ -21,6 +21,7 @@ import Menu from "./components/UI/Menu";
 import TiledCanvas from "./utils/TiledCanvas";
 import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
+import { ParticleSystem } from "./particles/ParticleSystem";
 
 
 class Game {
@@ -47,6 +48,7 @@ class Game {
     private miniMapCanvas: HTMLCanvasElement;
     private miniMapCtx: CanvasRenderingContext2D;
     private trails: TiledCanvas;
+    private particleSystem: ParticleSystem;
 
     private trackBlurInterval: NodeJS.Timeout;
     private lastUdpate: number;
@@ -151,6 +153,8 @@ class Game {
         this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
         this.trailsOverdrawCounter = 0;
 
+        this.particleSystem = new ParticleSystem(2000, 150);
+
         this.miniMapCanvas = document.createElement('canvas');
         this.miniMapCtx = this.miniMapCanvas.getContext('2d');
         this.miniMap = new MiniMap({
@@ -192,6 +196,9 @@ class Game {
         this.serverConnection = new ServerConnection(
             (id, snapshot, stamps) => this.updatePlayer(id, snapshot, stamps),
             (id) => this.removePlayer(id));
+
+        // Provide particle system to server connection for burst spawning
+        this.serverConnection.setParticleSystem(this.particleSystem);
 
         // Create menu after data is loaded
         this.menu = new Menu({
@@ -354,6 +361,37 @@ class Game {
         } else {
             this.trailsOverdrawCounter += deltaTime;
         }
+
+        // Update and draw spark particles
+        const viewRect = {
+            x: -this.camera.position.x,
+            y: -this.camera.position.y,
+            w: this.canvasSize.width,
+            h: this.canvasSize.height
+        };
+        
+        // Optional: provide car velocity function for follow advection
+        const carVelNearFn = (x: number, y: number) => {
+            // Find nearest car within reasonable distance
+            let nearestCar = null;
+            let nearestDist = 200; // Max distance to consider
+            
+            for (const player of Object.values(this.players)) {
+                const dist = Math.sqrt(
+                    Math.pow(player.car.position.x - x, 2) + 
+                    Math.pow(player.car.position.y - y, 2)
+                );
+                if (dist < nearestDist) {
+                    nearestCar = player.car;
+                    nearestDist = dist;
+                }
+            }
+            
+            return nearestCar ? { vx: nearestCar.velocity.x, vy: nearestCar.velocity.y } : null;
+        };
+
+        this.particleSystem.update(deltaTime, carVelNearFn, viewRect);
+        this.particleSystem.draw(this.ctx);
 
         // Render the cars
         for (let id in this.players) {

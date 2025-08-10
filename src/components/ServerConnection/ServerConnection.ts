@@ -5,6 +5,9 @@ import { driftColor } from "../Score/ScoreVisualize";
 import { Snapshot } from "../../net/SnapshotBuffer";
 import { TrailEmitter } from "../../trails/TrailEmitter";
 import { getDefaultTrailStages } from "../../trails/TrailConfig";
+import { SparkEmitter, SparkBurst } from "../../particles/SparkEmitter";
+import { getDefaultSparkStages } from "../../particles/SparkConfig";
+import { ParticleSystem } from "../../particles/ParticleSystem";
 
 export default class ServerConnection {
     private ws: WebSocket | null = null;
@@ -12,12 +15,16 @@ export default class ServerConnection {
     private PlayerState: any;
     private ScoreState: any;
     private TrailStamp: any;
+    private SparkBurst: any;
     private updateLocalPlayer: (id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) => void;
     connected: boolean = false;
     socketId: string = "";
     private sessionId: string;
     private pendingTrailStamps: TrailStamp[] = [];
     private trailEmitter: TrailEmitter;
+    private pendingSparkBursts: SparkBurst[] = [];
+    private sparkEmitter: SparkEmitter;
+    private particleSystem: ParticleSystem | null = null;
     private lastSentVx: number = 0;
     private lastSentVy: number = 0;
     private lastSentAngVel: number = 0;
@@ -38,6 +45,10 @@ export default class ServerConnection {
         return Date.now() - this.serverOffsetMs;
     }
 
+    setParticleSystem(particleSystem: ParticleSystem): void {
+        this.particleSystem = particleSystem;
+    }
+
     loadCarState() {
         protobuf.load("assets/player.proto", (err: any, root: any) => {
             if (err)
@@ -48,9 +59,11 @@ export default class ServerConnection {
             this.PlayerState = root.lookupType("PlayerState");
             this.ScoreState = root.lookupType("ScoreState");
             this.TrailStamp = root.lookupType("TrailStamp");
+            this.SparkBurst = root.lookupType("SparkBurst");
         });
         
         this.trailEmitter = new TrailEmitter(getDefaultTrailStages());
+        this.sparkEmitter = new SparkEmitter(getDefaultSparkStages());
     }
 
     generateUniqueSessionId() {
@@ -156,6 +169,29 @@ export default class ServerConnection {
                         a: stamp.a
                     }));
 
+                    // Convert bursts (handle case where bursts might be undefined)
+                    const bursts: SparkBurst[] = (playerState.bursts || []).map((burst: any) => ({
+                        x: burst.x,
+                        y: burst.y,
+                        dirAngle: burst.dirAngle,
+                        slip: burst.slip,
+                        count: burst.count,
+                        ttlMs: burst.ttlMs,
+                        stageId: burst.stageId,
+                        seed: burst.seed,
+                        tMs: burst.tMs
+                    }));
+
+                    // Spawn particles from bursts
+                    if (this.particleSystem && bursts.length > 0) {
+                        const sparkStages = getDefaultSparkStages();
+                        const stageResolver = (stageId: string) => sparkStages.find(s => s.id === stageId) || null;
+                        
+                        for (const burst of bursts) {
+                            this.particleSystem.spawnFromBurst(burst, stageResolver, playerState.id);
+                        }
+                    }
+
                     // console.log('client RX stamps from', playerState.id, ':', stamps.length);
 
                     this.updateLocalPlayer(playerState.id, snapshot, stamps);
@@ -201,6 +237,13 @@ export default class ServerConnection {
         // Take up to 5 stamps for this message (tuning lever if bandwidth allows)
         const stampsToSend = this.pendingTrailStamps.splice(0, 5);
 
+        // Generate spark bursts using the spark emitter
+        const newBursts = this.sparkEmitter.getBursts(nowMs, player);
+        this.pendingSparkBursts.push(...newBursts);
+
+        // Take up to 2 bursts for this message (bandwidth consideration)
+        const burstsToSend = this.pendingSparkBursts.splice(0, 2);
+
         let score = player.score ? player.score : new Score();
         
         const playerState = {
@@ -220,6 +263,7 @@ export default class ServerConnection {
                 highScore: score.highScore,
             }),
             stamps: stampsToSend.map(stamp => this.TrailStamp.create(stamp)),
+            bursts: burstsToSend.map(burst => this.SparkBurst.create(burst)),
             tMs: nowMs
         };
         

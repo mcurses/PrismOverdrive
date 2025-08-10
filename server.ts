@@ -24,6 +24,7 @@ protobuf.load(require('path').join(__dirname, 'src', 'assets', 'player.proto'), 
     PlayerState = root.lookupType("PlayerState");
     console.log("Protobuf loaded successfully");
     console.log('has stamps:', !!PlayerState.fields.stamps);
+    console.log('has bursts:', !!PlayerState.fields.bursts);
 });
 
 wss.on('connection', (ws) => {
@@ -53,7 +54,7 @@ wss.on('connection', (ws) => {
                 bytes: String,
             });
 
-            console.log('server IN stamps:', (playerState.stamps?.length || 0));
+            console.log('server IN stamps:', (playerState.stamps?.length || 0), 'bursts:', (playerState.bursts?.length || 0));
 
             // Stamp with server time and sequence
             const tServerMs = Math.floor(perfHooks.now());
@@ -63,7 +64,7 @@ wss.on('connection', (ws) => {
             playerState.tServerMs = tServerMs;
             playerState.seq = seq;
 
-            console.log('server OUT stamps:', (playerState.stamps?.length || 0), 'seq', seq);
+            console.log('server OUT stamps:', (playerState.stamps?.length || 0), 'bursts:', (playerState.bursts?.length || 0), 'seq', seq);
 
             // Re-encode and broadcast to ALL clients (including sender)
             const stampedMessage = PlayerState.create(playerState);

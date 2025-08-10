@@ -33,6 +33,18 @@ message TrailStamp {
   float a = 10;
 }
 
+message SparkBurst {
+  float x = 1;
+  float y = 2;
+  float dirAngle = 3;
+  float slip = 4;
+  uint32 count = 5;
+  uint32 ttlMs = 6;
+  string stageId = 7;
+  uint32 seed = 8;
+  uint32 tMs = 9;
+}
+
 message PlayerState {
   string id = 1;
   string name = 2;
@@ -42,4 +54,5 @@ message PlayerState {
   uint32 tMs = 6;
   uint32 tServerMs = 7;
   uint32 seq = 8;
+  repeated SparkBurst bursts = 9;
 }
