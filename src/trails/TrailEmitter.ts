@@ -31,7 +31,7 @@ export class TrailEmitter {
                 // Compute weight and frequency per target
                 const rawWeight = stage.weight(player);
                 const targetScale = stage.perTargetScale?.[target.tag as keyof NonNullable<typeof stage.perTargetScale>] ?? 1;
-                const targetWeight = clamp(1, rawWeight * targetScale, 2 * MAX_TRAIL_WEIGHT);
+                const targetWeight = clamp(1, rawWeight * targetScale, 4 * MAX_TRAIL_WEIGHT);
 
                 // Compute adjusted frequency (inverse proportional to size)
                 const sizeFactor = clamp(targetWeight / MAX_TRAIL_WEIGHT, 0.01, 1);

@@ -277,7 +277,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
                 const fsPhase = clamp(player.score.frameScore / 600, 0, 0.2);
                 const phase = (x + fsPhase) * n;
                 const h = (phase * 360) % 360;
-                const s = 70;
+                const s = 90;
                 const fsBright = clamp(player.score.frameScore / 80, 0, 1);
                 const b = lerp(20, 50, fsBright);
                 const fsAlpha = clamp(player.score.frameScore / 80, 0, 1);
@@ -314,7 +314,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
                     const inFade = x >= 0.9 ? (x - 0.9) / 0.1 : 0;
                     const s = 0;
                     const b = lerp(100, 0, clamp(inFade, 0, 1));
-                    const a = lerp(0.1, 0.5, clamp(player.score.frameScore / 100, 0, 1)); // 0.3–0.8
+                    const a = lerp(0.05, 0.02, clamp(player.score.frameScore / 100, 0, 1)); // 0.3–0.8
                     return { h: 0, s, b, a };
                 } else {
                     // Tight rainbow wheels
@@ -393,7 +393,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
             minHz: 60,
             maxHz: 140,
             invFreqWithWeightExponent: 0.7,
-            angleSource: 'zero', // keep the big center square upright; wheels being upright is fine here
+            angleSource: 'carAngle'
         }
     ];
 }

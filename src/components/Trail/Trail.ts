@@ -298,7 +298,12 @@ class Trail {
             } else {
                 // Draw normal stamp as a rectangle
                 ctx.fillStyle = trailPointColor.toCSS();
-                ctx.fillRect(stamp.x - weight / 2, stamp.y - weight / 2, weight, weight);
+                ctx.save();
+                ctx.translate(stamp.x, stamp.y);
+                ctx.rotate(stamp.angle);
+                ctx.fillRect(-weight / 2, -weight / 2, weight, weight);
+                ctx.restore();
+                // ctx.fillRect(stamp.x - weight / 2, stamp.y - weight / 2, weight, weight);
             }
 
             ctx.restore();
