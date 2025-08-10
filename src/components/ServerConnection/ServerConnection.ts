@@ -24,6 +24,7 @@ export default class ServerConnection {
     private trailEmitter: TrailEmitter;
     private pendingSparkBursts: SparkBurst[] = [];
     private sparkEmitter: SparkEmitter;
+    private sparkStages: any[];
     private particleSystem: ParticleSystem | null = null;
     private lastSentVx: number = 0;
     private lastSentVy: number = 0;
@@ -63,7 +64,8 @@ export default class ServerConnection {
         });
         
         this.trailEmitter = new TrailEmitter(getDefaultTrailStages());
-        this.sparkEmitter = new SparkEmitter(getDefaultSparkStages());
+        this.sparkStages = getDefaultSparkStages();
+        this.sparkEmitter = new SparkEmitter(this.sparkStages);
     }
 
     generateUniqueSessionId() {
@@ -184,14 +186,14 @@ export default class ServerConnection {
 
                     // Spawn particles from bursts
                     if (this.particleSystem && bursts.length > 0) {
-                        const sparkStages = getDefaultSparkStages();
-                        const stageResolver = (stageId: string) => sparkStages.find(s => s.id === stageId) || null;
+                        const stageResolver = (stageId: string) => this.sparkStages.find(s => s.id === stageId) || null;
                         
                         for (const burst of bursts) {
                             this.particleSystem.spawnFromBurst(burst, stageResolver, playerState.id);
                         }
                     }
 
+                    // console.log('client RX bursts:', bursts.length, 'from', playerState.id);
                     // console.log('client RX stamps from', playerState.id, ':', stamps.length);
 
                     this.updateLocalPlayer(playerState.id, snapshot, stamps);
@@ -243,6 +245,16 @@ export default class ServerConnection {
 
         // Take up to 2 bursts for this message (bandwidth consideration)
         const burstsToSend = this.pendingSparkBursts.splice(0, 2);
+
+        // Echo bursts locally for immediate feedback
+        if (this.particleSystem && burstsToSend.length) {
+            const stageResolver = (id: string) => this.sparkStages.find(s => s.id === id) || null;
+            for (const burst of burstsToSend) {
+                this.particleSystem.spawnFromBurst(burst, stageResolver, player.id);
+            }
+        }
+
+        // console.log('client TX bursts:', newBursts.length);
 
         let score = player.score ? player.score : new Score();
         

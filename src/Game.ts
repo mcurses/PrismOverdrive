@@ -416,6 +416,11 @@ class Game {
         this.highscoreTable.displayScores(this.ctx);
         // this.highscoreTable.displayScoresTable();
 
+        // Debug: show active particle count
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '16px Arial';
+        this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
+
         requestAnimationFrame((time) => this.gameLoop(time));
 
     }

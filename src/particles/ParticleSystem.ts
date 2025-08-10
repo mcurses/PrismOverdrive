@@ -83,7 +83,8 @@ export class ParticleSystem {
             const jitterOffset = (rng() - 0.5) * stage.jitter;
             const angle = burst.dirAngle + angleOffset + jitterOffset;
             
-            const size = stage.sizeRange[0] + rng() * (stage.sizeRange[1] - stage.sizeRange[0]);
+            const sampledSize = stage.sizeRange[0] + rng() * (stage.sizeRange[1] - stage.sizeRange[0]);
+            const size = 1 + sampledSize; // Bump size for visibility
             const ttl = stage.ttlRangeMs[0] + rng() * (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]);
             
             // Get color from stage style
@@ -169,9 +170,9 @@ export class ParticleSystem {
         for (const particle of this.particles) {
             if (!particle.active) continue;
 
-            // Calculate alpha based on age
+            // Calculate alpha based on age (with minimum for visibility)
             const ageRatio = particle.ageMs / particle.ttlMs;
-            const alpha = particle.a0 * (1 - ageRatio);
+            const alpha = Math.max(0.25, particle.a0 * (1 - ageRatio));
             
             if (alpha <= 0.01) continue; // Skip nearly transparent particles
 

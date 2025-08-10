@@ -2,6 +2,7 @@ import Player from "../components/Player/Player";
 import { SparkStageConfig } from "./SparkConfig";
 import { clamp } from "../utils/Utils";
 import Vector from "../utils/Vector";
+import { vectWorldToBody } from "../components/Car/CarUtils";
 
 export interface SparkBurst {
     x: number;
@@ -18,7 +19,7 @@ export interface SparkBurst {
 export class SparkEmitter {
     private stages: SparkStageConfig[];
     private lastEmitMs: Map<string, number> = new Map();
-    private slipThreshold: number = 5; // minimum lateral slip to emit sparks
+    private slipThreshold: number = 0.8; // minimum lateral slip to emit sparks
 
     constructor(stages: SparkStageConfig[]) {
         this.stages = stages;
@@ -29,13 +30,10 @@ export class SparkEmitter {
 
         if (!player.car.isDrifting) return bursts;
 
-        // Calculate lateral slip magnitude
+        // Calculate lateral slip magnitude using body-fixed coordinates
         const carAngle = player.car.getAngle();
-        const velAngle = player.car.velocity.angle();
-        let angleDiff = velAngle - carAngle;
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-        const slip = Math.abs(Math.sin(angleDiff)) * player.car.velocity.mag();
+        const vB = vectWorldToBody(player.car.velocity, carAngle);
+        const slip = Math.abs(vB.x);
 
         if (slip < this.slipThreshold) return bursts;
 
@@ -68,10 +66,12 @@ export class SparkEmitter {
                 const ttlMs = Math.floor(stage.ttlRangeMs[0] + 
                     (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]) * Math.random());
 
-                // Calculate direction (tangent to wheel)
+                // Calculate direction (tangent to wheel) - different for left/right
                 const carForward = new Vector(Math.cos(carAngle), Math.sin(carAngle));
-                const wheelTangent = new Vector(-carForward.y, carForward.x); // perpendicular
-                const dirAngle = wheelTangent.angle();
+                const leftTangent = new Vector(-carForward.y, carForward.x);
+                const rightTangent = new Vector(carForward.y, -carForward.x);
+                const tangent = target.tag === 'rear-right' ? rightTangent : leftTangent;
+                const dirAngle = tangent.angle();
 
                 // Create deterministic seed
                 const seed = this.hashString(player.id) ^ (nowMs & 0xFFFFFF);
