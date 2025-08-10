@@ -43,8 +43,8 @@ export default class MiniMap {
         // draw the cars on the minimap
         for (let id in cars) {
             let curCar = cars[id];
-            let x = curCar.position.x * this.scale;
-            let y = curCar.position.y * this.scale;
+            let x = curCar.position.x * this.scale + this.position.x;
+            let y = curCar.position.y * this.scale + this.position.y;
 
             // draw the car as a small rectangle
             ctx.strokeStyle = 'rgb(0,0,0)'; // black border
