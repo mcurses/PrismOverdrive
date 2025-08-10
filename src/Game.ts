@@ -120,7 +120,9 @@ class Game {
         this.track = new Track(this.session.trackName, this.trackCtx, this.mapSize, [])
         this.camera = new Camera({canvasSize: this.canvasSize});
         this.inputController = new InputController(InputType.KEYBOARD);
-        this.highscoreTable = new HighScoreTable();
+        this.highscoreTable = new HighScoreTable({
+            position: { x: 10, y: 10 }
+        });
         this.lastUdpate = 0;
 
         // let paralaxLayer1 = new Image();
@@ -151,7 +153,12 @@ class Game {
 
         this.miniMapCanvas = document.createElement('canvas');
         this.miniMapCtx = this.miniMapCanvas.getContext('2d');
-        this.miniMap = new MiniMap({offscreenCtx: this.miniMapCtx, track: this.track, maxWidth: 250});
+        this.miniMap = new MiniMap({
+            offscreenCtx: this.miniMapCtx, 
+            track: this.track, 
+            maxWidth: 250,
+            position: { x: 10, y: this.canvasSize.height - 200 }
+        });
         this.miniMapCanvas.width = this.mapSize.width * this.miniMap.scale;
         this.miniMapCanvas.height = this.mapSize.height * this.miniMap.scale;
         // Don't initialize background here - will be done in loadTrack
@@ -192,6 +199,7 @@ class Game {
             loadTrack: (trackName) => this.loadTrack(trackName),
             setCarType: (carType) => this.setCarType(carType),
             setPlayerName: (name) => this.setPlayerName(name),
+            position: { x: this.canvasSize.width * 0.67 - 350, y: this.canvasSize.height * 0.67 - 40 }
         });
         this.inputController.handleKey('Escape', () => {
             this.menu.toggleNameInput();
@@ -362,7 +370,7 @@ class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         
         // Draw mini-map
-        this.ctx.drawImage(this.miniMapCanvas, 0, 0);
+        this.ctx.drawImage(this.miniMapCanvas, this.miniMap.position.x, this.miniMap.position.y);
         this.miniMap.draw(this.ctx, Object.values(this.players).map(player => player.car));
         this.highscoreTable.updateScores(
             Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))

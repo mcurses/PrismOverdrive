@@ -7,6 +7,7 @@ interface MenuProps {
     loadTrack: (trackName: string) => void,
     setCarType: (carType: string) => void
     setPlayerName: (name: string) => void
+    position?: { x: number, y: number }
 }
 
 class Menu {
@@ -17,12 +18,14 @@ class Menu {
     private loadTrack: (trackName: string) => void;
     private setCarType: (carType: string) => void;
     private setPlayerName: (name: string) => void;
+    private position: { x: number, y: number };
 
     constructor(props: MenuProps) {
         this.session = props.session;
         this.loadTrack = props.loadTrack;
         this.setCarType = props.setCarType;
         this.setPlayerName = props.setPlayerName;
+        this.position = props.position || { x: 200, y: 10 };
         this.injectStyles();
         this.createMenuElements()
     }
@@ -38,8 +41,6 @@ class Menu {
         style.textContent = `
             .ui-panel {
                 position: absolute;
-                top: 10px;
-                left: 200px;
                 display: flex;
                 gap: 12px;
             }
@@ -54,6 +55,8 @@ class Menu {
         // create a input wrapper
         let inputWrapper = document.createElement('div');
         inputWrapper.className = 'ui-panel';
+        inputWrapper.style.top = `${this.position.y}px`;
+        inputWrapper.style.left = `${this.position.x}px`;
         document.body.appendChild(inputWrapper);
 
         // Create the input field

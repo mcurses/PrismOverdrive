@@ -8,8 +8,6 @@ class BackgroundData {
     constructor() {
         this.images['parallaxLayer1'] = new Image();
         this.images['parallaxLayer1'].src = 'assets/stars2.jpg';
-
-
     }
 
     getLayers(name: string) {

@@ -4,9 +4,11 @@ class HighScoreTable {
     scores: { name: string, score: Score }[];
     private tableElement: HTMLTableElement;
     private oldScores: { name: string; score: Score }[] = [];
+    position: { x: number, y: number };
 
-    constructor() {
+    constructor(props?: { position?: { x: number, y: number } }) {
         this.scores = [];
+        this.position = props?.position || { x: 0, y: 0 };
         // this.tableElement = this.createTable();
         // document.body.appendChild(this.tableElement);
     }
@@ -91,12 +93,12 @@ class HighScoreTable {
         // ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // Clear the canvas
         ctx.fillStyle = 'white'; // Set the text color
         ctx.font = '20px Arial'; // Set the font
-        ctx.fillText("High Scores:", 10, 240); // Draw the title
+        ctx.fillText("High Scores:", this.position.x + 10, this.position.y + 30); // Draw the title
 
         for (let i = 0; i < this.scores.length; i++) {
-            let y = 270 + i * 30; // Calculate the y position for each score
+            let y = this.position.y + 60 + i * 30; // Calculate the y position for each score
             let text = `${i + 1}. ${this.scores[i].name.slice(0, 8)} - Current: ${~~this.scores[i].score.driftScore}, Best: ${~~this.scores[i].score.highScore}`;
-            ctx.fillText(text, 10, y); // Draw the score
+            ctx.fillText(text, this.position.x + 10, y); // Draw the score
         }
         // ctx.restore();
     }
