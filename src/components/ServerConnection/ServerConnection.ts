@@ -181,15 +181,26 @@ export default class ServerConnection {
                         ttlMs: burst.ttlMs,
                         stageId: burst.stageId,
                         seed: burst.seed,
-                        tMs: burst.tMs
+                        tMs: burst.tMs,
+                        progress: burst.progress || 0,
+                        targetTag: burst.targetTag || 'center'
                     }));
 
                     // Spawn particles from bursts
                     if (this.particleSystem && bursts.length > 0) {
                         const stageResolver = (stageId: string) => this.sparkStages.find(s => s.id === stageId) || null;
                         
+                        // Create player object for color calculation
+                        const playerForColor = {
+                            score: {
+                                frameScore: snapshot.score.frameScore,
+                                driftScore: snapshot.score.driftScore,
+                                highScore: snapshot.score.highScore
+                            }
+                        };
+                        
                         for (const burst of bursts) {
-                            this.particleSystem.spawnFromBurst(burst, stageResolver, playerState.id);
+                            this.particleSystem.spawnFromBurst(burst, stageResolver, playerForColor, playerState.id);
                         }
                     }
 
@@ -250,7 +261,7 @@ export default class ServerConnection {
         if (this.particleSystem && burstsToSend.length) {
             const stageResolver = (id: string) => this.sparkStages.find(s => s.id === id) || null;
             for (const burst of burstsToSend) {
-                this.particleSystem.spawnFromBurst(burst, stageResolver, player.id);
+                this.particleSystem.spawnFromBurst(burst, stageResolver, player, player.id);
             }
         }
 
@@ -275,7 +286,11 @@ export default class ServerConnection {
                 highScore: score.highScore,
             }),
             stamps: stampsToSend.map(stamp => this.TrailStamp.create(stamp)),
-            bursts: burstsToSend.map(burst => this.SparkBurst.create(burst)),
+            bursts: burstsToSend.map(burst => this.SparkBurst.create({
+                ...burst,
+                progress: burst.progress,
+                targetTag: burst.targetTag
+            })),
             tMs: nowMs
         };
         

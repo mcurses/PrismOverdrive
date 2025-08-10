@@ -375,7 +375,6 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
                     const s = 100;
                     const b = 80;
                     const a = lerp(0.8, 1.0, clamp(player.score.frameScore / 100, 0, 1)); // 0.8–1.0
-                    console.log(`stage4 color for ${targetTag}: h=${h}, s=${s}, b=${b}, a=${a}`);
                     return { h, s, b, a };
                 }
             },

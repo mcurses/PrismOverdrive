@@ -47,7 +47,7 @@ export class ParticleSystem {
         }
     }
 
-    spawnFromBurst(burst: SparkBurst, stageResolver: (stageId: string) => SparkStageConfig | null, playerId?: string): void {
+    spawnFromBurst(burst: SparkBurst, stageResolver: (stageId: string) => SparkStageConfig | null, player: any, playerId?: string): void {
         const stage = stageResolver(burst.stageId);
         if (!stage) return;
 
@@ -87,9 +87,8 @@ export class ParticleSystem {
             const size = 1 + sampledSize; // Bump size for visibility
             const ttl = stage.ttlRangeMs[0] + rng() * (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]);
             
-            // Get color from stage style
-            const progress = 0.1; // Could be derived from burst properties
-            const color = stage.style({ score: { frameScore: 10, driftScore: burst.slip * 1000 } } as any, progress);
+            // Get color from stage style using real player data and progress
+            const color = stage.style(player, burst.progress, burst.targetTag);
             
             // Initialize particle
             particle.x = burst.x;

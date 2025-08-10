@@ -14,6 +14,8 @@ export interface SparkBurst {
     stageId: string;
     seed: number;
     tMs: number;
+    progress: number;
+    targetTag: string;
 }
 
 export class SparkEmitter {
@@ -58,6 +60,9 @@ export class SparkEmitter {
             const targetPositions = this.resolveTargets(player, ['rear-left', 'rear-right']);
             const x = clamp(stage.progress(player), 0, 1);
 
+            // Calculate real progress using the stage's progress function
+            const progress = clamp(stage.progress(player), 0, 1);
+
             for (const target of targetPositions) {
                 const emitKey = `${stage.id}:${target.tag}`;
                 
@@ -101,7 +106,9 @@ export class SparkEmitter {
                     ttlMs,
                     stageId: stage.id,
                     seed,
-                    tMs: nowMs
+                    tMs: nowMs,
+                    progress,
+                    targetTag: target.tag
                 });
             }
         }

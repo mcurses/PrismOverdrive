@@ -560,14 +560,14 @@ class GameTimeInterval {
 }
 
 
-// --- FPS logger ---
-let last = performance.now();
-requestAnimationFrame(function loop(t) {
-    const fps = 1000 / (t - last);
-    last = t;
-    console.log(fps.toFixed(1));
-    requestAnimationFrame(loop);
-});
+// // --- FPS logger ---
+// let last = performance.now();
+// requestAnimationFrame(function loop(t) {
+//     const fps = 1000 / (t - last);
+//     last = t;
+//     console.log(fps.toFixed(1));
+//     requestAnimationFrame(loop);
+// });
 
 window.addEventListener('load', () => {
     let game = new Game();
