@@ -88,7 +88,7 @@ export class ParticleSystem {
             const ttl = stage.ttlRangeMs[0] + rng() * (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]);
             
             // Get color from stage style
-            const progress = 0.5; // Could be derived from burst properties
+            const progress = 0.1; // Could be derived from burst properties
             const color = stage.style({ score: { frameScore: 10, driftScore: burst.slip * 1000 } } as any, progress);
             
             // Initialize particle
@@ -165,7 +165,7 @@ export class ParticleSystem {
 
     draw(ctx: CanvasRenderingContext2D): void {
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter'; // Additive blending
+        ctx.globalCompositeOperation = 'overlay'
 
         for (const particle of this.particles) {
             if (!particle.active) continue;

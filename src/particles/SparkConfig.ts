@@ -34,22 +34,22 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             progress: (player: Player) => b1.progress(player, { padStart: 300 }),
             style: (player: Player, x: number) => {
                 const stage1Gradient = makeGradient(g => {
-                    g.plateau(0.1, { h: 210, s: 30, b: 60, a: 0.8 })
-                        .to(0.5, { h: 180, s: 70, b: 80, a: 0.9 })
+                    g.plateau(0.1, { h: 210, s: 30, b: 0, a: 0.8 })
+                        .to(0.7, { h: 180, s: 70, b: 2, a: 0.9 })
                         .to(1.0, { h: 160, s: 90, b: 90, a: 1.0 });
-                }, { defaultA: 0.8, hueWrap: true });
+                }, { defaultA: 0.8, hueWrap: false });
                 return stage1Gradient(x);
             },
             perTargetScale: {
-                'rear-left': 1.0,
-                'rear-right': 1.0,
+                'rear-left': 4.0,
+                'rear-right': 4.0,
                 'front-left': 0.3,
                 'front-right': 0.3
             },
             countRange: [3, 8],
             spreadDeg: 45,
             speedRange: [50, 120],
-            ttlRangeMs: [200, 500],
+            ttlRangeMs: [200, 1500],
             sizeRange: [1, 2],
             dragPerSecond: 0.7,
             followFactor: 0.1,
