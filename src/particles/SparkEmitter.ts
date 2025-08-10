@@ -20,6 +20,8 @@ export class SparkEmitter {
     private stages: SparkStageConfig[];
     private lastEmitMs: Map<string, number> = new Map();
     private slipThreshold: number = 0.8; // minimum lateral slip to emit sparks
+    private static readonly MIN_INTERVAL_MS = 35;
+    private static readonly MAX_INTERVAL_MS = 180;
 
     constructor(stages: SparkStageConfig[]) {
         this.stages = stages;
@@ -37,6 +39,18 @@ export class SparkEmitter {
 
         if (slip < this.slipThreshold) return bursts;
 
+        // Calculate intensity from speed, frame score, and slip
+        const speed = player.car.velocity.mag();
+        const fsAvg = player.score.getFrameScoreAverage(10) || player.score.frameScore;
+
+        // crude normalizers — tune to your game's ranges
+        const fsN   = clamp(fsAvg / 12, 0, 1);      // frameScore 0..~12+
+        const spdN  = clamp(speed / 140, 0, 1);     // speed 0..~140?
+        const slipN = clamp(slip / 6, 0, 1);        // lateral 0..~6?
+
+        // blend: heavier weight to frame score, then speed, then slip
+        const intensity = clamp(0.6 * fsN + 0.3 * spdN + 0.1 * slipN, 0, 1);
+
         for (const stage of this.stages) {
             if (!stage.enabled || !stage.when(player)) continue;
 
@@ -47,9 +61,9 @@ export class SparkEmitter {
             for (const target of targetPositions) {
                 const emitKey = `${stage.id}:${target.tag}`;
                 
-                // Throttle emissions per target
+                // Throttle emissions per target with dynamic interval based on intensity
                 const lastEmit = this.lastEmitMs.get(emitKey) || 0;
-                const intervalMs = 100; // 10 Hz base rate
+                const intervalMs = SparkEmitter.MAX_INTERVAL_MS - (SparkEmitter.MAX_INTERVAL_MS - SparkEmitter.MIN_INTERVAL_MS) * intensity;
                 if (nowMs - lastEmit < intervalMs) continue;
 
                 this.lastEmitMs.set(emitKey, nowMs);
@@ -58,13 +72,15 @@ export class SparkEmitter {
                 const targetScale = stage.perTargetScale[target.tag as keyof typeof stage.perTargetScale] ?? 1;
                 if (targetScale < 0.1) continue; // Skip if scaled too small
 
-                // Calculate count and ttl
+                // Calculate count and ttl with intensity scaling
                 const baseCount = Math.floor(stage.countRange[0] + 
                     (stage.countRange[1] - stage.countRange[0]) * Math.random());
-                const count = Math.max(1, Math.floor(baseCount * targetScale));
+                const intensityCountMult = 0.5 + 1.5 * intensity;   // 0.6x … 2.4x
+                const count = Math.max(1, Math.floor(baseCount * targetScale * intensityCountMult));
                 
-                const ttlMs = Math.floor(stage.ttlRangeMs[0] + 
+                const ttlBase = Math.floor(stage.ttlRangeMs[0] + 
                     (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]) * Math.random());
+                const ttlMs = Math.floor(ttlBase * (0.9 + 0.3 * intensity)); // optional TTL scaling
 
                 // Calculate direction (tangent to wheel) - different for left/right
                 const carForward = new Vector(Math.cos(carAngle), Math.sin(carAngle));
