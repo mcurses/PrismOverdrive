@@ -199,7 +199,7 @@ class Game {
             loadTrack: (trackName) => this.loadTrack(trackName),
             setCarType: (carType) => this.setCarType(carType),
             setPlayerName: (name) => this.setPlayerName(name),
-            position: { x: this.canvasSize.width * 0.67 - 350, y: this.canvasSize.height * 0.67 - 40 }
+            position: { x: this.canvasSize.width * 0.67 - 400, y: this.canvasSize.height * 0.67 - 40 }
         });
         this.inputController.handleKey('Escape', () => {
             this.menu.toggleNameInput();

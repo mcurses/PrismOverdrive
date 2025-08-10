@@ -42,7 +42,32 @@ class Menu {
             .ui-panel {
                 position: absolute;
                 display: flex;
-                gap: 12px;
+                gap: 8px;
+                background: rgba(0, 0, 0, 0.3);
+                padding: 8px 12px;
+                border-radius: 6px;
+                backdrop-filter: blur(4px);
+            }
+            .ui-panel input, .ui-panel select {
+                background: rgba(20, 20, 20, 0.8);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 4px;
+                color: #e0e0e0;
+                padding: 4px 8px;
+                font-size: 12px;
+                font-family: monospace;
+            }
+            .ui-panel input:focus, .ui-panel select:focus {
+                outline: none;
+                border-color: rgba(255, 255, 255, 0.4);
+                background: rgba(30, 30, 30, 0.9);
+            }
+            .ui-panel input::placeholder {
+                color: rgba(255, 255, 255, 0.4);
+            }
+            .ui-panel select option {
+                background: #1a1a1a;
+                color: #e0e0e0;
             }
             .hidden {
                 display: none;
@@ -62,6 +87,7 @@ class Menu {
         // Create the input field
         this.nameInput = document.createElement('input');
         this.nameInput.value = this.session.playerName.slice(0, 8);
+        this.nameInput.placeholder = 'Player name';
         this.nameInput.addEventListener('input', () => this.setPlayerName(this.nameInput.value));
         inputWrapper.appendChild(this.nameInput);
 
