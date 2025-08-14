@@ -17,6 +17,15 @@ export interface SparkStageConfig {
     dragPerSecond: number;
     followFactor: number;
     jitter: number;
+    // Optional fields for smoke rendering
+    render?: 'spark' | 'smoke';
+    composite?: GlobalCompositeOperation;
+    growthRange?: [number, number];
+    anisotropyRange?: [number, number];
+    turbulenceAmpRange?: [number, number];
+    turbulenceFreqRange?: [number, number];
+    swirlPerSecondRange?: [number, number];
+    alphaProfile?: 'easeInOut' | 'frontLoaded' | 'tail';
 }
 
 export function getDefaultSparkStages(): SparkStageConfig[] {
@@ -53,7 +62,8 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             sizeRange: [1, 2],
             dragPerSecond: 0.7,
             followFactor: 0.1,
-            jitter: 0.2
+            jitter: 0.2,
+            render: 'spark'
         },
         {
             id: 'stage2-sparks',
@@ -82,7 +92,8 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             sizeRange: [1, 3],
             dragPerSecond: 0.65,
             followFactor: 0.12,
-            jitter: 0.25
+            jitter: 0.25,
+            render: 'spark'
         },
         {
             id: 'stage3-sparks',
@@ -113,7 +124,8 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             sizeRange: [2, 4],
             dragPerSecond: 0.6,
             followFactor: 0.15,
-            jitter: 0.3
+            jitter: 0.3,
+            render: 'spark'
         },
         {
             id: 'stage4-sparks',
@@ -147,7 +159,8 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             sizeRange: [2, 5],
             dragPerSecond: 0.55,
             followFactor: 0.18,
-            jitter: 0.35
+            jitter: 0.35,
+            render: 'spark'
         },
         {
             id: 'stage5-sparks',
@@ -181,7 +194,8 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             sizeRange: [3, 6],
             dragPerSecond: 0.5,
             followFactor: 0.2,
-            jitter: 0.4
+            jitter: 0.4,
+            render: 'spark'
         }
     ];
 }

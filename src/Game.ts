@@ -438,9 +438,9 @@ class Game {
         this.highscoreTable.displayScores(this.ctx);
 
         // Debug: show active particle count
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '16px Arial';
-        this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
+        // this.ctx.fillStyle = 'white';
+        // this.ctx.font = '16px Arial';
+        // this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
     }
 
     setCarType(carTypeName: string) {

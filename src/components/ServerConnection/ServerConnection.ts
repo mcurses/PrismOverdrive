@@ -7,6 +7,8 @@ import { TrailEmitter } from "../../trails/TrailEmitter";
 import { getDefaultTrailStages } from "../../trails/TrailConfig";
 import { SparkEmitter, SparkBurst } from "../../particles/SparkEmitter";
 import { getDefaultSparkStages } from "../../particles/SparkConfig";
+import { SmokeEmitter } from "../../particles/SmokeEmitter";
+import { getDefaultSmokeStages } from "../../particles/SmokeConfig";
 import { ParticleSystem } from "../../particles/ParticleSystem";
 
 export default class ServerConnection {
@@ -25,6 +27,9 @@ export default class ServerConnection {
     private pendingSparkBursts: SparkBurst[] = [];
     private sparkEmitter: SparkEmitter;
     private sparkStages: any[];
+    private pendingSmokeBursts: SparkBurst[] = [];
+    private smokeEmitter: SmokeEmitter;
+    private smokeStages: any[];
     private particleSystem: ParticleSystem | null = null;
     private lastSentVx: number = 0;
     private lastSentVy: number = 0;
@@ -66,6 +71,8 @@ export default class ServerConnection {
         this.trailEmitter = new TrailEmitter(getDefaultTrailStages());
         this.sparkStages = getDefaultSparkStages();
         this.sparkEmitter = new SparkEmitter(this.sparkStages);
+        this.smokeStages = getDefaultSmokeStages();
+        this.smokeEmitter = new SmokeEmitter(this.smokeStages);
     }
 
     generateUniqueSessionId() {
@@ -188,7 +195,11 @@ export default class ServerConnection {
 
                     // Spawn particles from bursts
                     if (this.particleSystem && bursts.length > 0) {
-                        const stageResolver = (stageId: string) => this.sparkStages.find(s => s.id === stageId) || null;
+                        const stageResolver = (stageId: string) => {
+                            return this.sparkStages.find(s => s.id === stageId) || 
+                                   this.smokeStages.find(s => s.id === stageId) || 
+                                   null;
+                        };
                         
                         // Create player object for color calculation
                         const playerForColor = {
@@ -251,21 +262,31 @@ export default class ServerConnection {
         const stampsToSend = this.pendingTrailStamps.splice(0, 5);
 
         // Generate spark bursts using the spark emitter
-        const newBursts = this.sparkEmitter.getBursts(nowMs, player);
-        this.pendingSparkBursts.push(...newBursts);
+        const newSparkBursts = this.sparkEmitter.getBursts(nowMs, player);
+        this.pendingSparkBursts.push(...newSparkBursts);
 
-        // Take up to 2 bursts for this message (bandwidth consideration)
-        const burstsToSend = this.pendingSparkBursts.splice(0, 2);
+        // Generate smoke bursts using the smoke emitter
+        const newSmokeBursts = this.smokeEmitter.getBursts(nowMs, player);
+        this.pendingSmokeBursts.push(...newSmokeBursts);
+
+        // Take up to 2 from each queue and merge
+        const sparkBurstsToSend = this.pendingSparkBursts.splice(0, 2);
+        const smokeBurstsToSend = this.pendingSmokeBursts.splice(0, 2);
+        const burstsToSend = [...sparkBurstsToSend, ...smokeBurstsToSend];
 
         // Echo bursts locally for immediate feedback
         if (this.particleSystem && burstsToSend.length) {
-            const stageResolver = (id: string) => this.sparkStages.find(s => s.id === id) || null;
+            const stageResolver = (id: string) => {
+                return this.sparkStages.find(s => s.id === id) || 
+                       this.smokeStages.find(s => s.id === id) || 
+                       null;
+            };
             for (const burst of burstsToSend) {
                 this.particleSystem.spawnFromBurst(burst, stageResolver, player, player.id);
             }
         }
 
-        // console.log('client TX bursts:', newBursts.length);
+        // console.log('client TX bursts:', newSparkBursts.length + newSmokeBursts.length);
 
         let score = player.score ? player.score : new Score();
         

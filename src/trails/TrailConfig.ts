@@ -343,7 +343,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
             minHz: 30,
             maxHz: 140,
             invFreqWithWeightExponent: 0.7,
-            angleSource: 'zero', // keep the big center square upright; wheels being upright is fine here
+            angleSource: 'zero' // keep the big center square upright; wheels being upright is fine here
         },
         {
             id: 'stage5-dark',

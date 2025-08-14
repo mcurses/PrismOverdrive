@@ -14,7 +14,7 @@ class Session {
         this.playerName = name;
         this.sessionId = this.generateSessionId();
         this.carType = CarData.types[0].name;
-        this.trackName = 'default'
+        this.trackName = 'bounds2'
         this.scores = {}
     }
 

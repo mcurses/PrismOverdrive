@@ -18,6 +18,14 @@ interface Particle {
     dragPerSecond: number;
     followFactor: number;
     active: boolean;
+    type: 'spark' | 'smoke';
+    composite: GlobalCompositeOperation | null;
+    growthRate: number;
+    anisotropy: number;
+    turbulenceAmp: number;
+    turbulenceFreq: number;
+    swirlPerSecond: number;
+    noisePhase: number;
 }
 
 interface ViewRect {
@@ -42,7 +50,9 @@ export class ParticleSystem {
             this.particles.push({
                 x: 0, y: 0, vx: 0, vy: 0, size: 1,
                 ageMs: 0, ttlMs: 1000, h: 0, s: 0, b: 0, a0: 1,
-                dragPerSecond: 0.7, followFactor: 0.1, active: false
+                dragPerSecond: 0.7, followFactor: 0.1, active: false,
+                type: 'spark', composite: null, growthRate: 0, anisotropy: 1,
+                turbulenceAmp: 0, turbulenceFreq: 0, swirlPerSecond: 0, noisePhase: 0
             });
         }
     }
@@ -50,6 +60,9 @@ export class ParticleSystem {
     spawnFromBurst(burst: SparkBurst, stageResolver: (stageId: string) => SparkStageConfig | null, player: any, playerId?: string): void {
         const stage = stageResolver(burst.stageId);
         if (!stage) return;
+
+        // Determine render type
+        const renderType = stage.render || 'spark';
 
         // Check per-player limits
         if (playerId) {
@@ -84,11 +97,23 @@ export class ParticleSystem {
             const angle = burst.dirAngle + angleOffset + jitterOffset;
             
             const sampledSize = stage.sizeRange[0] + rng() * (stage.sizeRange[1] - stage.sizeRange[0]);
-            const size = 1 + sampledSize; // Bump size for visibility
+            const size = renderType === 'smoke' ? sampledSize : 1 + sampledSize; // No bump for smoke
             const ttl = stage.ttlRangeMs[0] + rng() * (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]);
             
             // Get color from stage style using real player data and progress
             const color = stage.style(player, burst.progress, burst.targetTag);
+            
+            // Sample smoke-specific properties
+            const growthRate = stage.growthRange ? 
+                stage.growthRange[0] + rng() * (stage.growthRange[1] - stage.growthRange[0]) : 0;
+            const anisotropy = stage.anisotropyRange ? 
+                stage.anisotropyRange[0] + rng() * (stage.anisotropyRange[1] - stage.anisotropyRange[0]) : 1;
+            const turbulenceAmp = stage.turbulenceAmpRange ? 
+                stage.turbulenceAmpRange[0] + rng() * (stage.turbulenceAmpRange[1] - stage.turbulenceAmpRange[0]) : 0;
+            const turbulenceFreq = stage.turbulenceFreqRange ? 
+                stage.turbulenceFreqRange[0] + rng() * (stage.turbulenceFreqRange[1] - stage.turbulenceFreqRange[0]) : 0;
+            const swirlPerSecond = stage.swirlPerSecondRange ? 
+                stage.swirlPerSecondRange[0] + rng() * (stage.swirlPerSecondRange[1] - stage.swirlPerSecondRange[0]) : 0;
             
             // Initialize particle
             particle.x = burst.x;
@@ -97,13 +122,21 @@ export class ParticleSystem {
             particle.vy = Math.sin(angle) * speed;
             particle.size = size;
             particle.ageMs = 0;
-            particle.ttlMs = Math.min(ttl, 1500); // Hard cap at 1500ms
+            particle.ttlMs = renderType === 'smoke' ? Math.min(ttl, 3000) : Math.min(ttl, 1500);
             particle.h = color.h;
             particle.s = color.s;
             particle.b = color.b;
             particle.a0 = color.a || 1.0;
             particle.dragPerSecond = stage.dragPerSecond;
             particle.followFactor = stage.followFactor;
+            particle.type = renderType;
+            particle.composite = stage.composite || null;
+            particle.growthRate = growthRate;
+            particle.anisotropy = anisotropy;
+            particle.turbulenceAmp = turbulenceAmp;
+            particle.turbulenceFreq = turbulenceFreq;
+            particle.swirlPerSecond = swirlPerSecond;
+            particle.noisePhase = rng() * Math.PI * 2;
             particle.active = true;
         }
 
@@ -156,6 +189,34 @@ export class ParticleSystem {
                 }
             }
 
+            // Apply smoke-specific effects
+            if (particle.type === 'smoke') {
+                // Apply swirl
+                if (particle.swirlPerSecond > 0) {
+                    const swirlAngle = particle.swirlPerSecond * dtSec * 0.25; // subtle factor
+                    const cos = Math.cos(swirlAngle);
+                    const sin = Math.sin(swirlAngle);
+                    const newVx = particle.vx * cos - particle.vy * sin;
+                    const newVy = particle.vx * sin + particle.vy * cos;
+                    particle.vx = newVx;
+                    particle.vy = newVy;
+                }
+
+                // Apply turbulence
+                if (particle.turbulenceAmp > 0 && particle.turbulenceFreq > 0) {
+                    particle.noisePhase += particle.turbulenceFreq * dtSec;
+                    const turbX = Math.sin(particle.noisePhase) * particle.turbulenceAmp * dtSec;
+                    const turbY = Math.cos(particle.noisePhase * 1.3) * particle.turbulenceAmp * dtSec;
+                    particle.x += turbX;
+                    particle.y += turbY;
+                }
+
+                // Apply growth
+                if (particle.growthRate > 0) {
+                    particle.size += particle.growthRate * dtSec;
+                }
+            }
+
             // Update position
             particle.x += particle.vx * dtSec;
             particle.y += particle.vy * dtSec;
@@ -164,10 +225,32 @@ export class ParticleSystem {
 
     draw(ctx: CanvasRenderingContext2D): void {
         ctx.save();
-        ctx.globalCompositeOperation = 'overlay'
 
+        // Pass 1: Draw smoke particles with source-over
+        ctx.globalCompositeOperation = 'source-over';
         for (const particle of this.particles) {
-            if (!particle.active) continue;
+            if (!particle.active || particle.type !== 'smoke') continue;
+
+            const ageRatio = particle.ageMs / particle.ttlMs;
+            let alpha: number;
+
+            // Apply alpha profile for smoke (tail profile)
+            if (ageRatio < 0.15) {
+                alpha = particle.a0 * (ageRatio / 0.15);
+            } else {
+                alpha = particle.a0 * ((1 - ageRatio) * 0.9 + 0.1);
+            }
+            
+            if (alpha <= 0.01) continue;
+
+            // Draw smoke as elliptical radial gradient
+            this.drawSmokeParticle(ctx, particle, alpha);
+        }
+
+        // Pass 2: Draw spark particles with overlay (existing behavior)
+        ctx.globalCompositeOperation = 'overlay';
+        for (const particle of this.particles) {
+            if (!particle.active || particle.type !== 'spark') continue;
 
             // Calculate alpha based on age (with minimum for visibility)
             const ageRatio = particle.ageMs / particle.ttlMs;
@@ -192,6 +275,38 @@ export class ParticleSystem {
         }
 
         ctx.restore(); // Restore composite operation
+    }
+
+    private drawSmokeParticle(ctx: CanvasRenderingContext2D, particle: Particle, alpha: number): void {
+        ctx.save();
+
+        // Calculate velocity angle for anisotropy
+        const velAngle = Math.atan2(particle.vy, particle.vx);
+        
+        // Create radial gradient
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, particle.size);
+        
+        // Three stops: inner, mid, edge
+        const innerColor = new HSLColor(particle.h, particle.s, particle.b, alpha * 0.6);
+        const midColor = new HSLColor(particle.h, particle.s, particle.b, alpha * 0.35);
+        const edgeColor = new HSLColor(particle.h, particle.s, particle.b, 0);
+        
+        gradient.addColorStop(0.0, innerColor.toCSS());
+        gradient.addColorStop(0.5, midColor.toCSS());
+        gradient.addColorStop(1.0, edgeColor.toCSS());
+
+        // Transform to particle position and orientation
+        ctx.translate(particle.x, particle.y);
+        ctx.rotate(velAngle);
+        ctx.scale(particle.anisotropy, 1); // Stretch along velocity direction
+
+        // Draw the gradient circle
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
     }
 
     private getInactiveParticle(): Particle | null {
