@@ -285,6 +285,9 @@ class Game {
             this.localPlayer.score.driftScore = 30000
         }
 
+        // Update boost system
+        localPlayer.updateBoost(stepMs, !!keys['Shift']);
+        
         // Update local player physics
         localPlayer.car.update(keys, stepMs);
         localPlayer.car.interpolatePosition();
@@ -437,10 +440,37 @@ class Game {
         );
         this.highscoreTable.displayScores(this.ctx);
 
+        // Draw boost HUD
+        this.drawBoostHUD(this.ctx, localPlayer);
+
         // Debug: show active particle count
         // this.ctx.fillStyle = 'white';
         // this.ctx.font = '16px Arial';
         // this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
+    }
+
+    private drawBoostHUD(ctx: CanvasRenderingContext2D, player: Player): void {
+        const x = 320;
+        const y = this.canvasSize.height - 50;
+        const width = 160;
+        const height = 12;
+        
+        // Draw outline
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+        
+        // Draw fill
+        const fillWidth = width * (player.boostCharge / player.BOOST_MAX);
+        if (fillWidth > 0) {
+            ctx.fillStyle = player.boostActive ? 'rgba(0, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.6)';
+            ctx.fillRect(x, y, fillWidth, height);
+        }
+        
+        // Draw label
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.font = '12px Arial';
+        ctx.fillText('BOOST', x, y - 4);
     }
 
     setCarType(carTypeName: string) {

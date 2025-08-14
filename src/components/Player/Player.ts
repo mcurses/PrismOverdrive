@@ -26,6 +26,15 @@ export default class Player {
     id: string;
     snapshotBuffer: SnapshotBuffer;
     pendingTrailStamps: TrailStamp[];
+    
+    // Boost system
+    boostCharge: number = 0;
+    boostActive: boolean = false;
+    readonly BOOST_MAX = 1;
+    readonly BOOST_MULTIPLIER = 1.8;
+    readonly BOOST_DRAIN_PER_SEC = 0.6;
+    readonly BOOST_REGEN_PER_FS = 0.012;
+    readonly IDLE_REGEN_PER_SEC = 0;
 
     constructor(id : string, name: string, car: Car, score: Score) {
         this.id = id;
@@ -49,6 +58,35 @@ export default class Player {
 
     addTrailStamps(stamps: TrailStamp[]): void {
         this.pendingTrailStamps.push(...stamps);
+    }
+
+    updateBoost(dtMs: number, boostKeyDown: boolean): void {
+        const dt = dtMs / 1000;
+        
+        // Regenerate boost
+        if (this.car.isDrifting) {
+            this.boostCharge += this.score.frameScore * this.BOOST_REGEN_PER_FS * dt;
+        } else {
+            this.boostCharge += this.IDLE_REGEN_PER_SEC * dt;
+        }
+        
+        // Clamp boost charge
+        this.boostCharge = Math.max(0, Math.min(this.BOOST_MAX, this.boostCharge));
+        
+        // Handle boost consumption
+        if (boostKeyDown && this.boostCharge > 0) {
+            this.boostActive = true;
+            this.car.boostFactor = this.BOOST_MULTIPLIER;
+            const drain = this.BOOST_DRAIN_PER_SEC * dt;
+            this.boostCharge = Math.max(0, this.boostCharge - drain);
+        } else {
+            this.boostActive = false;
+        }
+        
+        // Force boost off if charge hits 0
+        if (this.boostCharge <= 0) {
+            this.boostActive = false;
+        }
     }
 
     update() {

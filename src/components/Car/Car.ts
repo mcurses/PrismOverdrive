@@ -11,6 +11,7 @@ import CarData from "./CarData";
 class Car {
     // dynamic state
     turnRate: number;
+    boostFactor: number = 1.0;
 
     isDrifting: boolean;
     isColliding: boolean;
@@ -160,6 +161,9 @@ class Car {
         }
         this.targetPosition = this.position.copy().add(this.velocity.mult(deltaTime * timeFactor));
         this.cacheDirty = true;
+        
+        // Reset boost factor at end of update
+        this.boostFactor = 1.0;
     }
 
     private handleInput(keys, deltaTime, timeFactor: number) {
@@ -167,13 +171,13 @@ class Car {
 
         // ACCELERATING (BODY-FIXED to WORLD)
         if (keys['ArrowUp']) {
-            let bodyAcc = new Vector(0, this.carType.engineForce);
+            let bodyAcc = new Vector(0, this.carType.engineForce * this.boostFactor);
             let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
             changes.acceleration = changes.acceleration.add(worldAcc);
         }
         // BRAKING (BODY-FIXED TO WORLD)
         if (keys['ArrowDown']) {
-            let bodyAcc = new Vector(0, -this.carType.engineForce);
+            let bodyAcc = new Vector(0, -this.carType.engineForce * this.boostFactor);
             let worldAcc = vectBodyToWorld(bodyAcc, this.angle);
             changes.acceleration = changes.acceleration.add(worldAcc);
         }

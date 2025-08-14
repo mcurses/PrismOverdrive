@@ -19,6 +19,7 @@ export class InputController {
                     'Space': false,
                     'Escape': false,
                     'Enter': false,
+                    'Shift': false,
                 };
 
                 this.onKeyDown = (e: KeyboardEvent) => {
@@ -29,6 +30,11 @@ export class InputController {
                         e.preventDefault();
                         this.keys['Space'] = true;
                     }
+                    if (e.key === 'Shift') {
+                        this.keys['Shift'] = true;
+                    }
+                    // Always mirror the modifier state
+                    this.keys['Shift'] = e.shiftKey;
 
                     // Check for registered handlers
                     const handlerKey = e.key === ' ' ? 'Space' : e.key;
@@ -46,6 +52,11 @@ export class InputController {
                         e.preventDefault();
                         this.keys['Space'] = false;
                     }
+                    if (e.key === 'Shift') {
+                        this.keys['Shift'] = false;
+                    }
+                    // Always mirror the modifier state
+                    this.keys['Shift'] = e.shiftKey;
                 };
 
                 window.addEventListener('keydown', this.onKeyDown);
