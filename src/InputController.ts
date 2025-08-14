@@ -1,9 +1,11 @@
+import { DEFAULT_BINDINGS, isActionDown, Action } from './input/Controls';
 
 export enum InputType {
     KEYBOARD,
 }
+
 export class InputController {
-    private keys: { [key: string]: boolean };
+    private codesDown: Set<string> = new Set();
     private onKeyDown: (e: KeyboardEvent) => void;
     private onKeyUp: (e: KeyboardEvent) => void;
     private keyHandlers: Map<string, Function> = new Map();
@@ -11,52 +13,30 @@ export class InputController {
     constructor(type: InputType) {
         switch (type) {
             case InputType.KEYBOARD:
-                this.keys = {
-                    'ArrowUp': false,
-                    'ArrowDown': false,
-                    'ArrowLeft': false,
-                    'ArrowRight': false,
-                    'Space': false,
-                    'Escape': false,
-                    'Enter': false,
-                    'Shift': false,
-                };
-
                 this.onKeyDown = (e: KeyboardEvent) => {
-                    if (this.keys.hasOwnProperty(e.key)) {
-                        this.keys[e.key] = true;
+                    const code = e.code || '';
+                    if (code) {
+                        this.codesDown.add(code);
                     }
-                    if (e.key === ' ') {
+                    if (code === 'Space') {
                         e.preventDefault();
-                        this.keys['Space'] = true;
                     }
-                    if (e.key === 'Shift') {
-                        this.keys['Shift'] = true;
-                    }
-                    // Always mirror the modifier state
-                    this.keys['Shift'] = e.shiftKey;
 
                     // Check for registered handlers
-                    const handlerKey = e.key === ' ' ? 'Space' : e.key;
-                    const handler = this.keyHandlers.get(handlerKey);
+                    const handler = this.keyHandlers.get(code);
                     if (handler) {
                         handler();
                     }
                 };
 
                 this.onKeyUp = (e: KeyboardEvent) => {
-                    if (this.keys.hasOwnProperty(e.key)) {
-                        this.keys[e.key] = false;
+                    const code = e.code || '';
+                    if (code) {
+                        this.codesDown.delete(code);
                     }
-                    if (e.key === ' ') {
+                    if (code === 'Space') {
                         e.preventDefault();
-                        this.keys['Space'] = false;
                     }
-                    if (e.key === 'Shift') {
-                        this.keys['Shift'] = false;
-                    }
-                    // Always mirror the modifier state
-                    this.keys['Shift'] = e.shiftKey;
                 };
 
                 window.addEventListener('keydown', this.onKeyDown);
@@ -73,12 +53,41 @@ export class InputController {
         window.removeEventListener('keyup', this.onKeyUp);
     }
 
+    getCodesDown(): Set<string> {
+        return new Set(this.codesDown);
+    }
+
+    getActions(): { ACCELERATE: boolean; BRAKE: boolean; LEFT: boolean; RIGHT: boolean; HANDBRAKE: boolean; BOOST: boolean } {
+        const d = this.getCodesDown();
+        return {
+            ACCELERATE: isActionDown(d, 'ACCELERATE'),
+            BRAKE: isActionDown(d, 'BRAKE'),
+            LEFT: isActionDown(d, 'LEFT'),
+            RIGHT: isActionDown(d, 'RIGHT'),
+            HANDBRAKE: isActionDown(d, 'HANDBRAKE'),
+            BOOST: isActionDown(d, 'BOOST'),
+        };
+    }
+
+    getCompatKeysFromActions(actions: { ACCELERATE: boolean; BRAKE: boolean; LEFT: boolean; RIGHT: boolean; HANDBRAKE: boolean; BOOST: boolean }): Record<string, boolean> {
+        return {
+            'ArrowUp': actions.ACCELERATE,
+            'ArrowDown': actions.BRAKE,
+            'ArrowLeft': actions.LEFT,
+            'ArrowRight': actions.RIGHT,
+            'Space': actions.HANDBRAKE,
+        };
+    }
+
+    // Legacy compatibility methods
     setKey(key: string, value: boolean) {
-        this.keys[key] = value;
+        // This method is kept for compatibility but may not work as expected with the new system
     }
 
     getKeys() {
-        return this.keys;
+        // Legacy method - convert current actions to old format
+        const actions = this.getActions();
+        return this.getCompatKeysFromActions(actions);
     }
 }
 

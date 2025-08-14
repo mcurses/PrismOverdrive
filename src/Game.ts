@@ -279,17 +279,18 @@ class Game {
         }
 
         const localPlayer = this.localPlayer;
-        let keys = this.inputController.getKeys();
+        const actions = this.inputController.getActions();
+        const compatKeys = this.inputController.getCompatKeysFromActions(actions);
         
-        if (keys['ArrowUp'] && keys['ArrowDown'] && keys['ArrowLeft'] && keys['ArrowRight']) {
+        if (compatKeys['ArrowUp'] && compatKeys['ArrowDown'] && compatKeys['ArrowLeft'] && compatKeys['ArrowRight']) {
             this.localPlayer.score.driftScore = 30000
         }
 
         // Update boost system
-        localPlayer.updateBoost(stepMs, !!keys['Shift']);
+        localPlayer.updateBoost(stepMs, actions.BOOST);
         
         // Update local player physics
-        localPlayer.car.update(keys, stepMs);
+        localPlayer.car.update(compatKeys, stepMs);
         localPlayer.car.interpolatePosition();
         localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
         this.session.scores[this.session.trackName] = localPlayer.score;
