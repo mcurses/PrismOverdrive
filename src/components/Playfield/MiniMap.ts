@@ -39,6 +39,8 @@ export default class MiniMap {
         const minimapWidth = this.track.mapSize.width * this.scale;
         const minimapHeight = this.track.mapSize.height * this.scale;
 
+        // Draw checkpoints on minimap (optional)
+        this.drawCheckpointsMini(ctx);
 
         // draw the cars on the minimap
         for (let id in cars) {
@@ -73,6 +75,37 @@ export default class MiniMap {
                 curCar.carType.dimensions.length * this.scale * 2.5);
 
             // Restore the saved state of the canvas
+            ctx.restore();
+        }
+    }
+
+    drawCheckpointsMini(ctx: CanvasRenderingContext2D, activated?: Set<number>): void {
+        if (!this.track.checkpoints) return;
+        
+        for (const checkpoint of this.track.checkpoints) {
+            ctx.save();
+            
+            if (checkpoint.isStart) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.85)'; // Bright green for start
+                ctx.lineWidth = 2;
+            } else if (activated?.has(checkpoint.id)) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Pale green for activated
+                ctx.lineWidth = 1;
+            } else {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; // White with low alpha for inactive
+                ctx.lineWidth = 1;
+            }
+            
+            const ax = checkpoint.a.x * this.scale + this.position.x;
+            const ay = checkpoint.a.y * this.scale + this.position.y;
+            const bx = checkpoint.b.x * this.scale + this.position.x;
+            const by = checkpoint.b.y * this.scale + this.position.y;
+            
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(bx, by);
+            ctx.stroke();
+            
             ctx.restore();
         }
     }

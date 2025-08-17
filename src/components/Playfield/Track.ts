@@ -2,6 +2,7 @@ import {constrain, Dimensions} from "../../utils/Utils";
 import Vector from "../../utils/Vector"
 import {drawPolylineShape} from "./PlayfieldUtils";
 import {createShader, createProgram, createTexture} from "../../utils/WebGLUtils";
+import { Checkpoint, computeCheckpoints } from "../../race/CheckpointGenerator";
 
 
 interface WallHit {
@@ -21,6 +22,7 @@ class Track {
     color1Location: WebGLUniformLocation;
     color2Location: WebGLUniformLocation;
     texture: WebGLTexture;
+    checkpoints: Checkpoint[] = [];
 
     constructor(name: string,trackCtx: CanvasRenderingContext2D, mapSize: Dimensions, boundaries: number[][][]) {
         this.mapSize = mapSize;
@@ -64,7 +66,44 @@ class Track {
 
     setBounds(boundaries: number[][][], ctx) {
         this.boundaries = boundaries;
+        this.computeCheckpoints();
         this.draw(ctx);
+    }
+
+    computeCheckpoints(stride: number = 10): void {
+        this.checkpoints = computeCheckpoints(this.boundaries, { stride });
+    }
+
+    drawCheckpoints(ctx: CanvasRenderingContext2D, opts?: { showIds?: boolean; activated?: Set<number> }): void {
+        for (const checkpoint of this.checkpoints) {
+            ctx.save();
+            
+            if (checkpoint.isStart) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.85)'; // Bright green for start/finish
+                ctx.lineWidth = 3;
+            } else if (opts?.activated?.has(checkpoint.id)) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Pale green for activated
+                ctx.lineWidth = 1;
+            } else {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; // White for inactive
+                ctx.lineWidth = 1;
+            }
+            
+            ctx.beginPath();
+            ctx.moveTo(checkpoint.a.x, checkpoint.a.y);
+            ctx.lineTo(checkpoint.b.x, checkpoint.b.y);
+            ctx.stroke();
+            
+            if (opts?.showIds) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.font = '12px Arial';
+                const midX = (checkpoint.a.x + checkpoint.b.x) / 2;
+                const midY = (checkpoint.a.y + checkpoint.b.y) / 2;
+                ctx.fillText(checkpoint.id.toString(), midX, midY);
+            }
+            
+            ctx.restore();
+        }
     }
 
     getWallHit(car): WallHit {

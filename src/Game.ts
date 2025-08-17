@@ -22,6 +22,7 @@ import TiledCanvas from "./utils/TiledCanvas";
 import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
 import { ParticleSystem } from "./particles/ParticleSystem";
+import { LapCounter } from "./race/LapCounter";
 
 const STEP_MS = 1000 / 120;
 const MAX_STEPS = 8;
@@ -65,6 +66,8 @@ class Game {
     private menu: Menu;
     private _accMs = 0;
     private _lastNow = performance.now();
+    private lapCounter: LapCounter | null = null;
+    private showCheckpoints: boolean = false;
 
     constructor() {
         this.canvasSize = {
@@ -217,6 +220,9 @@ class Game {
             this.menu.toggleCarSelector();
             this.menu.toggleTrackSelector();
         });
+        this.inputController.handleKey('KeyC', () => {
+            this.showCheckpoints = !this.showCheckpoints;
+        });
         this.serverConnection.connect().then(() => {
             // this.createMenuElements();
 
@@ -262,9 +268,18 @@ class Game {
                 this.serverConnection.socketId,
                 this.session.playerName,
                 new Car(500, 1900, 0, carType),
-                new Score()
+                new Score(),
+                this.session.trackName
             );
             this.players[this.serverConnection.socketId] = this.localPlayer;
+            
+            // Create lap counter for local player
+            if (this.track.checkpoints.length > 0) {
+                this.lapCounter = new LapCounter(this.track.checkpoints, {
+                    minLapMs: 10000,
+                    requireAllCheckpoints: true
+                });
+            }
             
             // Apply session settings now that localPlayer exists
             this.setCarType(this.session.carType);
@@ -286,6 +301,9 @@ class Game {
             this.localPlayer.score.driftScore = 30000
         }
 
+        // Capture previous position before physics update
+        const prevPosForLap = { x: localPlayer.car.position.x, y: localPlayer.car.position.y };
+
         // Update boost system
         localPlayer.updateBoost(stepMs, actions.BOOST);
         
@@ -294,6 +312,16 @@ class Game {
         localPlayer.car.interpolatePosition();
         localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
         this.session.scores[this.session.trackName] = localPlayer.score;
+
+        // Capture current position after physics update and update lap timing
+        const curPosForLap = { x: localPlayer.car.position.x, y: localPlayer.car.position.y };
+        if (this.lapCounter) {
+            const lapRes = this.lapCounter.update(prevPosForLap, curPosForLap, Date.now());
+            localPlayer.onLapUpdate(lapRes, this.session.trackName);
+        }
+        
+        // Store current position for any other consumers
+        localPlayer.lastPos = curPosForLap;
 
         const now = performance.now();
         if (localPlayer.car.isDrifting) {
@@ -370,6 +398,15 @@ class Game {
             });
         }
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
+        
+        // Draw checkpoints if debug mode is enabled
+        if (this.showCheckpoints && this.lapCounter) {
+            const lapState = this.lapCounter.getState();
+            this.track.drawCheckpoints(this.ctx, { 
+                showIds: true, 
+                activated: lapState.activated 
+            });
+        }
 
         // Interpolate remote players
         const renderTime = this.serverConnection.serverNowMs() - 100; // 100ms delay
@@ -435,7 +472,11 @@ class Game {
         
         // Draw mini-map
         this.ctx.drawImage(this.miniMapCanvas, this.miniMap.position.x, this.miniMap.position.y);
+        const lapState = this.lapCounter?.getState();
         this.miniMap.draw(this.ctx, Object.values(this.players).map(player => player.car));
+        if (lapState) {
+            this.miniMap.drawCheckpointsMini(this.ctx, lapState.activated);
+        }
         this.highscoreTable.updateScores(
             Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
         );
@@ -443,6 +484,9 @@ class Game {
 
         // Draw boost HUD
         this.drawBoostHUD(this.ctx, localPlayer);
+        
+        // Draw lap timing HUD
+        this.drawLapHUD(this.ctx, localPlayer);
 
         // Debug: show active particle count
         // this.ctx.fillStyle = 'white';
@@ -474,6 +518,42 @@ class Game {
         ctx.fillText('BOOST', x, y - 4);
     }
 
+    private drawLapHUD(ctx: CanvasRenderingContext2D, player: Player): void {
+        const x = 10;
+        const y = 100;
+        const lineHeight = 20;
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.font = '14px Arial';
+        
+        // Best Lap
+        ctx.fillText(`Best Lap: ${this.formatLapTime(player.lapBestMs)}`, x, y);
+        
+        // Last Lap
+        ctx.fillText(`Last Lap: ${this.formatLapTime(player.lapLastMs)}`, x, y + lineHeight);
+        
+        // Current Lap
+        let currentLapTime = null;
+        if (this.lapCounter) {
+            const state = this.lapCounter.getState();
+            if (state.currentLapStartMs !== null) {
+                currentLapTime = Date.now() - state.currentLapStartMs;
+            }
+        }
+        ctx.fillText(`Current Lap: ${this.formatLapTime(currentLapTime)}`, x, y + lineHeight * 2);
+    }
+
+    private formatLapTime(ms: number | null): string {
+        if (ms === null) return "—";
+        
+        const totalSeconds = ms / 1000;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = Math.floor(totalSeconds % 60);
+        const milliseconds = Math.floor(ms % 1000);
+        
+        return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    }
+
     setCarType(carTypeName: string) {
         this.session.carType = carTypeName;
         this.localPlayer.car.carType = CarData.getByName(carTypeName);
@@ -486,10 +566,21 @@ class Game {
         let scaledBounds = scaleTo(bounds, this.mapSize);
 
         this.track.setBounds(scaledBounds, this.trackCtx);
+        this.track.computeCheckpoints(10);
+        
         if (this.miniMap) {
             this.miniMap.setTrack(this.track, this.miniMapCtx);
         }
         this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
+        
+        // Recreate lap counter with new checkpoints
+        if (this.localPlayer && this.track.checkpoints.length > 0) {
+            this.lapCounter = new LapCounter(this.track.checkpoints, {
+                minLapMs: 10000,
+                requireAllCheckpoints: true
+            });
+            this.lapCounter.resetOnTrackChange();
+        }
     }
 
     private setPlayerName(name: string) {

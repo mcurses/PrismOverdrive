@@ -36,7 +36,14 @@ export default class Player {
     readonly BOOST_REGEN_PER_FS = 0.006;
     readonly IDLE_REGEN_PER_SEC = 0;
 
-    constructor(id : string, name: string, car: Car, score: Score) {
+    // Lap timing
+    lastPos: { x: number; y: number } | null = null;
+    lapLastMs: number | null = null;
+    lapBestMs: number | null = null;
+    lapCurrentStartMs: number | null = null;
+    lapCurrentCheckpointId: number | null = null;
+
+    constructor(id : string, name: string, car: Car, score: Score, trackName?: string) {
         this.id = id;
         this.name = name;
         this.car = car;
@@ -45,6 +52,38 @@ export default class Player {
         this.lastDriftTime = 0;
         this.snapshotBuffer = new SnapshotBuffer();
         this.pendingTrailStamps = [];
+        
+        // Initialize lap timing
+        this.lastPos = null;
+        this.lapLastMs = null;
+        this.lapBestMs = this.readBestLapFromStorage(trackName);
+        this.lapCurrentStartMs = null;
+        this.lapCurrentCheckpointId = null;
+    }
+
+    onLapUpdate(result: { crossedStart: boolean; crossedId: number | null; lapCompleted: boolean; lastLapMs: number | null; bestLapMs: number | null; activated: Set<number>; direction: -1 | 0 | 1 }, trackName?: string): void {
+        if (result.lapCompleted) {
+            this.lapLastMs = result.lastLapMs;
+            if (result.bestLapMs !== null) {
+                this.lapBestMs = result.bestLapMs;
+                this.saveBestLapToStorage(trackName, result.bestLapMs);
+            }
+        }
+        
+        if (result.crossedId !== null) {
+            this.lapCurrentCheckpointId = result.crossedId;
+        }
+    }
+
+    private readBestLapFromStorage(trackName?: string): number | null {
+        if (!trackName) return null;
+        const stored = localStorage.getItem(`lap_best_${trackName}`);
+        return stored ? parseInt(stored, 10) : null;
+    }
+
+    private saveBestLapToStorage(trackName?: string, lapMs?: number): void {
+        if (!trackName || lapMs === undefined) return;
+        localStorage.setItem(`lap_best_${trackName}`, lapMs.toString());
     }
 
     addSnapshot(snapshot: Snapshot): void {
@@ -102,6 +141,9 @@ export default class Player {
 
         let carColor = driftColor(this.score);
         this.car.color = new HSLColor(carColor.h, carColor.s + 20, 80);
+        
+        // Update lastPos at end of update
+        this.lastPos = { x: this.car.position.x, y: this.car.position.y };
     }
 
     incrementIdleTime() {
