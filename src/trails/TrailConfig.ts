@@ -13,6 +13,8 @@ export const STAGE_BOUNDARIES = {
     stage4: 60000,
     stage5: 100000,
     stage6: 150000,
+    stage7: 350000,
+    stage8: 500000,
 };
 
 export type StageKey = keyof typeof STAGE_BOUNDARIES;
@@ -180,7 +182,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
     const b3 = bounds('stage3');
     const b4 = bounds('stage4');
     const b5 = bounds('stage5');
-    const b6 = bounds('stage6'); // if you need it later
+    const b6 = bounds('stage6');
     
     return [
         {
@@ -377,6 +379,49 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
                     const a = lerp(0.8, 1.0, clamp(player.score.frameScore / 100, 0, 1)); // 0.8–1.0
                     return { h, s, b, a };
                 }
+            },
+            // Single stage, mixed targets:
+            tireTargets: ['center', 'front-left', 'front-right', 'rear-left', 'rear-right'],
+            // Make center BIG, wheels small/tight
+            perTargetScale: {
+                center: 3.6,
+                'rear-left': 0.3,
+                'rear-right': 0.3,
+                'front-left': 0.2,
+                'front-right': 0.2
+            },
+            baseHz: 22,    // combined with small wheel size → very high wheel Hz
+            minHz: 60,
+            maxHz: 140,
+            invFreqWithWeightExponent: 0.7,
+            angleSource: 'carAngle'
+        },
+        {
+            id: 'stage6-dark',
+            enabled: true,
+            minScore: b6.current,
+            maxScore: b6.next,
+            when: b6.when,
+            weight: (player: Player) => {
+                // One base; perTargetScale will make center huge and wheels tight
+                const base = player.score.frameScore * 0.18 * Math.max(1, player.score.driftScore / 1200) * (1 + player.score.curveScore / 3500);
+                return Math.min(base, MAX_TRAIL_WEIGHT);
+            },
+            progress: (player: Player) => b6.progress(player),
+            color: (player: Player, x: number) => {
+                const fsHue = clamp(player.score.frameScore / 600, 0, 0.2);
+                const easeHue = (t: number) => Math.pow(t, 4);
+                const easeBright = (t: number) => t * t;
+
+                const stage1Gradient = makeGradient(g => {
+                    g.plateau(1e-6, { h: 210, s: 15, b: 0,  a: 1.0 })
+                        .to(1.0,        { h: 175, s: 85, b: 75, a: 0.5 }, easeHue);
+                }, { defaultA: 1, hueWrap: true });
+
+                const hs = stage1Gradient(clamp(x + fsHue, 0, 1));
+                const b = lerp(0, 75, easeBright(x));
+                const a = lerp(1, 0.5, easeBright(x));
+                return { h: hs.h, s: hs.s, b, a };
             },
             // Single stage, mixed targets:
             tireTargets: ['center', 'front-left', 'front-right', 'rear-left', 'rear-right'],

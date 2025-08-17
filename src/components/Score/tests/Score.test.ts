@@ -33,7 +33,8 @@ describe('Score_class', () => {
         const velocity = new Vector(1, 1);
         const angle = 0;
         score.update(velocity, angle);
-        expect(score.driftScore).toBe(score.frameScore);
+        expect(score.driftScore).toBeCloseTo(score.frameScore * score.multiplier);
+        expect(score.multiplier).toBeGreaterThanOrEqual(1);
     });
 
     // Tests that the update method correctly updates the totalScore variable.

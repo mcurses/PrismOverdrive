@@ -7,6 +7,7 @@ export function getDefaultSmokeStages(): SparkStageConfig[] {
     const b1 = bounds('stage1');
     const b3 = bounds('stage3');
     const b5 = bounds('stage5');
+    const b6 = bounds('stage6');
 
     return [
         {
@@ -93,6 +94,43 @@ export function getDefaultSmokeStages(): SparkStageConfig[] {
                     g.plateau(0.1, { h: 0, s: 0, b: 30, a: 0.8 })
                         .to(0.5, { h: 0, s: 0, b: 35, a: 0.6 })
                         .to(1.0, { h: 0, s: 0, b: 40, a: 0.4 });
+                }, { defaultA: 0.6, hueWrap: false });
+                return smokeGradient(x);
+            },
+            perTargetScale: {
+                'rear-left': 1.3,
+                'rear-right': 1.3,
+                'front-left': 0.2,
+                'front-right': 0.2,
+                'center': 0.4
+            },
+            countRange: [4, 9],
+            spreadDeg: 55,
+            speedRange: [20, 45],
+            ttlRangeMs: [1500, 2000],
+            sizeRange: [12, 24],
+            dragPerSecond: 0.92,
+            followFactor: 0.22,
+            jitter: 0.2,
+            render: 'smoke',
+            composite: 'source-over',
+            growthRange: [18, 40],
+            anisotropyRange: [1.6, 2.6],
+            turbulenceAmpRange: [8, 16],
+            turbulenceFreqRange: [1.0, 1.6],
+            swirlPerSecondRange: [1.4, 2.8],
+            alphaProfile: 'tail'
+        },
+        {
+            id: 'stage6-smoke',
+            enabled: true,
+            when: b6.when,
+            progress: (player: Player) => b6.progress(player),
+            style: (player: Player, x: number) => {
+                const smokeGradient = makeGradient(g => {
+                    g.plateau(0.1, { h: 0, s: 0, b: 90, a: 0.8 })
+                        .to(0.5, { h: 0, s: 0, b: 89, a: 0.6 })
+                        .to(1.0, { h: 0, s: 0, b: 85, a: 0.4 });
                 }, { defaultA: 0.6, hueWrap: false });
                 return smokeGradient(x);
             },

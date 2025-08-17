@@ -34,6 +34,7 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
     const b3 = bounds('stage3');
     const b4 = bounds('stage4');
     const b5 = bounds('stage5');
+    const b6 = bounds('stage6');
 
     return [
         {
@@ -167,6 +168,41 @@ export function getDefaultSparkStages(): SparkStageConfig[] {
             enabled: true,
             when: b5.when,
             progress: (player: Player) => b5.progress(player),
+            style: (player: Player, x: number, targetTag?: string) => {
+                if (targetTag === 'center') {
+                    const inFade = x >= 0.9 ? (x - 0.9) / 0.1 : 0;
+                    const b = lerp(20, 40, clamp(inFade, 0, 1));
+                    return { h: 0, s: 5, b, a: 0.9 };
+                } else {
+                    const n = 12;
+                    const fsPhase = clamp(player.score.frameScore / 600, 0, 0.25);
+                    const phase = (x + fsPhase) * n;
+                    const h = (phase * 360) % 360;
+                    return { h, s: 100, b: 90, a: 1.0 };
+                }
+            },
+            perTargetScale: {
+                'center': 2.2,
+                'rear-left': 1.8,
+                'rear-right': 1.8,
+                'front-left': 0.7,
+                'front-right': 0.7
+            },
+            countRange: [15, 30],
+            spreadDeg: 80,
+            speedRange: [120, 250],
+            ttlRangeMs: [500, 1200],
+            sizeRange: [3, 6],
+            dragPerSecond: 0.5,
+            followFactor: 0.2,
+            jitter: 0.4,
+            render: 'spark'
+        },
+        {
+            id: 'stage6-sparks',
+            enabled: true,
+            when: b6.when,
+            progress: (player: Player) => b6.progress(player),
             style: (player: Player, x: number, targetTag?: string) => {
                 if (targetTag === 'center') {
                     const inFade = x >= 0.9 ? (x - 0.9) / 0.1 : 0;

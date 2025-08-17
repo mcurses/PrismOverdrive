@@ -33,7 +33,7 @@ export default class Player {
     readonly BOOST_MAX = 1;
     readonly BOOST_MULTIPLIER = 1.8;
     readonly BOOST_DRAIN_PER_SEC = 0.6;
-    readonly BOOST_REGEN_PER_FS = 0.012;
+    readonly BOOST_REGEN_PER_FS = 0.006;
     readonly IDLE_REGEN_PER_SEC = 0;
 
     constructor(id : string, name: string, car: Car, score: Score) {
@@ -65,7 +65,7 @@ export default class Player {
         
         // Regenerate boost
         if (this.car.isDrifting) {
-            this.boostCharge += this.score.frameScore * this.BOOST_REGEN_PER_FS * dt;
+            this.boostCharge += this.score.frameScore * this.BOOST_REGEN_PER_FS * this.score.multiplier * dt;
         } else {
             this.boostCharge += this.IDLE_REGEN_PER_SEC * dt;
         }
