@@ -28,15 +28,26 @@ export function computeCheckpoints(boundaries: number[][][], options?: Checkpoin
         return [];
     }
 
-    // Find inner and outer rings by absolute area (shoelace formula)
-    const rings = boundaries.map(ring => ({
-        points: ring,
-        area: Math.abs(computeSignedArea(ring))
+    // --- Robust ring selection ---
+    const rings = boundaries.map(points => ({
+        points,
+        area: Math.abs(computeSignedArea(points))
     }));
+    
+    // Sort rings by area
+    rings.sort((a, b) => b.area - a.area);
+    
+    // The larger ring is the outer track boundary, smaller ring is inner obstacle
+    const outerRing = rings[0].points;  // Larger ring = outer track boundary
+    const innerRing = rings[1].points;  // Smaller ring = inner obstacle/island
+    
+    console.log(`Using ring with area ${rings[0].area.toFixed(2)} as outer track boundary`);
+    console.log(`Using ring with area ${rings[1].area.toFixed(2)} as inner obstacle`);
 
-    rings.sort((a, b) => a.area - b.area);
-    const innerRing = rings[0].points;
-    const outerRing = rings[1].points;
+    if (!innerRing || !outerRing) {
+        console.warn('Insufficient rings found for checkpoint generation');
+        return [];
+    }
 
     // Resample both rings to same N
     const resampledInner = resampleClosedPolyline(innerRing, N);
@@ -48,20 +59,36 @@ export function computeCheckpoints(boundaries: number[][][], options?: Checkpoin
     // Compute DTW path with Sakoe-Chiba band
     const warpingPath = computeDTWPath(resampledInner, resampledOuter, bestOffset, window, N);
     
-    // Generate checkpoints from warping path
+    // Helper: map a desired inner index to a suitable outer index using the warping path
+    const outerIdxForInner = (targetInnerIdx: number): number => {
+        for (let k = 0; k < warpingPath.length; k++) {
+            const [innerIdx, outerIdx] = warpingPath[k];
+            if (innerIdx >= targetInnerIdx) return outerIdx % N;
+        }
+        // Fallback: last pair
+        return warpingPath[warpingPath.length - 1][1] % N;
+    };
+
+    // Generate checkpoints uniformly by inner arc length (indices on resampledInner)
     const checkpoints: Checkpoint[] = [];
     let checkpointId = 0;
+    let validCount = 0;
+    let totalCount = 0;
     
-    for (let i = 0; i < warpingPath.length; i += stride) {
-        const [innerIdx, outerIdx] = warpingPath[i];
+    for (let innerIdx = 0; innerIdx < N; innerIdx += stride) {
+        const outerIdx = outerIdxForInner(innerIdx);
         const innerPoint = resampledInner[innerIdx];
-        const outerPoint = resampledOuter[outerIdx % N]; // Handle wrapped indices
-        
+        const outerPoint = resampledOuter[outerIdx];
+
         const a = { x: innerPoint[0], y: innerPoint[1] };
         const b = { x: outerPoint[0], y: outerPoint[1] };
+
+        totalCount++;
         
         // Validate segment stays in track
-        if (segmentInsideTrack(innerRing, outerRing, a, b, validationSamples)) {
+        const isValid = segmentInsideTrack(innerRing, outerRing, a, b, validationSamples);
+        if (isValid) {
+            validCount++;
             checkpoints.push({
                 id: checkpointId,
                 a,
@@ -71,6 +98,8 @@ export function computeCheckpoints(boundaries: number[][][], options?: Checkpoin
             checkpointId++;
         }
     }
+    
+    console.log(`Generated ${checkpoints.length} checkpoints from ${validCount}/${totalCount} valid segments`);
 
     return checkpoints;
 }
@@ -193,19 +222,58 @@ export function segmentInsideTrack(
     outer: number[][], 
     a: { x: number; y: number }, 
     b: { x: number; y: number }, 
-    samples: number = 7
+    samples: number = 7,
+    edgeEps: number = 0.001
 ): boolean {
-    for (let i = 0; i < samples; i++) {
-        const t = i / (samples - 1);
+    for (let i = 1; i <= samples; i++) {
+        const t = i / (samples + 1);
         const x = a.x + t * (b.x - a.x);
         const y = a.y + t * (b.y - a.y);
         
         const insideOuter = pointInPolygon(outer, x, y);
-        const insideInner = pointInPolygon(inner, x, y);
+        const nearInnerEdge = pointNearPolyline(inner, x, y, edgeEps);
+        const insideInner = !nearInnerEdge && pointInPolygon(inner, x, y);
         
+        // Point must be inside outer boundary and NOT inside inner obstacle
         if (!insideOuter || insideInner) {
             return false;
         }
     }
     return true;
+}
+
+function pointNearPolyline(poly: number[][], x: number, y: number, eps: number): boolean {
+    for (let i = 0; i < poly.length; i++) {
+        const j = (i + 1) % poly.length;
+        const ax = poly[i][0];
+        const ay = poly[i][1];
+        const bx = poly[j][0];
+        const by = poly[j][1];
+        
+        if (pointSegmentDistSq(ax, ay, bx, by, x, y) <= eps * eps) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function pointSegmentDistSq(ax: number, ay: number, bx: number, by: number, px: number, py: number): number {
+    const abx = bx - ax;
+    const aby = by - ay;
+    const apx = px - ax;
+    const apy = py - ay;
+    
+    const ab2 = abx * abx + aby * aby;
+    if (ab2 === 0) {
+        // Degenerate segment - distance to point A
+        return apx * apx + apy * apy;
+    }
+    
+    const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2));
+    const projx = ax + t * abx;
+    const projy = ay + t * aby;
+    
+    const dx = px - projx;
+    const dy = py - projy;
+    return dx * dx + dy * dy;
 }

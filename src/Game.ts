@@ -399,14 +399,6 @@ class Game {
         }
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
         
-        // Draw checkpoints if debug mode is enabled
-        if (this.showCheckpoints && this.lapCounter) {
-            const lapState = this.lapCounter.getState();
-            this.track.drawCheckpoints(this.ctx, { 
-                showIds: true, 
-                activated: lapState.activated 
-            });
-        }
 
         // Interpolate remote players
         const renderTime = this.serverConnection.serverNowMs() - 100; // 100ms delay
@@ -465,6 +457,15 @@ class Game {
             // Remote players already have their position set from network interpolation
             // Local player position is already updated in simStep
             player.car.render(this.ctx);
+        }
+
+        // Draw checkpoints if debug mode is enabled (after cars so they appear on top)
+        if (this.showCheckpoints && this.lapCounter) {
+            const lapState = this.lapCounter.getState();
+            this.track.drawCheckpoints(this.ctx, { 
+                showIds: true, 
+                activated: lapState.activated 
+            });
         }
 
         // Reset transform for UI drawing

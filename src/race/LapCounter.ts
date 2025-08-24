@@ -114,13 +114,14 @@ export class LapCounter {
                             this.state.bestLapMs = this.state.lastLapMs;
                             result.bestLapMs = this.state.bestLapMs;
                         }
-                        
-                        // Reset for next lap
-                        this.state.activated.clear();
-                        this.state.direction = 0;
-                        result.activated = new Set();
-                        result.direction = 0;
                     }
+                    
+                    // Always reset for new lap attempt when crossing start
+                    this.state.activated.clear();
+                    this.state.direction = 0;
+                    this.state.expectedIndex = -1;
+                    result.activated = new Set();
+                    result.direction = 0;
                     
                     // Always update start timing
                     this.state.currentLapStartMs = nowMs;
