@@ -23,6 +23,13 @@ import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
 import { ParticleSystem } from "./particles/ParticleSystem";
 import { LapCounter } from "./race/LapCounter";
+import { EditorState } from "./editor/EditorState";
+import { EditorViewport } from "./editor/EditorViewport";
+import { EditorPath } from "./editor/EditorPath";
+import { BoundsGenerator } from "./editor/BoundsGenerator";
+import { EditorUI, EditorTool } from "./editor/EditorUI";
+import { Serializer } from "./editor/Serializer";
+import { Integrations } from "./editor/Integrations";
 
 const STEP_MS = 1000 / 120;
 const MAX_STEPS = 8;
@@ -68,6 +75,18 @@ class Game {
     private _lastNow = performance.now();
     private lapCounter: LapCounter | null = null;
     private showCheckpoints: boolean = false;
+    
+    // Editor system
+    private editorMode: boolean = false;
+    private editorState: EditorState | null = null;
+    private editorViewport: EditorViewport | null = null;
+    private editorPath: EditorPath | null = null;
+    private boundsGenerator: BoundsGenerator | null = null;
+    private editorUI: EditorUI | null = null;
+    private editorCanvas: HTMLCanvasElement | null = null;
+    private editorCtx: CanvasRenderingContext2D | null = null;
+    private currentTool: EditorTool = 'pen';
+    private selectedNodeId: string | null = null;
 
     constructor() {
         this.canvasSize = {
@@ -223,6 +242,15 @@ class Game {
         this.inputController.handleKey('KeyC', () => {
             this.showCheckpoints = !this.showCheckpoints;
         });
+        
+        this.inputController.handleKeyP(() => {
+            this.toggleBuildPlayMode();
+        });
+        
+        // Listen for editor toggle from menu
+        window.addEventListener('toggleEditor', () => {
+            this.toggleBuildPlayMode();
+        });
         this.serverConnection.connect().then(() => {
             // this.createMenuElements();
 
@@ -231,6 +259,8 @@ class Game {
 
         this.loadTrack(this.session.trackName)
 
+        // Initialize editor system
+        this.initializeEditor();
 
         requestAnimationFrame(this.frame);
 
@@ -375,6 +405,11 @@ class Game {
     }
 
     private renderFrame(): void {
+        if (this.editorMode) {
+            this.renderEditor();
+            return;
+        }
+        
         if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
             return;
         }
@@ -555,32 +590,426 @@ class Game {
         return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
     }
 
+    private initializeEditor(): void {
+        // Create editor canvas
+        this.editorCanvas = document.createElement('canvas');
+        this.editorCanvas.width = this.canvasSize.width;
+        this.editorCanvas.height = this.canvasSize.height;
+        this.editorCanvas.style.position = 'absolute';
+        this.editorCanvas.style.top = '0';
+        this.editorCanvas.style.left = '0';
+        this.editorCanvas.style.transformOrigin = '0 0';
+        this.editorCanvas.style.transform = 'scale(.67)';
+        this.editorCanvas.style.display = 'none';
+        this.editorCanvas.style.zIndex = '10';
+        
+        document.getElementById('sketch-holder')?.appendChild(this.editorCanvas);
+        this.editorCtx = this.editorCanvas.getContext('2d')!;
+        
+        // Initialize editor components
+        this.editorState = new EditorState();
+        this.editorViewport = new EditorViewport(this.editorCanvas);
+        this.editorPath = new EditorPath();
+        this.boundsGenerator = new BoundsGenerator();
+        
+        // Setup editor UI
+        this.editorUI = new EditorUI({
+            onToolChange: (tool) => this.currentTool = tool,
+            onWidthChange: (width) => {
+                if (this.editorState) {
+                    this.editorState.defaultWidth = width;
+                    this.editorState.markDirty();
+                }
+            },
+            onResampleChange: (n) => {
+                if (this.editorState) {
+                    this.editorState.resampleN = n;
+                    this.editorState.markDirty();
+                }
+            },
+            onPlay: () => this.toggleBuildPlayMode(),
+            onSave: () => this.saveCurrentTrack(),
+            onExport: () => this.exportCurrentTrack(),
+            onImport: (file) => this.importTrack(file),
+            onRebuildFromCenterline: () => this.rebuildFromCenterline()
+        });
+        
+        // Setup editor input handlers
+        this.setupEditorInput();
+    }
+
+    private setupEditorInput(): void {
+        if (!this.editorCanvas) return;
+        
+        this.editorCanvas.addEventListener('mousedown', (e) => this.handleEditorMouseDown(e));
+        this.editorCanvas.addEventListener('mousemove', (e) => this.handleEditorMouseMove(e));
+        this.editorCanvas.addEventListener('mouseup', (e) => this.handleEditorMouseUp(e));
+    }
+
+    private handleEditorMouseDown(e: MouseEvent): void {
+        if (!this.editorViewport || !this.editorState) return;
+        
+        const rect = this.editorCanvas!.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const world = this.editorViewport.screenToWorld(screenX, screenY);
+        
+        switch (this.currentTool) {
+            case 'pen':
+                this.handlePenTool(world.x, world.y);
+                break;
+            case 'select':
+                this.handleSelectTool(world.x, world.y);
+                break;
+            case 'finish':
+                this.handleFinishTool(world.x, world.y);
+                break;
+        }
+    }
+
+    private handleEditorMouseMove(e: MouseEvent): void {
+        // Handle dragging operations
+    }
+
+    private handleEditorMouseUp(e: MouseEvent): void {
+        // Handle end of drag operations
+    }
+
+    private handlePenTool(x: number, y: number): void {
+        if (!this.editorState || !this.editorPath) return;
+        
+        const node = this.editorPath.addNode(x, y, 'smooth');
+        this.editorState.addNode(node);
+    }
+
+    private handleSelectTool(x: number, y: number): void {
+        // Find and select nearest node
+        if (!this.editorState) return;
+        
+        let closestNode: string | null = null;
+        let closestDistance = Infinity;
+        
+        for (const node of this.editorState.centerPath) {
+            const distance = Math.sqrt(Math.pow(node.x - x, 2) + Math.pow(node.y - y, 2));
+            if (distance < closestDistance && distance < 20) {
+                closestDistance = distance;
+                closestNode = node.id;
+            }
+        }
+        
+        this.selectedNodeId = closestNode;
+    }
+
+    private handleFinishTool(x: number, y: number): void {
+        if (!this.editorState || !this.editorPath) return;
+        
+        // Find closest point on centerline
+        const closest = this.editorPath.getClosestPoint({ x, y });
+        if (closest) {
+            // Create finish line perpendicular to centerline
+            const normal = this.editorPath.getNormalAt(closest.t);
+            if (normal) {
+                const halfWidth = this.editorState.defaultWidth / 2;
+                const finishLine = {
+                    a: {
+                        x: closest.point.x - normal.x * halfWidth,
+                        y: closest.point.y - normal.y * halfWidth
+                    },
+                    b: {
+                        x: closest.point.x + normal.x * halfWidth,
+                        y: closest.point.y + normal.y * halfWidth
+                    }
+                };
+                this.editorState.setFinishLine(finishLine);
+            }
+        }
+    }
+
+    private renderEditor(): void {
+        if (!this.editorCtx || !this.editorViewport || !this.editorState) return;
+        
+        // Clear canvas
+        this.editorCtx.setTransform(1, 0, 0, 1, 0, 0);
+        this.editorCtx.fillStyle = '#1a1a1a';
+        this.editorCtx.fillRect(0, 0, this.editorCanvas!.width, this.editorCanvas!.height);
+        
+        // Apply viewport transform
+        this.editorViewport.applyTransform(this.editorCtx);
+        
+        // Draw grid
+        this.drawGrid();
+        
+        // Draw ghost preview
+        this.drawGhostPreview();
+        
+        // Draw centerline nodes
+        this.drawCenterlineNodes();
+        
+        // Draw finish line
+        this.drawFinishLine();
+        
+        // Reset transform for UI
+        this.editorViewport.resetTransform(this.editorCtx);
+    }
+
+    private drawGrid(): void {
+        if (!this.editorCtx || !this.editorViewport) return;
+        
+        const transform = this.editorViewport.getTransform();
+        const gridSize = 100;
+        const alpha = Math.min(0.3, transform.scale * 0.3);
+        
+        this.editorCtx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        this.editorCtx.lineWidth = 1 / transform.scale;
+        
+        const startX = Math.floor(-transform.x / transform.scale / gridSize) * gridSize;
+        const endX = Math.ceil((this.editorCanvas!.width - transform.x) / transform.scale / gridSize) * gridSize;
+        const startY = Math.floor(-transform.y / transform.scale / gridSize) * gridSize;
+        const endY = Math.ceil((this.editorCanvas!.height - transform.y) / transform.scale / gridSize) * gridSize;
+        
+        this.editorCtx.beginPath();
+        for (let x = startX; x <= endX; x += gridSize) {
+            this.editorCtx.moveTo(x, startY);
+            this.editorCtx.lineTo(x, endY);
+        }
+        for (let y = startY; y <= endY; y += gridSize) {
+            this.editorCtx.moveTo(startX, y);
+            this.editorCtx.lineTo(endX, y);
+        }
+        this.editorCtx.stroke();
+    }
+
+    private drawGhostPreview(): void {
+        if (!this.editorCtx || !this.boundsGenerator || !this.editorState) return;
+        
+        const preview = this.boundsGenerator.generateGhostPreview(this.editorState);
+        
+        // Draw centerline
+        if (preview.centerline.length > 1) {
+            this.editorCtx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+            this.editorCtx.lineWidth = 2;
+            this.editorCtx.beginPath();
+            this.editorCtx.moveTo(preview.centerline[0][0], preview.centerline[0][1]);
+            for (let i = 1; i < preview.centerline.length; i++) {
+                this.editorCtx.lineTo(preview.centerline[i][0], preview.centerline[i][1]);
+            }
+            this.editorCtx.closePath();
+            this.editorCtx.stroke();
+        }
+        
+        // Draw bounds
+        this.drawBoundsPreview(preview.outer, 'rgba(255, 255, 255, 0.5)');
+        this.drawBoundsPreview(preview.inner, 'rgba(255, 255, 255, 0.5)');
+    }
+
+    private drawBoundsPreview(bounds: number[][], color: string): void {
+        if (!this.editorCtx || bounds.length < 2) return;
+        
+        this.editorCtx.strokeStyle = color;
+        this.editorCtx.lineWidth = 1;
+        this.editorCtx.beginPath();
+        this.editorCtx.moveTo(bounds[0][0], bounds[0][1]);
+        for (let i = 1; i < bounds.length; i++) {
+            this.editorCtx.lineTo(bounds[i][0], bounds[i][1]);
+        }
+        this.editorCtx.closePath();
+        this.editorCtx.stroke();
+    }
+
+    private drawCenterlineNodes(): void {
+        if (!this.editorCtx || !this.editorState || !this.editorViewport) return;
+        
+        const transform = this.editorViewport.getTransform();
+        const nodeSize = 8 / transform.scale;
+        
+        for (const node of this.editorState.centerPath) {
+            this.editorCtx.fillStyle = node.id === this.selectedNodeId ? 'rgba(255, 100, 100, 0.8)' : 'rgba(100, 150, 255, 0.8)';
+            this.editorCtx.beginPath();
+            this.editorCtx.arc(node.x, node.y, nodeSize, 0, Math.PI * 2);
+            this.editorCtx.fill();
+            
+            this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            this.editorCtx.lineWidth = 2 / transform.scale;
+            this.editorCtx.stroke();
+        }
+    }
+
+    private drawFinishLine(): void {
+        if (!this.editorCtx || !this.editorState?.finishLine) return;
+        
+        const line = this.editorState.finishLine;
+        this.editorCtx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+        this.editorCtx.lineWidth = 3;
+        this.editorCtx.beginPath();
+        this.editorCtx.moveTo(line.a.x, line.a.y);
+        this.editorCtx.lineTo(line.b.x, line.b.y);
+        this.editorCtx.stroke();
+    }
+
+    private toggleBuildPlayMode(): void {
+        this.editorMode = !this.editorMode;
+        
+        if (this.editorMode) {
+            // Switch to Build mode
+            this.canvas.style.display = 'none';
+            if (this.editorCanvas) {
+                this.editorCanvas.style.display = 'block';
+            }
+            
+            // Load current track into editor if it's a custom track
+            if (Integrations.isCustomTrack(this.session.trackName)) {
+                const bundle = Integrations.getCustomTrackBundle(this.session.trackName);
+                if (bundle && this.editorState) {
+                    this.editorState.fromBundle(bundle);
+                    this.editorPath?.setNodes(this.editorState.centerPath);
+                    this.editorUI?.updateValues(this.editorState);
+                }
+            } else {
+                // Start with empty track
+                this.editorState = new EditorState();
+                this.editorPath?.setNodes([]);
+            }
+        } else {
+            // Switch to Play mode
+            this.canvas.style.display = 'block';
+            if (this.editorCanvas) {
+                this.editorCanvas.style.display = 'none';
+            }
+            
+            // Generate bounds and switch to play
+            if (this.editorState && this.boundsGenerator) {
+                const bounds = this.boundsGenerator.generateBounds(this.editorState);
+                if (bounds.length > 0) {
+                    // Create bundle from editor state
+                    const bundle = this.editorState.toBundle();
+                    
+                    // Set derived data
+                    this.editorState.setDerivedBounds(bounds, this.track.checkpoints || []);
+                    bundle.derived.bounds = bounds;
+                    bundle.derived.checkpoints = this.track.checkpoints || [];
+                    
+                    // Persist the track
+                    Serializer.saveToLocalStorage(bundle);
+                    TrackData.refreshCustomTracks();
+                    
+                    // Switch session to the real id and load it
+                    this.session.trackName = bundle.id;
+                    this.loadTrack(bundle.id);
+                    
+                    // Spawn car at finish line if available
+                    if (this.editorState.finishLine && this.localPlayer) {
+                        const spawn = Integrations.prepareForPlayMode(bundle);
+                        this.localPlayer.car.position.x = spawn.spawnPosition.x;
+                        this.localPlayer.car.position.y = spawn.spawnPosition.y;
+                        this.localPlayer.car.angle = spawn.spawnPosition.angle;
+                    }
+                    
+                    // Reset lap counter
+                    if (this.track.checkpoints.length > 0) {
+                        this.lapCounter = new LapCounter(this.track.checkpoints);
+                    }
+                }
+            }
+        }
+    }
+
+    private saveCurrentTrack(): void {
+        if (!this.editorState || !this.boundsGenerator) return;
+        
+        // Generate current bounds
+        const bounds = this.boundsGenerator.generateBounds(this.editorState);
+        this.editorState.setDerivedBounds(bounds, this.track.checkpoints || []);
+        
+        // Save to localStorage
+        const bundle = this.editorState.toBundle();
+        Serializer.saveToLocalStorage(bundle);
+        
+        // Refresh track data
+        TrackData.refreshCustomTracks();
+        
+        console.log('Track saved:', bundle.name);
+    }
+
+    private exportCurrentTrack(): void {
+        if (!this.editorState || !this.boundsGenerator) return;
+        
+        // Generate current bounds
+        const bounds = this.boundsGenerator.generateBounds(this.editorState);
+        this.editorState.setDerivedBounds(bounds, this.track.checkpoints || []);
+        
+        // Export to file
+        const bundle = this.editorState.toBundle();
+        Serializer.exportToFile(bundle);
+    }
+
+    private async importTrack(file: File): Promise<void> {
+        try {
+            const bundle = await Serializer.importFromFile(file);
+            
+            if (this.editorState) {
+                this.editorState.fromBundle(bundle);
+                this.editorPath?.setNodes(this.editorState.centerPath);
+                this.editorUI?.updateValues(this.editorState);
+            }
+            
+            // Save imported track
+            Serializer.saveToLocalStorage(bundle);
+            TrackData.refreshCustomTracks();
+            
+            console.log('Track imported:', bundle.name);
+        } catch (error) {
+            console.error('Failed to import track:', error);
+        }
+    }
+
+    private rebuildFromCenterline(): void {
+        if (!this.editorState) return;
+        
+        this.editorState.clearManualBounds();
+        console.log('Manual bounds cleared, will rebuild from centerline');
+    }
+
     setCarType(carTypeName: string) {
         this.session.carType = carTypeName;
         this.localPlayer.car.carType = CarData.getByName(carTypeName);
     }
 
     loadTrack(name: string) {
-        this.session.trackName = name;
+        try {
+            const trackData = TrackData.getByName(name);
+            this.session.trackName = name;
 
-        let bounds = TrackData.getByName(name).bounds;
-        let scaledBounds = scaleTo(bounds, this.mapSize);
+            let bounds = trackData.bounds;
+            let scaledBounds = scaleTo(bounds, this.mapSize);
 
-        this.track.setBounds(scaledBounds, this.trackCtx);
-        this.track.computeCheckpoints(10);
-        
-        if (this.miniMap) {
-            this.miniMap.setTrack(this.track, this.miniMapCtx);
-        }
-        this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
-        
-        // Recreate lap counter with new checkpoints
-        if (this.localPlayer && this.track.checkpoints.length > 0) {
-            this.lapCounter = new LapCounter(this.track.checkpoints, {
-                minLapMs: 10000,
-                requireAllCheckpoints: true
-            });
-            this.lapCounter.resetOnTrackChange();
+            this.track.setBounds(scaledBounds, this.trackCtx);
+            this.track.computeCheckpoints(10);
+            
+            if (this.miniMap) {
+                this.miniMap.setTrack(this.track, this.miniMapCtx);
+            }
+            this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
+            
+            // Recreate lap counter with new checkpoints
+            if (this.localPlayer && this.track.checkpoints.length > 0) {
+                this.lapCounter = new LapCounter(this.track.checkpoints, {
+                    minLapMs: 10000,
+                    requireAllCheckpoints: true
+                });
+                this.lapCounter.resetOnTrackChange();
+            }
+        } catch (error) {
+            console.warn(`Track not found: ${name}. Falling back to default track.`);
+            
+            // Find a safe fallback
+            const fallback = TrackData.tracks[0]?.name;
+            if (fallback && fallback !== name) {
+                this.session.trackName = fallback;
+                this.loadTrack(fallback);
+            } else {
+                console.error('No tracks available');
+                return;
+            }
         }
     }
 

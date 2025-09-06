@@ -48,6 +48,10 @@ export class InputController {
         this.keyHandlers.set(name, handler);
     }
 
+    handleKeyP(handler: Function) {
+        this.handleKey('KeyP', handler);
+    }
+
     destroy() {
         window.removeEventListener('keydown', this.onKeyDown);
         window.removeEventListener('keyup', this.onKeyUp);

@@ -13,13 +13,19 @@
   "license": "ISC",
   "dependencies": {
     "@larsgw/svg-path": "^0.1.0",
+    "@types/paper": "^0.11.14",
+    "@types/rbush": "^3.0.4",
     "cors": "^2.8.5",
     "directory-tree": "^3.5.1",
     "express": "^4.18.2",
     "p5": "^1.6.0",
+    "paper": "^0.12.18",
     "pbjs": "^0.0.14",
+    "polygon-clipping": "^0.15.7",
     "protobufjs": "^7.2.3",
+    "rbush": "^3.0.1",
     "ts-morph": "^18.0.0",
+    "wheel-gestures": "^2.2.48",
     "ws": "^8.18.3"
   },
   "devDependencies": {

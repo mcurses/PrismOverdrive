@@ -110,13 +110,30 @@ class Menu {
         for (let track of TrackData.tracks) {
             let option = document.createElement('option');
             option.value = track.name;
-            option.text = track.name;
+            option.text = TrackData.getDisplayName(track.name);
             this.trackSelector.appendChild(option);
         }
         this.trackSelector.value = this.session.trackName;
 
         this.trackSelector.addEventListener('change', () => this.loadTrack(this.trackSelector.value));
         inputWrapper.appendChild(this.trackSelector);
+
+        // Editor button
+        const editorBtn = document.createElement('button');
+        editorBtn.textContent = 'Editor';
+        editorBtn.style.background = 'rgba(0, 120, 255, 0.8)';
+        editorBtn.style.border = '1px solid rgba(0, 120, 255, 1)';
+        editorBtn.style.borderRadius = '4px';
+        editorBtn.style.color = 'white';
+        editorBtn.style.padding = '4px 8px';
+        editorBtn.style.fontSize = '12px';
+        editorBtn.style.fontFamily = 'monospace';
+        editorBtn.style.cursor = 'pointer';
+        editorBtn.addEventListener('click', () => {
+            // Dispatch custom event for editor toggle
+            window.dispatchEvent(new CustomEvent('toggleEditor'));
+        });
+        inputWrapper.appendChild(editorBtn);
     }
 
     toggleCarSelector() {
