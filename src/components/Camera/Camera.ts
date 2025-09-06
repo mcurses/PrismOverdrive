@@ -4,6 +4,7 @@ import Vector from "../../utils/Vector";
 export default class Camera {
     private readonly canvasSize: Dimensions;
     // private readonly mapSize: Dimensions;
+    private scale: number = 1;
     position: Vector;
     target: Vector;
 
@@ -14,10 +15,14 @@ export default class Camera {
         this.target = new Vector(0, 0);
     }
 
+    setScale(scale: number): void {
+        this.scale = scale;
+    }
+
     moveTowards(playerPos: Vector) {
-        // Calculate the desired camera position
-        this.target.x = -playerPos.x + this.canvasSize.width / 2
-        this.target.y = -playerPos.y + this.canvasSize.height / 2
+        // Calculate the desired camera position accounting for zoom
+        this.target.x = -playerPos.x + (this.canvasSize.width / (2 * this.scale))
+        this.target.y = -playerPos.y + (this.canvasSize.height / (2 * this.scale))
         this.position.x = lerp(this.position.x, this.target.x, 0.2)
         this.position.y = lerp(this.position.y, this.target.y, 0.2)
 

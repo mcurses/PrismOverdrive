@@ -33,6 +33,7 @@ import { Integrations } from "./editor/Integrations";
 
 const STEP_MS = 1000 / 120;
 const MAX_STEPS = 8;
+const BASE_VISIBLE_FACTOR = 1.5 * 0.67 * 0.991; // 0.995955
 
 class Game {
     canvasSize: Dimensions;
@@ -75,6 +76,7 @@ class Game {
     private _lastNow = performance.now();
     private lapCounter: LapCounter | null = null;
     private showCheckpoints: boolean = false;
+    private worldScale: number = .67;
     
     // Editor system
     private editorMode: boolean = false;
@@ -90,8 +92,8 @@ class Game {
 
     constructor() {
         this.canvasSize = {
-            width: 1.5 * window.innerWidth * .991,
-            height: 1.5 * window.innerHeight * .991,
+            width: window.innerWidth * BASE_VISIBLE_FACTOR,
+            height: window.innerHeight * BASE_VISIBLE_FACTOR,
         }
         this.miniMapDimensions = {
             width: 200,
@@ -147,6 +149,7 @@ class Game {
         // Create track with placeholder bounds - loadTrack will set the correct scaled bounds
         this.track = new Track(this.session.trackName, this.trackCtx, this.mapSize, [])
         this.camera = new Camera({canvasSize: this.canvasSize});
+        this.camera.setScale(this.worldScale);
         this.inputController = new InputController(InputType.KEYBOARD);
         this.highscoreTable = new HighScoreTable({
             position: { x: 10, y: 10 }
@@ -167,8 +170,6 @@ class Game {
         this.canvas = document.createElement('canvas');
         this.canvas.width = this.canvasSize.width;
         this.canvas.height = this.canvasSize.height;
-        this.canvas.style.transformOrigin = '0 0';
-        this.canvas.style.transform = 'scale(.67)';
         document.querySelector('body').style.width = '99vw'
         document.querySelector('body').style.height = '99vh'
         document.querySelector('body').style.overflow = 'hidden'
@@ -232,7 +233,7 @@ class Game {
             loadTrack: (trackName) => this.loadTrack(trackName),
             setCarType: (carType) => this.setCarType(carType),
             setPlayerName: (name) => this.setPlayerName(name),
-            position: { x: this.canvasSize.width * 0.67 - 400, y: this.canvasSize.height * 0.67 - 40 }
+            position: { x: this.canvasSize.width - 400, y: this.canvasSize.height - 40 }
         });
         this.inputController.handleKey('Escape', () => {
             this.menu.toggleNameInput();
@@ -396,8 +397,8 @@ class Game {
             const viewRect = {
                 x: -this.camera.position.x,
                 y: -this.camera.position.y,
-                w: this.canvasSize.width,
-                h: this.canvasSize.height
+                w: this.canvasSize.width / this.worldScale,
+                h: this.canvasSize.height / this.worldScale
             };
 
             this.particleSystem.update(stepMs, carVelNearFn, viewRect);
@@ -415,6 +416,9 @@ class Game {
         }
 
         const localPlayer = this.localPlayer;
+        
+        // Update camera with current world scale
+        this.camera.setScale(this.worldScale);
         this.camera.moveTowards(localPlayer.car.position);
 
         // Clear the canvas and reset transform
@@ -422,14 +426,15 @@ class Game {
         this.ctx.fillStyle = 'rgb(0, 0, 0)';
         this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
-        // Apply the camera translation
+        // Apply world transform with scale first, then camera translation
+        this.ctx.setTransform(this.worldScale, 0, 0, this.worldScale, 0, 0);
         this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
         
         // Draw world-space elements in order: background → track → trails → cars
         if (this.background) {
             this.background.draw(this.ctx, this.camera.position, {
-                width: this.ctx.canvas.width,
-                height: this.ctx.canvas.height
+                width: this.canvasSize.width / this.worldScale,
+                height: this.canvasSize.height / this.worldScale
             });
         }
         this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
@@ -471,7 +476,7 @@ class Game {
             }
         }
         
-        this.trails.drawTo(this.ctx, -this.camera.position.x, -this.camera.position.y, this.canvasSize.width, this.canvasSize.height);
+        this.trails.drawTo(this.ctx, -this.camera.position.x, -this.camera.position.y, this.canvasSize.width / this.worldScale, this.canvasSize.height / this.worldScale);
 
         if (this.trailsOverdrawCounter > 200) {
             this.trailsOverdrawCounter = 0;
@@ -503,7 +508,7 @@ class Game {
             });
         }
 
-        // Reset transform for UI drawing
+        // Reset transform for UI drawing (so UI doesn't scale with world)
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         
         // Draw mini-map
@@ -967,6 +972,11 @@ class Game {
         
         this.editorState.clearManualBounds();
         console.log('Manual bounds cleared, will rebuild from centerline');
+    }
+
+    setWorldScale(scale: number): void {
+        this.worldScale = scale;
+        this.camera.setScale(scale);
     }
 
     setCarType(carTypeName: string) {
