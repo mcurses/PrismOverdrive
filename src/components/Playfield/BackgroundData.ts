@@ -31,7 +31,7 @@ class BackgroundData {
     private starField = (): ParallaxLayer[] => [
         {
             img: this.images.parallaxLayer3,
-            z: .015,
+            z: .85,
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
@@ -39,7 +39,7 @@ class BackgroundData {
         },
         {
             img: this.images.parallaxLayer2,
-            z: .18,
+            z: .95,
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
@@ -47,7 +47,7 @@ class BackgroundData {
         },
         {
             img: this.images.parallaxLayer1,
-            z: .34,
+            z: .998,
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility

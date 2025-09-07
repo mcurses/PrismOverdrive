@@ -20,11 +20,14 @@ import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
 import { ParticleSystem } from "./particles/ParticleSystem";
 import { LapCounter } from "./race/LapCounter";
+import { ModeManager, Mode } from "./mode/ModeManager";
+import { EditorManager } from "./mode/EditorManager";
+import { PlayModeController } from "./mode/PlayModeController";
 import { EditorState } from "./editor/EditorState";
 import { EditorViewport } from "./editor/EditorViewport";
 import { EditorPath } from "./editor/EditorPath";
 import { BoundsGenerator } from "./editor/BoundsGenerator";
-import { EditorUI, EditorTool } from "./editor/EditorUI";
+import { EditorUI } from "./editor/EditorUI";
 import { Serializer } from "./editor/Serializer";
 import { Integrations } from "./editor/Integrations";
 import {EDITOR_GRID_SIZE, EDITOR_TO_WORLD_SCALE} from "./config/Scale";
@@ -83,25 +86,10 @@ class Game {
     private zoom: ZoomController;
     private worldRenderer: WorldRenderer | null = null;
     
-    // Editor system
-    private editorMode: boolean = false;
-    private editorState: EditorState | null = null;
-    private editorViewport: EditorViewport | null = null;
-    private editorPath: EditorPath | null = null;
-    private boundsGenerator: BoundsGenerator | null = null;
-    private editorUI: EditorUI | null = null;
-    private editorCanvas: HTMLCanvasElement | null = null;
-    private editorCtx: CanvasRenderingContext2D | null = null;
-    private currentTool: EditorTool = 'pen';
-    private selectedNodeId: string | null = null;
-    private selectedHandle: { nodeId: string; handle: 'in' | 'out' } | null = null;
-    private isDragging: boolean = false;
-    private dragStart: { x: number; y: number } | null = null;
-    private isCreatingNode: boolean = false;
-    private modifierKeys: { alt: boolean; shift: boolean; cmd: boolean } = { alt: false, shift: false, cmd: false };
-    
-    // Editor constants
-    private static readonly INSERTION_THRESHOLD_PX = 45;
+    // Mode management
+    private modeManager: ModeManager | null = null;
+    private editorManager: EditorManager | null = null;
+    private playModeController: PlayModeController | null = null;
 
     constructor() {
         this.canvasSize = {
@@ -278,12 +266,17 @@ class Game {
         });
         
         this.inputController.handleKeyP(() => {
-            this.toggleBuildPlayMode();
+            this.modeManager?.toggle();
         });
         
         // Listen for editor toggle from menu
         window.addEventListener('toggleEditor', () => {
-            this.toggleBuildPlayMode();
+            this.modeManager?.toggle();
+        });
+        
+        // Listen for editor play requests
+        window.addEventListener('editorRequestPlay', () => {
+            this.modeManager?.enterPlayMode();
         });
         this.serverConnection.connect().then(() => {
             // this.createMenuElements();
@@ -291,11 +284,11 @@ class Game {
             // this.session.playerName = this.serverConnection.socketId;
         });
 
-        this.loadTrack(this.session.trackName)
-
-        // Initialize editor system
-        this.initializeEditor();
-        this.editorUI.hide();
+        // Initialize mode management first
+        this.initializeModeManagement();
+        
+        // Then load the track
+        this.loadTrack(this.session.trackName);
 
         // Initialize world renderer
         this.worldRenderer = new WorldRenderer({
@@ -449,8 +442,8 @@ class Game {
     }
 
     private renderFrame(): void {
-        if (this.editorMode) {
-            this.renderEditor();
+        if (this.modeManager?.isBuildMode()) {
+            this.editorManager?.render();
             return;
         }
         
@@ -515,699 +508,82 @@ class Game {
     }
 
 
-    private initializeEditor(): void {
-        // Create editor canvas
-        this.editorCanvas = document.createElement('canvas');
-        this.editorCanvas.width = this.canvasSize.width;
-        this.editorCanvas.height = this.canvasSize.height;
-        this.editorCanvas.style.position = 'absolute';
-        this.editorCanvas.style.top = '0';
-        this.editorCanvas.style.left = '0';
-        this.editorCanvas.style.display = 'none';
-        this.editorCanvas.style.zIndex = '10';
+    private initializeModeManagement(): void {
+        // Initialize play mode controller
+        this.playModeController = new PlayModeController(this.track, this.miniMap);
         
-        document.getElementById('sketch-holder')?.appendChild(this.editorCanvas);
-        this.editorCtx = this.editorCanvas.getContext('2d')!;
-        
-        // Initialize editor components
-        this.editorState = new EditorState();
-        this.editorViewport = new EditorViewport(this.editorCanvas);
-        this.editorPath = new EditorPath();
-        this.boundsGenerator = new BoundsGenerator();
-        
-        // Setup editor UI
-        this.editorUI = new EditorUI({
-            onToolChange: (tool) => this.currentTool = tool,
-            onWidthChange: (width) => {
-                if (this.editorState) {
-                    this.editorState.defaultWidth = width;
-                    this.editorState.markDirty();
-                    // Refresh ghost preview without full rebuild
-                }
+        // Initialize editor manager
+        this.editorManager = new EditorManager({
+            rootElId: 'sketch-holder',
+            canvasSizeRef: this.canvasSize,
+            configScale: {
+                EDITOR_GRID_SIZE,
+                EDITOR_TO_WORLD_SCALE
             },
-            onResampleChange: (n) => {
-                if (this.editorState) {
-                    this.editorState.resampleN = n;
-                    this.editorState.markDirty();
-                }
-            },
-            onAutoShrinkToggle: (enabled) => {
-                if (this.editorState) {
-                    this.editorState.applyAutoShrink = enabled;
-                    this.editorState.markDirty();
-                }
-            },
-            onNodeWidthChange: (value) => {
-                if (this.selectedNodeId && this.editorState) {
-                    const clampedValue = Math.max(0.2, Math.min(3.0, value));
-                    this.editorState.updateNode(this.selectedNodeId, { widthScale: clampedValue });
-                    this.editorState.markDirty();
-                }
-            },
-            onTrackNameChange: (name) => {
-                if (this.editorState) {
-                    this.editorState.setTrackName(name);
-                }
-            },
-            onPlay: () => this.toggleBuildPlayMode(),
-            onSave: () => this.saveCurrentTrack(),
-            onExport: () => this.exportCurrentTrack(),
-            onImport: (file) => this.importTrack(file),
-            onRebuildFromCenterline: () => this.rebuildFromCenterline()
-        });
-        
-        // Setup editor input handlers
-        this.setupEditorInput();
-    }
-
-    private setupEditorInput(): void {
-        if (!this.editorCanvas) return;
-        
-        this.editorCanvas.addEventListener('mousedown', (e) => this.handleEditorMouseDown(e));
-        this.editorCanvas.addEventListener('mousemove', (e) => this.handleEditorMouseMove(e));
-        this.editorCanvas.addEventListener('mouseup', (e) => this.handleEditorMouseUp(e));
-        this.editorCanvas.addEventListener('dblclick', (e) => this.handleEditorDoubleClick(e));
-        
-        // Track modifier keys
-        document.addEventListener('keydown', (e) => {
-            this.modifierKeys.alt = e.altKey;
-            this.modifierKeys.shift = e.shiftKey;
-            this.modifierKeys.cmd = e.metaKey || e.ctrlKey;
-            
-            // Handle node deletion in editor mode
-            if (this.editorMode && (e.key === 'Delete' || e.key === 'Backspace')) {
-                if (this.selectedNodeId && this.editorPath && this.editorState && this.editorUI) {
-                    // Remove from both EditorPath and EditorState
-                    this.editorPath.removeNode(this.selectedNodeId);
-                    this.editorState.removeNode(this.selectedNodeId);
-                    
-                    // Clear selection
-                    this.selectedNodeId = null;
-                    this.selectedHandle = null;
-                    
-                    // Mark dirty and update UI
-                    this.editorState.markDirty();
-                    this.editorUI.updateNodeSelection(null, this.editorState.centerPath);
-                    
-                    // Prevent default browser behavior
-                    e.preventDefault();
-                }
+            deps: {
+                EditorState,
+                EditorViewport,
+                EditorPath,
+                BoundsGenerator,
+                EditorUI,
+                Serializer,
+                Integrations
             }
         });
         
-        document.addEventListener('keyup', (e) => {
-            this.modifierKeys.alt = e.altKey;
-            this.modifierKeys.shift = e.shiftKey;
-            this.modifierKeys.cmd = e.metaKey || e.ctrlKey;
+        this.editorManager.create();
+        this.editorManager.hide(); // Start hidden
+        
+        // Initialize mode manager
+        this.modeManager = new ModeManager({
+            onEnterPlay: () => this.enterPlayMode(),
+            onEnterBuild: () => this.enterBuildMode()
         });
     }
 
-    private handleEditorMouseDown(e: MouseEvent): void {
-        if (!this.editorViewport || !this.editorState || !this.editorPath) return;
+    private enterBuildMode(): void {
+        // Hide main canvas, show editor
+        this.canvas.style.display = 'none';
+        this.editorManager?.show();
         
-        // Skip if this is a panning gesture (middle mouse or cmd+left)
-        if (e.button === 1 || (e.button === 0 && this.modifierKeys.cmd)) {
-            return;
-        }
-        
-        const rect = this.editorCanvas!.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const world = this.editorViewport.screenToWorld(screenX, screenY);
-        
-        this.dragStart = { x: world.x, y: world.y };
-        
-        switch (this.currentTool) {
-            case 'pen':
-                this.handlePenToolDown(world.x, world.y);
-                break;
-            case 'select':
-                this.handleSelectToolDown(world.x, world.y);
-                break;
-            case 'finish':
-                this.handleFinishTool(world.x, world.y);
-                break;
-        }
+        // Load current track into editor
+        this.editorManager?.loadCustomOrEmpty(this.session.trackName);
     }
 
-    private handleEditorMouseMove(e: MouseEvent): void {
-        if (!this.editorViewport || !this.editorState || !this.editorPath || !this.dragStart) return;
+    private enterPlayMode(): void {
+        // Hide editor, show main canvas
+        this.editorManager?.hide();
+        this.canvas.style.display = 'block';
         
-        const rect = this.editorCanvas!.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const world = this.editorViewport.screenToWorld(screenX, screenY);
-        
-        if (this.isDragging) {
-            const dx = world.x - this.dragStart.x;
-            const dy = world.y - this.dragStart.y;
-            
-            if (this.currentTool === 'pen' && this.isCreatingNode) {
-                this.handlePenToolDrag(dx, dy);
-            } else if (this.currentTool === 'select') {
-                this.handleSelectToolDrag(world.x, world.y, dx, dy);
-            }
-        }
-    }
-
-    private handleEditorMouseUp(e: MouseEvent): void {
-        this.isDragging = false;
-        this.isCreatingNode = false;
-        this.dragStart = null;
-    }
-
-    private handleEditorDoubleClick(e: MouseEvent): void {
-        if (!this.editorViewport || !this.editorState || !this.editorPath) return;
-        
-        const rect = this.editorCanvas!.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const world = this.editorViewport.screenToWorld(screenX, screenY);
-        
-        if (this.currentTool === 'select') {
-            const nodeId = this.editorPath.hitTestNode(world, 15);
-            if (nodeId) {
-                this.editorPath.toggleNodeType(nodeId);
-                this.editorState.markDirty();
-                this.updateEditorUI();
-            }
-        }
-    }
-
-    private handlePenToolDown(x: number, y: number): void {
-        if (!this.editorState || !this.editorPath || !this.editorViewport) return;
-        
-        // Check if clicking near existing path for insertion
-        if (this.editorState.centerPath.length >= 2) {
-            const closest = this.editorPath.getClosestPoint({ x, y });
-            if (closest) {
-                const distance = Math.sqrt(
-                    Math.pow(closest.point.x - x, 2) + 
-                    Math.pow(closest.point.y - y, 2)
-                );
-                const worldThresh = Game.INSERTION_THRESHOLD_PX / this.editorViewport.getTransform().scale;
+        // Only export from editor if we're coming from build mode with content
+        if (this.editorManager && this.editorManager.isVisible()) {
+            try {
+                const { bundle, scaledMapSize } = this.editorManager.toBundleAndNormalize();
                 
-                if (distance <= worldThresh) {
-                    // Insert node at the closest point on the path
-                    const newNode = this.editorPath.insertNodeAtT(closest.t);
-                    
-                    // Update state to mirror path
-                    this.editorState.centerPath = this.editorPath.getNodes();
-                    this.editorState.markDirty();
-                    
-                    // Select the newly inserted node
-                    this.selectedNodeId = newNode.id;
-                    this.selectedHandle = null;
-                    this.editorUI?.updateNodeSelection(this.selectedNodeId, this.editorState.centerPath);
-                    this.updateNodeWidthControl();
-                    
-                    // Switch to select tool for immediate dragging
-                    this.currentTool = 'select';
-                    this.editorUI?.setActiveTool('select');
-                    
-                    return;
-                }
-            }
-        }
-        
-        // Default behavior: create new endpoint node
-        const node = this.editorPath.addNode(x, y, 'corner');
-        this.editorState.addNode(node);
-        this.selectedNodeId = node.id;
-        this.isCreatingNode = true;
-        this.isDragging = true;
-    }
-
-    private handlePenToolDrag(dx: number, dy: number): void {
-        if (!this.editorState || !this.editorPath || !this.selectedNodeId) return;
-        
-        // Convert the newly created node to smooth and set handle
-        const node = this.editorState.centerPath.find(n => n.id === this.selectedNodeId);
-        if (node) {
-            node.type = 'smooth';
-            const handleOut = { x: dx, y: dy };
-            this.editorPath.updateHandle(this.selectedNodeId, 'out', handleOut, true);
-            this.editorState.markDirty();
-        }
-    }
-
-    private handleSelectToolDown(x: number, y: number): void {
-        if (!this.editorState || !this.editorPath) return;
-        
-        // Priority: handles > nodes > segments
-        const handleHit = this.editorPath.hitTestHandle({ x, y }, 10);
-        if (handleHit) {
-            this.selectedHandle = handleHit;
-            this.selectedNodeId = handleHit.nodeId;
-            this.isDragging = true;
-            this.updateEditorUI();
-            return;
-        }
-        
-        const nodeId = this.editorPath.hitTestNode({ x, y }, 15);
-        if (nodeId) {
-            this.selectedNodeId = nodeId;
-            this.selectedHandle = null;
-            this.isDragging = true;
-            this.updateEditorUI();
-            this.updateNodeWidthControl();
-            return;
-        }
-        
-        // Clear selection
-        this.selectedNodeId = null;
-        this.selectedHandle = null;
-        this.updateEditorUI();
-        this.updateNodeWidthControl();
-    }
-
-    private updateEditorUI(): void {
-        if (this.editorUI && this.editorState) {
-            this.editorUI.updateNodeSelection(this.selectedNodeId, this.editorState.centerPath);
-        }
-    }
-
-    private updateNodeWidthControl(): void {
-        if (this.editorUI && this.editorState) {
-            if (this.selectedNodeId) {
-                const node = this.editorState.centerPath.find(n => n.id === this.selectedNodeId);
-                this.editorUI.setNodeWidthControlEnabled(true);
-                this.editorUI.setNodeWidthControlValue(node?.widthScale ?? 1.0);
-            } else {
-                this.editorUI.setNodeWidthControlEnabled(false);
-            }
-        }
-    }
-
-    private handleSelectToolDrag(worldX: number, worldY: number, dx: number, dy: number): void {
-        if (!this.editorState || !this.editorPath) return;
-        
-        if (this.selectedHandle) {
-            // Dragging a handle
-            let handleVector = { x: dx, y: dy };
-            
-            // Apply shift constraint (15-degree increments)
-            if (this.modifierKeys.shift) {
-                const angle = Math.atan2(handleVector.y, handleVector.x);
-                const constrainedAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
-                const magnitude = Math.sqrt(handleVector.x * handleVector.x + handleVector.y * handleVector.y);
-                handleVector = {
-                    x: Math.cos(constrainedAngle) * magnitude,
-                    y: Math.sin(constrainedAngle) * magnitude
-                };
-            }
-            
-            // Update handle, mirror unless Alt is held (break symmetry)
-            const mirrorSymmetric = !this.modifierKeys.alt;
-            this.editorPath.updateHandle(this.selectedHandle.nodeId, this.selectedHandle.handle, handleVector, mirrorSymmetric);
-            this.editorState.markDirty();
-            
-        } else if (this.selectedNodeId) {
-            // Dragging a node
-            this.editorState.updateNode(this.selectedNodeId, { x: worldX, y: worldY });
-        }
-    }
-
-    private handleFinishTool(x: number, y: number): void {
-        if (!this.editorState || !this.editorPath) return;
-        
-        // Find closest point on centerline
-        const closest = this.editorPath.getClosestPoint({ x, y });
-        if (closest) {
-            // Create finish line perpendicular to centerline
-            const normal = this.editorPath.getNormalAt(closest.t);
-            if (normal) {
-                const halfWidth = this.editorState.defaultWidth / 2;
-                const finishLine = {
-                    a: {
-                        x: closest.point.x - normal.x * halfWidth,
-                        y: closest.point.y - normal.y * halfWidth
-                    },
-                    b: {
-                        x: closest.point.x + normal.x * halfWidth,
-                        y: closest.point.y + normal.y * halfWidth
-                    }
-                };
-                this.editorState.setFinishLine(finishLine);
-            }
-        }
-    }
-
-    private renderEditor(): void {
-        if (!this.editorCtx || !this.editorViewport || !this.editorState) return;
-        
-        // Clear canvas
-        this.editorCtx.setTransform(1, 0, 0, 1, 0, 0);
-        this.editorCtx.fillStyle = '#1a1a1a';
-        this.editorCtx.fillRect(0, 0, this.editorCanvas!.width, this.editorCanvas!.height);
-        
-        // Apply viewport transform
-        this.editorViewport.applyTransform(this.editorCtx);
-        
-        // Draw grid
-        this.drawGrid();
-        
-        // Draw ghost preview
-        this.drawGhostPreview();
-        
-        // Draw centerline nodes
-        this.drawCenterlineNodes();
-        
-        // Draw finish line
-        this.drawFinishLine();
-        
-        // Reset transform for UI
-        this.editorViewport.resetTransform(this.editorCtx);
-    }
-
-    private drawGrid(): void {
-        if (!this.editorCtx || !this.editorViewport) return;
-        
-        const transform = this.editorViewport.getTransform();
-        const gridSize = EDITOR_GRID_SIZE;
-        const alpha = Math.min(0.3, transform.scale * 0.3);
-        
-        this.editorCtx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-        this.editorCtx.lineWidth = 1 / transform.scale;
-        
-        const startX = Math.floor(-transform.x / transform.scale / gridSize) * gridSize;
-        const endX = Math.ceil((this.editorCanvas!.width - transform.x) / transform.scale / gridSize) * gridSize;
-        const startY = Math.floor(-transform.y / transform.scale / gridSize) * gridSize;
-        const endY = Math.ceil((this.editorCanvas!.height - transform.y) / transform.scale / gridSize) * gridSize;
-        
-        this.editorCtx.beginPath();
-        for (let x = startX; x <= endX; x += gridSize) {
-            this.editorCtx.moveTo(x, startY);
-            this.editorCtx.lineTo(x, endY);
-        }
-        for (let y = startY; y <= endY; y += gridSize) {
-            this.editorCtx.moveTo(startX, y);
-            this.editorCtx.lineTo(endX, y);
-        }
-        this.editorCtx.stroke();
-    }
-
-    private drawGhostPreview(): void {
-        if (!this.editorCtx || !this.boundsGenerator || !this.editorState) return;
-        
-        const preview = this.boundsGenerator.generateGhostPreview(this.editorState);
-        
-        // Draw centerline
-        if (preview.centerline.length > 1) {
-            this.editorCtx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
-            this.editorCtx.lineWidth = 2;
-            this.editorCtx.beginPath();
-            this.editorCtx.moveTo(preview.centerline[0][0], preview.centerline[0][1]);
-            for (let i = 1; i < preview.centerline.length; i++) {
-                this.editorCtx.lineTo(preview.centerline[i][0], preview.centerline[i][1]);
-            }
-            this.editorCtx.closePath();
-            this.editorCtx.stroke();
-        }
-        
-        // Draw bounds
-        this.drawBoundsPreview(preview.outer, 'rgba(255, 255, 255, 0.5)');
-        this.drawBoundsPreview(preview.inner, 'rgba(255, 255, 255, 0.5)');
-    }
-
-    private drawBoundsPreview(bounds: number[][], color: string): void {
-        if (!this.editorCtx || bounds.length < 2) return;
-        
-        this.editorCtx.strokeStyle = color;
-        this.editorCtx.lineWidth = 1;
-        this.editorCtx.beginPath();
-        this.editorCtx.moveTo(bounds[0][0], bounds[0][1]);
-        for (let i = 1; i < bounds.length; i++) {
-            this.editorCtx.lineTo(bounds[i][0], bounds[i][1]);
-        }
-        this.editorCtx.closePath();
-        this.editorCtx.stroke();
-    }
-
-    private drawCenterlineNodes(): void {
-        if (!this.editorCtx || !this.editorState || !this.editorViewport) return;
-        
-        const transform = this.editorViewport.getTransform();
-        const nodeSize = 8 / transform.scale;
-        const handleSize = 6 / transform.scale;
-        
-        // Draw handles first (so they appear behind nodes)
-        // Only show handles for selected node when using select tool
-        for (const node of this.editorState.centerPath) {
-            const shouldShowHandles = this.currentTool !== 'select' || node.id === this.selectedNodeId;
-            
-            if (shouldShowHandles) {
-                this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-                this.editorCtx.lineWidth = 1 / transform.scale;
+                // Persist the track
+                Serializer.saveToLocalStorage(bundle);
+                TrackData.refreshCustomTracks();
                 
-                // Draw handle lines and handles
-                if (node.handleOut) {
-                    const handlePos = { x: node.x + node.handleOut.x, y: node.y + node.handleOut.y };
-                    
-                    // Handle line
-                    this.editorCtx.beginPath();
-                    this.editorCtx.moveTo(node.x, node.y);
-                    this.editorCtx.lineTo(handlePos.x, handlePos.y);
-                    this.editorCtx.stroke();
-                    
-                    // Handle point
-                    const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'out';
-                    this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-                    this.editorCtx.beginPath();
-                    this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
-                    this.editorCtx.fill();
+                // Apply map size and load track
+                this.applyMapSize(scaledMapSize);
+                this.session.trackName = bundle.id;
+                this.loadTrack(bundle.id);
+                
+                // Spawn car at finish line if available
+                const finishSpawn = this.editorManager?.getFinishSpawn();
+                if (finishSpawn && this.localPlayer) {
+                    this.localPlayer.car.position.x = finishSpawn.x;
+                    this.localPlayer.car.position.y = finishSpawn.y;
+                    this.localPlayer.car.angle = finishSpawn.angle;
                 }
                 
-                if (node.handleIn) {
-                    const handlePos = { x: node.x + node.handleIn.x, y: node.y + node.handleIn.y };
-                    
-                    // Handle line
-                    this.editorCtx.beginPath();
-                    this.editorCtx.moveTo(node.x, node.y);
-                    this.editorCtx.lineTo(handlePos.x, handlePos.y);
-                    this.editorCtx.stroke();
-                    
-                    // Handle point
-                    const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'in';
-                    this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-                    this.editorCtx.beginPath();
-                    this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
-                    this.editorCtx.fill();
-                }
-            }
-        }
-        
-        // Draw nodes on top
-        for (const node of this.editorState.centerPath) {
-            const isSelected = node.id === this.selectedNodeId;
-            const isSmooth = node.type === 'smooth';
-            
-            this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 
-                                     isSmooth ? 'rgba(100, 150, 255, 0.8)' : 'rgba(255, 255, 100, 0.8)';
-            
-            this.editorCtx.beginPath();
-            if (isSmooth) {
-                this.editorCtx.arc(node.x, node.y, nodeSize, 0, Math.PI * 2);
-            } else {
-                // Draw square for corner nodes
-                this.editorCtx.rect(node.x - nodeSize, node.y - nodeSize, nodeSize * 2, nodeSize * 2);
-            }
-            this.editorCtx.fill();
-            
-            this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-            this.editorCtx.lineWidth = 2 / transform.scale;
-            this.editorCtx.stroke();
-        }
-    }
-
-    private drawFinishLine(): void {
-        if (!this.editorCtx || !this.editorState?.finishLine) return;
-        
-        const line = this.editorState.finishLine;
-        this.editorCtx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
-        this.editorCtx.lineWidth = 3;
-        this.editorCtx.beginPath();
-        this.editorCtx.moveTo(line.a.x, line.a.y);
-        this.editorCtx.lineTo(line.b.x, line.b.y);
-        this.editorCtx.stroke();
-    }
-
-    private toggleBuildPlayMode(): void {
-        this.editorMode = !this.editorMode;
-        
-        if (this.editorMode) {
-            // Switch to Build mode
-            this.canvas.style.display = 'none';
-            if (this.editorCanvas) {
-                this.editorCanvas.style.display = 'block';
-            }
-            
-            // Show editor UI
-            if (this.editorUI) {
-                this.editorUI.show();
-            }
-            
-            // Load current track into editor if it's a custom track
-            if (Integrations.isCustomTrack(this.session.trackName)) {
-                const bundle = Integrations.getCustomTrackBundle(this.session.trackName);
-                if (bundle && this.editorState) {
-                    this.editorState.fromBundle(bundle);
-                    this.editorPath?.setNodes(this.editorState.centerPath);
-                    this.editorUI?.updateValues(this.editorState);
-                }
-            } else {
-                // Start with empty track
-                this.editorState = new EditorState();
-                this.editorPath?.setNodes([]);
-                this.editorUI?.updateValues(this.editorState);
-            }
-        } else {
-            // Switch to Play mode
-            this.canvas.style.display = 'block';
-            if (this.editorCanvas) {
-                this.editorCanvas.style.display = 'none';
-            }
-            
-            // Hide editor UI
-            if (this.editorUI) {
-                this.editorUI.hide();
-            }
-            
-            // Ensure derived data is up to date before switching to play
-            if (this.editorState && this.boundsGenerator) {
-                // Normalize content to map coordinates first
-                this.editorState.normalizeToMap(200);
+                // Reset lap counter
+                this.lapCounter = this.playModeController?.resetLapCounter() || null;
                 
-                // Fit viewport to normalized layout if still in editor mode
-                if (this.editorMode && this.editorViewport) {
-                    this.editorViewport.fitToView({
-                        minX: 0,
-                        minY: 0,
-                        maxX: this.editorState.mapSize.width,
-                        maxY: this.editorState.mapSize.height
-                    }, 50);
-                }
-                
-                this.ensureDerivedUpToDate(this.editorState);
-                
-                if (this.editorState.derived.bounds && this.editorState.derived.bounds.length > 0) {
-                    // Create bundle from editor state
-                    const bundle = this.editorState.toBundle();
-                    
-                    // Apply scaled map size before persisting
-                    const s = EDITOR_TO_WORLD_SCALE;
-                    const scaledMapSize = {
-                        width: Math.round(bundle.mapSize.width * s),
-                        height: Math.round(bundle.mapSize.height * s)
-                    };
-                    this.applyMapSize(scaledMapSize);
-                    
-                    // Persist the track
-                    Serializer.saveToLocalStorage(bundle);
-                    TrackData.refreshCustomTracks();
-                    
-                    // Switch session to the real id and load it
-                    this.session.trackName = bundle.id;
-                    this.loadTrack(bundle.id);
-                    
-                    // Spawn car at finish line if available
-                    if (this.editorState.finishLine && this.localPlayer) {
-                        const spawn = Integrations.prepareForPlayMode(bundle);
-                        this.localPlayer.car.position.x = spawn.spawnPosition.x;
-                        this.localPlayer.car.position.y = spawn.spawnPosition.y;
-                        this.localPlayer.car.angle = spawn.spawnPosition.angle;
-                    }
-                    
-                    // Reset lap counter
-                    if (this.track.checkpoints.length > 0) {
-                        this.lapCounter = new LapCounter(this.track.checkpoints);
-                    }
-                }
+            } catch (error) {
+                console.error('Failed to export from editor:', error);
             }
         }
-    }
-
-    private saveCurrentTrack(): void {
-        if (!this.editorState || !this.boundsGenerator) return;
-        
-        // Normalize content to map coordinates first
-        this.editorState.normalizeToMap(200);
-        
-        // Ensure derived data is up to date
-        this.ensureDerivedUpToDate(this.editorState);
-        
-        // Save to localStorage
-        const bundle = this.editorState.toBundle();
-        Serializer.saveToLocalStorage(bundle);
-        
-        // Refresh track data
-        TrackData.refreshCustomTracks();
-        
-        // Reload the track to ensure Play uses latest derived bounds
-        if (this.session.trackName === bundle.id) {
-            this.loadTrack(bundle.id);
-        }
-        
-        console.log('Track saved:', bundle.name);
-    }
-
-    private exportCurrentTrack(): void {
-        if (!this.editorState || !this.boundsGenerator) return;
-        
-        // Normalize content to map coordinates first
-        this.editorState.normalizeToMap(200);
-        
-        // Ensure derived data is up to date
-        this.ensureDerivedUpToDate(this.editorState);
-        
-        // Export to file
-        const bundle = this.editorState.toBundle();
-        Serializer.exportToFile(bundle);
-    }
-
-    private async importTrack(file: File): Promise<void> {
-        try {
-            const bundle = await Serializer.importFromFile(file);
-            
-            if (this.editorState) {
-                this.editorState.fromBundle(bundle);
-                this.editorPath?.setNodes(this.editorState.centerPath);
-                this.editorUI?.updateValues(this.editorState);
-            }
-            
-            // Save imported track
-            Serializer.saveToLocalStorage(bundle);
-            TrackData.refreshCustomTracks();
-            
-            console.log('Track imported:', bundle.name);
-        } catch (error) {
-            console.error('Failed to import track:', error);
-        }
-    }
-
-    private ensureDerivedUpToDate(state: EditorState): void {
-        if (!state.isDerivedStale()) {
-            return; // Already up to date
-        }
-
-        console.log('Rebuilding derived bounds and checkpoints...');
-        const result = this.boundsGenerator!.generateBoundsAndCheckpoints(state);
-        state.setDerivedBounds(result.bounds, result.checkpoints || []);
-        
-        // Update widthProfile from node-driven computation
-        if (result.usedWidthProfile) {
-            state.widthProfile = result.usedWidthProfile.slice();
-        }
-        
-        console.log(`Generated ${result.bounds.length} boundary rings and ${result.checkpoints?.length || 0} checkpoints`);
-    }
-
-    private rebuildFromCenterline(): void {
-        if (!this.editorState) return;
-        
-        this.editorState.clearManualBounds();
-        this.ensureDerivedUpToDate(this.editorState);
-        console.log('Manual bounds cleared, rebuilt from centerline');
     }
 
     setWorldScale(scale: number): void {
@@ -1224,16 +600,15 @@ class Game {
         
         this.mapSize = { ...size };
         
-        // Recreate world-size resources
-        this.trackCanvas.width = this.mapSize.width;
-        this.trackCanvas.height = this.mapSize.height;
+        // Use play mode controller to apply map size changes
+        this.playModeController?.applyMapSize(this.mapSize, this.trackCanvas, this.miniMapCanvas);
+        
+        // Recreate track context
         this.trackCtx = this.trackCanvas.getContext('2d')!;
         this.trackCtx.globalAlpha = 1;
         
+        // Recreate trails
         this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
-        
-        this.miniMapCanvas.width = this.mapSize.width * this.miniMap.scale;
-        this.miniMapCanvas.height = this.mapSize.height * this.miniMap.scale;
         
         // Recreate background with new map size
         if (this.session) {
@@ -1258,16 +633,15 @@ class Game {
 
     loadTrack(name: string) {
         try {
-            const trackData = TrackData.getByName(name);
             this.session.trackName = name;
-
+            
+            const trackData = TrackData.getByName(name);
             this.applyMapSize(trackData.mapSize || this.mapSize);
             
-            this.track.setBounds(trackData.bounds, this.trackCtx);
-            this.track.computeCheckpoints(10);
+            this.playModeController?.applyTrack(name, this.trackCtx);
             
             if (this.miniMap) {
-                this.miniMap.setTrack(this.track, this.miniMapCtx);
+                this.playModeController?.setMiniMap(this.miniMap, this.miniMapCtx);
                 // Update world renderer with new minimap
                 if (this.worldRenderer) {
                     this.worldRenderer.setMiniMap(this.miniMap);
@@ -1275,25 +649,14 @@ class Game {
             }
             
             // Recreate lap counter with new checkpoints
-            if (this.localPlayer && this.track.checkpoints.length > 0) {
-                this.lapCounter = new LapCounter(this.track.checkpoints, {
-                    minLapMs: 10000,
-                    requireAllCheckpoints: true
-                });
-                this.lapCounter.resetOnTrackChange();
+            if (this.localPlayer) {
+                this.lapCounter = this.playModeController?.resetLapCounter() || null;
+                if (this.lapCounter) {
+                    this.lapCounter.resetOnTrackChange();
+                }
             }
         } catch (error) {
-            console.warn(`Track not found: ${name}. Falling back to default track.`);
-            
-            // Find a safe fallback
-            const fallback = TrackData.tracks[0]?.name;
-            if (fallback && fallback !== name) {
-                this.session.trackName = fallback;
-                this.loadTrack(fallback);
-            } else {
-                console.error('No tracks available');
-                return;
-            }
+            console.error('Failed to load track:', name, error);
         }
     }
 
