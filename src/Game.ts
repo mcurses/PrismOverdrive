@@ -6,7 +6,8 @@ import Track from "./components/Playfield/Track";
 import MiniMap from "./components/Playfield/MiniMap";
 import Camera from "./components/Camera/Camera";
 import Player, { TrailStamp } from "./components/Player/Player";
-import ServerConnection from "./components/ServerConnection/ServerConnection";
+import { NetworkClient } from "./net/NetworkClient";
+import { PlayerManager } from "./players/PlayerManager";
 import Score from "./components/Score/Score";
 import CarData from "./components/Car/CarData";
 import TrackData from "./components/Playfield/TrackData";
@@ -44,8 +45,6 @@ class Game {
     mapSize: Dimensions;
     layer1: HTMLImageElement;
     layer2: HTMLImageElement;
-    players: { [key: string]: Player } = {};
-    localPlayer: Player;
     car: Car;
     ctx: CanvasRenderingContext2D;
     canvas: HTMLCanvasElement;
@@ -53,7 +52,8 @@ class Game {
     track: Track;
     camera: Camera;
     miniMap: MiniMap;
-    serverConnection: ServerConnection
+    net: NetworkClient;
+    playerManager: PlayerManager;
 
 
     lastTimestamp: number = 0;
@@ -107,7 +107,7 @@ class Game {
         }
         this.layer1 = new Image();
         this.layer2 = new Image();
-        this.players = {};
+        this.playerManager = new PlayerManager();
         this.zoomBaseline = this.worldScale;
         this.scheduler = new Scheduler();
         this.zoom = new ZoomController({ 
@@ -137,9 +137,6 @@ class Game {
         ]);
 
         this.session = new Session("Player");
-
-        // Local player will be created after socket connection
-        this.localPlayer = null;
 
         // if there is a session, load it
         let storedSession = Session.loadFromLocalStorage();
@@ -220,17 +217,20 @@ class Game {
         // this.trackBlurInterval = setInterval(() => {
         // }, 1000 / 4);
 
-        this.scheduler.add('netSend', 50, () => {
-            if (this.localPlayer)
-                this.serverConnection.sendUpdate(this.localPlayer);
+        this.net = new NetworkClient({
+            onRemoteUpdate: (id, snapshot, stamps) => this.playerManager.onNetworkSnapshot(id, snapshot, stamps),
+            onRemove: (id) => this.playerManager.removePlayer(id)
         });
 
-        this.serverConnection = new ServerConnection(
-            (id, snapshot, stamps) => this.updatePlayer(id, snapshot, stamps),
-            (id) => this.removePlayer(id));
+        this.scheduler.add('netSend', 50, () => {
+            const localPlayer = this.playerManager.getLocalPlayer();
+            if (localPlayer) {
+                this.net.sendUpdate(localPlayer);
+            }
+        });
 
-        // Provide particle system to server connection for burst spawning
-        this.serverConnection.setParticleSystem(this.particleSystem);
+        // Provide particle system to network client for burst spawning
+        this.net.setParticleSystem(this.particleSystem);
 
         // Create Preact UI after data is loaded
         const carTypes = CarData.types.map(t => t.name);
@@ -278,10 +278,10 @@ class Game {
         window.addEventListener('editorRequestPlay', () => {
             this.modeManager?.enterPlayMode();
         });
-        this.serverConnection.connect().then(() => {
+        this.net.connect().then(() => {
             // this.createMenuElements();
 
-            // this.session.playerName = this.serverConnection.socketId;
+            // this.session.playerName = this.net.socketId;
         });
 
         // Initialize mode management first
@@ -316,52 +316,43 @@ class Game {
 
 
     private simStep(stepMs: number): void {
-        if (!this.serverConnection.socketId) {
+        if (!this.net.socketId) {
             return;
         }
 
-        if (!this.localPlayer) {
-            const carTypeName = this.session.carType || CarData.types[0]?.name;
-            const carType = carTypeName ? CarData.getByName(carTypeName) : CarData.types[0];
+        const localPlayer = this.playerManager.ensureLocalPlayer(
+            this.session,
+            this.net.socketId,
+            CarData.types[0]?.name || "default",
+            this.session.trackName
+        );
+
+        // Apply session settings when local player is first created
+        if (localPlayer && !this.playerManager.getLapCounter() && this.track.checkpoints.length > 0) {
+            this.playerManager.onTrackChanged(this.track, {
+                minLapMs: 10000,
+                requireAllCheckpoints: true
+            });
             
-            this.localPlayer = new Player(
-                this.serverConnection.socketId,
-                this.session.playerName,
-                new Car(500, 1900, 0, carType),
-                new Score(),
-                this.session.trackName
-            );
-            this.players[this.serverConnection.socketId] = this.localPlayer;
+            this.playerManager.setCarType(this.session.carType);
+            this.playerManager.setPlayerName(this.session.playerName);
+            this.playerManager.setTrackScore(this.session.scores[this.session.trackName]);
             
-            // Create lap counter for local player
-            if (this.track.checkpoints.length > 0) {
-                this.lapCounter = new LapCounter(this.track.checkpoints, {
-                    minLapMs: 10000,
-                    requireAllCheckpoints: true
-                });
-            }
-            
-            // Apply session settings now that localPlayer exists
-            this.setCarType(this.session.carType);
-            this.setPlayerName(this.session.playerName);
-            this.setTrackScore(this.session.scores[this.session.trackName]);
-            
-            console.log("Added player", this.serverConnection.socketId)
+            console.log("Added player", this.net.socketId);
         }
 
-        if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
+        if (!localPlayer || !this.net.connected) {
             return;
         }
 
         // Update scheduler tasks
         this.scheduler.tick(stepMs);
 
-        const localPlayer = this.localPlayer;
         const actions = this.inputController.getActions();
         const compatKeys = this.inputController.getCompatKeysFromActions(actions);
         
         if (compatKeys['ArrowUp'] && compatKeys['ArrowDown'] && compatKeys['ArrowLeft'] && compatKeys['ArrowRight']) {
-            this.localPlayer.score.driftScore = 30000
+            localPlayer.score.driftScore = 30000;
         }
 
         // Capture previous position before physics update
@@ -378,10 +369,7 @@ class Game {
 
         // Capture current position after physics update and update lap timing
         const curPosForLap = { x: localPlayer.car.position.x, y: localPlayer.car.position.y };
-        if (this.lapCounter) {
-            const lapRes = this.lapCounter.update(prevPosForLap, curPosForLap, Date.now());
-            localPlayer.onLapUpdate(lapRes, this.session.trackName);
-        }
+        this.playerManager.updateLapTiming(prevPosForLap, curPosForLap, Date.now(), this.session.trackName);
         
         // Store current position for any other consumers
         localPlayer.lastPos = curPosForLap;
@@ -412,11 +400,12 @@ class Game {
 
         // Update particles
         if (this.particleSystem) {
+            const players = this.playerManager.getPlayers();
             const carVelNearFn = (x: number, y: number) => {
                 let nearestCar = null;
                 let nearestDist = 200;
                 
-                for (const player of Object.values(this.players)) {
+                for (const player of Object.values(players)) {
                     const dist = Math.sqrt(
                         Math.pow(player.car.position.x - x, 2) + 
                         Math.pow(player.car.position.y - y, 2)
@@ -447,38 +436,20 @@ class Game {
             return;
         }
         
-        if (!this.players || !this.localPlayer || !this.serverConnection.connected || !this.worldRenderer) {
+        const localPlayer = this.playerManager.getLocalPlayer();
+        const players = this.playerManager.getPlayers();
+        
+        if (!players || !localPlayer || !this.net.connected || !this.worldRenderer) {
             return;
         }
-
-        const localPlayer = this.localPlayer;
         
         // Update camera with current world scale
         this.camera.setScale(this.worldScale);
         this.camera.moveTowards(localPlayer.car.position);
 
         // Interpolate remote players
-        const renderTime = this.serverConnection.serverNowMs() - 100; // 100ms delay
-        for (let id in this.players) {
-            const player = this.players[id];
-            if (id !== this.serverConnection.socketId) {
-                // Remote player - use interpolation
-                const { before, after } = player.snapshotBuffer.getBracketing(renderTime);
-                const interpolated = Interpolator.sample(before, after, renderTime);
-                
-                if (interpolated) {
-                    player.car.position.x = interpolated.x;
-                    player.car.position.y = interpolated.y;
-                    player.car.angle = interpolated.angle;
-                    if (before) {
-                        player.car.isDrifting = before.drifting;
-                    }
-                }
-                
-                // Prune old snapshots
-                player.snapshotBuffer.pruneOld(renderTime - 1000);
-            }
-        }
+        const renderTime = this.net.serverNowMs() - 100; // 100ms delay
+        this.playerManager.interpolateRemotes(renderTime, renderTime - 1000, this.net.socketId);
 
         this.checkIdlePlayers();
 
@@ -494,12 +465,16 @@ class Game {
         // Use WorldRenderer to draw the frame
         this.worldRenderer.drawFrame(this.ctx, {
             localPlayer,
-            players: this.players,
+            players,
             showCheckpoints: this.showCheckpoints,
-            lapCounter: this.lapCounter,
+            lapCounter: this.playerManager.getLapCounter(),
             track: this.track,
             worldScale: this.worldScale
         });
+
+        // Update UI with scores
+        const scores = this.playerManager.updateScoresForUI();
+        this.ui.updateScores(scores);
 
         // Debug: show active particle count
         // this.ctx.fillStyle = 'white';
@@ -571,14 +546,15 @@ class Game {
                 
                 // Spawn car at finish line if available
                 const finishSpawn = this.editorManager?.getFinishSpawn();
-                if (finishSpawn && this.localPlayer) {
-                    this.localPlayer.car.position.x = finishSpawn.x;
-                    this.localPlayer.car.position.y = finishSpawn.y;
-                    this.localPlayer.car.angle = finishSpawn.angle;
+                const localPlayer = this.playerManager.getLocalPlayer();
+                if (finishSpawn && localPlayer) {
+                    localPlayer.car.position.x = finishSpawn.x;
+                    localPlayer.car.position.y = finishSpawn.y;
+                    localPlayer.car.angle = finishSpawn.angle;
                 }
                 
                 // Reset lap counter
-                this.lapCounter = this.playModeController?.resetLapCounter() || null;
+                this.playerManager.resetLapCounter();
                 
             } catch (error) {
                 console.error('Failed to export from editor:', error);
@@ -628,7 +604,7 @@ class Game {
 
     setCarType(carTypeName: string) {
         this.session.carType = carTypeName;
-        this.localPlayer.car.carType = CarData.getByName(carTypeName);
+        this.playerManager.setCarType(carTypeName);
     }
 
     loadTrack(name: string) {
@@ -649,12 +625,10 @@ class Game {
             }
             
             // Recreate lap counter with new checkpoints
-            if (this.localPlayer) {
-                this.lapCounter = this.playModeController?.resetLapCounter() || null;
-                if (this.lapCounter) {
-                    this.lapCounter.resetOnTrackChange();
-                }
-            }
+            this.playerManager.onTrackChanged(this.track, {
+                minLapMs: 10000,
+                requireAllCheckpoints: true
+            });
         } catch (error) {
             console.error('Failed to load track:', name, error);
         }
@@ -663,30 +637,7 @@ class Game {
     private setPlayerName(name: string) {
         const trimmed = name.slice(0, 8);
         this.session.playerName = trimmed;
-        this.localPlayer.name = trimmed;
-    }
-
-    private updatePlayer(id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) {
-        if (!snapshot) {
-            this.removePlayer(id);
-            return;
-        }
-        
-        if (this.players[id]) {
-            this.players[id].addSnapshot(snapshot);
-            this.players[id].addTrailStamps(stamps);
-        } else {
-            const carType = CarData.types[0] || null;
-            const newPlayer = new Player(id, snapshot.name, new Car(0, 0, 0, carType), new Score());
-            newPlayer.addSnapshot(snapshot);
-            newPlayer.addTrailStamps(stamps);
-            this.players[id] = newPlayer;
-        }
-    }
-
-    private removePlayer(id: string) {
-        console.log("Remove player", id)
-        delete this.players[id];
+        this.playerManager.setPlayerName(trimmed);
     }
 
     private checkIdlePlayers() {
@@ -720,9 +671,7 @@ class Game {
 
 
     private setTrackScore(score: Score) {
-        if (score)
-            this.localPlayer.score = score;
-
+        this.playerManager.setTrackScore(score);
     }
 }
 
