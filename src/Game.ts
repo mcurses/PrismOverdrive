@@ -1,6 +1,6 @@
 import Car from "./components/Car/Car";
 // import {bounds2, bounds3, scaleTo} from "./components/Playfield/bounds";
-import {Dimensions, gaussianRandom, loadImage} from "./utils/Utils";
+import {Dimensions, gaussianRandom, loadImage, lerp, clamp} from "./utils/Utils";
 import {InputController, InputType} from "./InputController";
 import Track from "./components/Playfield/Track";
 import MiniMap from "./components/Playfield/MiniMap";
@@ -34,6 +34,11 @@ import { Integrations } from "./editor/Integrations";
 const STEP_MS = 1000 / 120;
 const MAX_STEPS = 8;
 const BASE_VISIBLE_FACTOR = 1.5 * 0.67 * 0.991; // 0.995955
+
+// Dynamic zoom constants
+const ZOOM_MIN_RELATIVE = 0.6;
+const SPEED_FOR_MIN_ZOOM = 200; // single tuning value; adjust as needed
+const ZOOM_SMOOTH = 0.050; // lerp factor per frame
 
 class Game {
     canvasSize: Dimensions;
@@ -77,6 +82,7 @@ class Game {
     private lapCounter: LapCounter | null = null;
     private showCheckpoints: boolean = false;
     private worldScale: number = .67;
+    private zoomBaseline: number = .67;
     
     // Editor system
     private editorMode: boolean = false;
@@ -94,6 +100,9 @@ class Game {
     private dragStart: { x: number; y: number } | null = null;
     private isCreatingNode: boolean = false;
     private modifierKeys: { alt: boolean; shift: boolean; cmd: boolean } = { alt: false, shift: false, cmd: false };
+    
+    // Editor constants
+    private static readonly INSERTION_THRESHOLD_PX = 45;
 
     constructor() {
         this.canvasSize = {
@@ -112,6 +121,7 @@ class Game {
         this.layer1 = new Image();
         this.layer2 = new Image();
         this.players = {};
+        this.zoomBaseline = this.worldScale;
     }
 
     async preload() {
@@ -379,6 +389,9 @@ class Game {
             localPlayer.car.velocity = localPlayer.car.velocity.add(pushBack);
             localPlayer.score.endDrift()
         }
+
+        // Update dynamic zoom based on car speed
+        this.updateZoomFromSpeed(localPlayer.car.velocity.mag());
 
         // Update particles
         if (this.particleSystem) {
@@ -667,6 +680,26 @@ class Game {
             this.modifierKeys.alt = e.altKey;
             this.modifierKeys.shift = e.shiftKey;
             this.modifierKeys.cmd = e.metaKey || e.ctrlKey;
+            
+            // Handle node deletion in editor mode
+            if (this.editorMode && (e.key === 'Delete' || e.key === 'Backspace')) {
+                if (this.selectedNodeId && this.editorPath && this.editorState && this.editorUI) {
+                    // Remove from both EditorPath and EditorState
+                    this.editorPath.removeNode(this.selectedNodeId);
+                    this.editorState.removeNode(this.selectedNodeId);
+                    
+                    // Clear selection
+                    this.selectedNodeId = null;
+                    this.selectedHandle = null;
+                    
+                    // Mark dirty and update UI
+                    this.editorState.markDirty();
+                    this.editorUI.updateNodeSelection(null, this.editorState.centerPath);
+                    
+                    // Prevent default browser behavior
+                    e.preventDefault();
+                }
+            }
         });
         
         document.addEventListener('keyup', (e) => {
@@ -749,8 +782,41 @@ class Game {
     }
 
     private handlePenToolDown(x: number, y: number): void {
-        if (!this.editorState || !this.editorPath) return;
+        if (!this.editorState || !this.editorPath || !this.editorViewport) return;
         
+        // Check if clicking near existing path for insertion
+        if (this.editorState.centerPath.length >= 2) {
+            const closest = this.editorPath.getClosestPoint({ x, y });
+            if (closest) {
+                const distance = Math.sqrt(
+                    Math.pow(closest.point.x - x, 2) + 
+                    Math.pow(closest.point.y - y, 2)
+                );
+                const worldThresh = Game.INSERTION_THRESHOLD_PX / this.editorViewport.getTransform().scale;
+                
+                if (distance <= worldThresh) {
+                    // Insert node at the closest point on the path
+                    const newNode = this.editorPath.insertNodeAtT(closest.t);
+                    
+                    // Update state to mirror path
+                    this.editorState.centerPath = this.editorPath.getNodes();
+                    this.editorState.markDirty();
+                    
+                    // Select the newly inserted node
+                    this.selectedNodeId = newNode.id;
+                    this.selectedHandle = null;
+                    this.editorUI?.updateNodeSelection(this.selectedNodeId, this.editorState.centerPath);
+                    
+                    // Switch to select tool for immediate dragging
+                    this.currentTool = 'select';
+                    this.editorUI?.setActiveTool('select');
+                    
+                    return;
+                }
+            }
+        }
+        
+        // Default behavior: create new endpoint node
         const node = this.editorPath.addNode(x, y, 'corner');
         this.editorState.addNode(node);
         this.selectedNodeId = node.id;
@@ -1182,8 +1248,16 @@ class Game {
         console.log('Manual bounds cleared, rebuilt from centerline');
     }
 
+    private updateZoomFromSpeed(speed: number): void {
+        const t = clamp(0, speed / SPEED_FOR_MIN_ZOOM, 1);
+        const target = this.zoomBaseline * lerp(1.0, ZOOM_MIN_RELATIVE, t);
+        this.worldScale = lerp(this.worldScale, target, ZOOM_SMOOTH);
+        this.camera.setScale(this.worldScale);
+    }
+
     setWorldScale(scale: number): void {
         this.worldScale = scale;
+        this.zoomBaseline = scale;
         this.camera.setScale(scale);
     }
 

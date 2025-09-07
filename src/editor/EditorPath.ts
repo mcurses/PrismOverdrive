@@ -396,6 +396,76 @@ export class EditorPath {
         return node;
     }
 
+    public insertNodeAtT(globalT: number): BezierNode {
+        if (this.nodes.length < 2) {
+            throw new Error('Cannot insert node: path must have at least 2 nodes');
+        }
+        
+        // Normalize t into [0,1)
+        const t = globalT - Math.floor(globalT);
+        
+        // Compute segment index and local t
+        const segmentIndex = Math.floor(t * this.nodes.length) % this.nodes.length;
+        const localT = (t * this.nodes.length) - Math.floor(t * this.nodes.length);
+        
+        // Get segment control points
+        const { p0, p1, p2, p3 } = this.getSegmentControlPoints(segmentIndex);
+        
+        // Perform de Casteljau split at localT
+        const q0 = this.lerp(p0, p1, localT);
+        const q1 = this.lerp(p1, p2, localT);
+        const q2 = this.lerp(p2, p3, localT);
+        
+        const r0 = this.lerp(q0, q1, localT);
+        const r1 = this.lerp(q1, q2, localT);
+        
+        const s = this.lerp(r0, r1, localT); // New anchor position
+        
+        // Update existing neighboring nodes' handles to preserve curve
+        const startNodeIndex = segmentIndex % this.nodes.length;
+        const endNodeIndex = (segmentIndex + 1) % this.nodes.length;
+        
+        // Update start node's handleOut
+        this.nodes[startNodeIndex].handleOut = {
+            x: q0.x - p0.x,
+            y: q0.y - p0.y
+        };
+        
+        // Update end node's handleIn
+        this.nodes[endNodeIndex].handleIn = {
+            x: q2.x - p3.x,
+            y: q2.y - p3.y
+        };
+        
+        // Create new node at split point
+        const newNode: BezierNode = {
+            id: 'node_' + Math.random().toString(36).substr(2, 9),
+            x: s.x,
+            y: s.y,
+            type: 'smooth',
+            handleIn: {
+                x: r0.x - s.x,
+                y: r0.y - s.y
+            },
+            handleOut: {
+                x: r1.x - s.x,
+                y: r1.y - s.y
+            }
+        };
+        
+        // Insert new node after the start node
+        this.nodes.splice(startNodeIndex + 1, 0, newNode);
+        
+        return newNode;
+    }
+
+    private lerp(a: { x: number; y: number }, b: { x: number; y: number }, t: number): { x: number; y: number } {
+        return {
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t
+        };
+    }
+
     public toggleNodeType(nodeId: string): void {
         const node = this.nodes.find(n => n.id === nodeId);
         if (!node) return;
