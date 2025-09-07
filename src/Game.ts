@@ -267,6 +267,7 @@ class Game {
 
         // Initialize editor system
         this.initializeEditor();
+        this.editorUI.hide();
 
         requestAnimationFrame(this.frame);
 

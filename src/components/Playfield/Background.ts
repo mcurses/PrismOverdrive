@@ -8,6 +8,7 @@ export interface ParallaxLayer {
     z: number;
     offset: Vector;
     cropSize: Dimensions;
+    scale?: number; // default 1
     canvas?: HTMLCanvasElement;
 }
 
@@ -20,33 +21,42 @@ export default class Background {
         layers: ParallaxLayer[]
     }) {
         this.mapSize = props.mapSize;
-        // // image resizing (consider using CSS)
-        // for (let layer of props.layers) {
-        //
-        //     layer.img.width = layer.size.width;
-        //     layer.img.height = layer.size.height;
-        // }
-        // this.layers = props.layers;
-        // create a canvas for each layer
+        
+        // Create a properly scaled tile canvas for each layer
         this.layers = [];
         props.layers.map(layer => {
-            let canvas = document.createElement('canvas');
-            canvas.width = layer.size.width;
-            canvas.height = layer.size.height;
-            let ctx = canvas.getContext('2d');
-
-
-            ctx.drawImage(layer.img, 0, 0, layer.size.width, layer.size.height);
-
-            // // Top-right quadrant
-            // this.drawQuadrant(ctx, layer.img, layer.offset.x, layer.offset.y, layer.cropSize.width, layer.cropSize.height, layer.size.width, 0, layer.size.width / 2, layer.size.height / 2, -1, 1);
-            // // Top-left quadrant
-            // this.drawQuadrant(ctx, layer.img, layer.offset.x, layer.offset.y, layer.cropSize.width, layer.cropSize.height, 0, 0, layer.size.width / 2, layer.size.height / 2, 1, 1);
-            // // Bottom-left quadrant
-            // this.drawQuadrant(ctx, layer.img, layer.offset.x, layer.offset.y, layer.cropSize.width, layer.cropSize.height, 0, layer.size.height, layer.size.width / 2, layer.size.height / 2, 1, -1);
-            // // Bottom-right quadrant
-            // this.drawQuadrant(ctx, layer.img, layer.offset.x, layer.offset.y, layer.cropSize.width, layer.cropSize.height, layer.size.width, layer.size.height, layer.size.width / 2, layer.size.height / 2, -1, -1);
-
+            // Determine source tile rectangle
+            const srcW = layer.cropSize?.width ?? layer.img.width;
+            const srcH = layer.cropSize?.height ?? layer.img.height;
+            const srcX = layer.offset?.x ?? 0;
+            const srcY = layer.offset?.y ?? 0;
+            
+            // Determine scale factor
+            let scale: number;
+            if (layer.scale !== undefined) {
+                // Prefer explicit scale if provided
+                scale = layer.scale;
+            } else if (layer.size) {
+                // Backward compatibility: infer scale from size
+                scale = layer.size.width / srcW;
+            } else {
+                // Default scale
+                scale = 1;
+            }
+            
+            // Compute destination tile size (rounded to avoid subpixel issues)
+            const tileW = Math.round(srcW * scale);
+            const tileH = Math.round(srcH * scale);
+            
+            // Create canvas with exact tile dimensions
+            const canvas = document.createElement('canvas');
+            canvas.width = tileW;
+            canvas.height = tileH;
+            const ctx = canvas.getContext('2d')!;
+            
+            // Draw the scaled tile into the canvas once
+            ctx.drawImage(layer.img, srcX, srcY, srcW, srcH, 0, 0, tileW, tileH);
+            
             layer.canvas = canvas;
             this.layers.push(layer);
         });
@@ -75,27 +85,27 @@ export default class Background {
 
     drawParallaxLayer(ctx: CanvasRenderingContext2D, layer: ParallaxLayer,
                       cameraPos: Vector, canvasSize: Dimensions, MapSize: Dimensions) {
-        // Calculate the offset for this layer
-        let offsetX = cameraPos.x * layer.z % layer.canvas.width;
-        let offsetY = cameraPos.y * layer.z % layer.canvas.height;
+        // Use the tile canvas dimensions for consistent tiling
+        const tileW = layer.canvas!.width;
+        const tileH = layer.canvas!.height;
+        
+        // Positive modulo to handle negative camera positions
+        const mod = (n: number, m: number) => ((n % m) + m) % m;
+        const offsetX = mod(cameraPos.x * layer.z, tileW);
+        const offsetY = mod(cameraPos.y * layer.z, tileH);
 
         // Set canvas state once before loops
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 1 - (layer.z / 2);
 
-        // Otherwise replace Map.width and Map.height with appropriate values
-        for (let x = -offsetX - layer.canvas.width;
-             x < MapSize.width + canvasSize.width / 2;
-             x += layer.canvas.width) {
-            for (let y = -offsetY - layer.canvas.height;
-                 y < MapSize.height + canvasSize.height / 2;
-                 y += layer.canvas.height) {
-                ctx.drawImage(layer.canvas,
-                    0, 0,
-                    layer.cropSize.width, layer.cropSize.height,
-                    x, y,
-                    layer.size.width, layer.size.height,
-                );
+        // Use integer stepping and positions to avoid seams
+        const startX = -Math.floor(offsetX) - tileW;
+        const startY = -Math.floor(offsetY) - tileH;
+        
+        for (let x = startX; x < MapSize.width + canvasSize.width / 2; x += tileW) {
+            for (let y = startY; y < MapSize.height + canvasSize.height / 2; y += tileH) {
+                // Draw the pre-scaled tile directly (no per-draw scaling)
+                ctx.drawImage(layer.canvas!, x | 0, y | 0);
             }
         }
         

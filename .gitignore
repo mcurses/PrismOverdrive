@@ -3,3 +3,4 @@ dist
 **/*.ai
 .idea/
 .aider*
+**/.DS_Store
