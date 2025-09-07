@@ -7,6 +7,7 @@ export interface EditorUICallbacks {
     onWidthChange: (width: number) => void;
     onResampleChange: (n: number) => void;
     onAutoShrinkToggle: (enabled: boolean) => void;
+    onNodeWidthChange: (value: number) => void;
     onPlay: () => void;
     onSave: () => void;
     onExport: () => void;
@@ -239,13 +240,20 @@ export class EditorUI {
         nodeTypeLabel.textContent = 'Node: None selected';
         nodeTypeLabel.id = 'node-type-label';
         
+        const nodeWidthControl = this.createSliderControl('Node Width', 0.2, 3.0, 1.0, (value) => {
+            this.callbacks.onNodeWidthChange(value);
+        }, 0.05);
+        nodeWidthControl.id = 'node-width-control';
+        this.setNodeWidthControlEnabled(false);
+        
         const hintsLabel = document.createElement('div');
         hintsLabel.style.fontSize = '10px';
         hintsLabel.style.color = '#999';
         hintsLabel.style.lineHeight = '1.2';
-        hintsLabel.innerHTML = 'Double-click: Toggle type<br/>Alt+drag: Break symmetry<br/>Shift+drag: Constrain angle';
+        hintsLabel.innerHTML = 'Double-click: Toggle type<br/>Alt+drag: Break symmetry<br/>Shift+drag: Constrain angle<br/>Width multiplies default track width at this node';
         
         nodeSection.appendChild(nodeTypeLabel);
+        nodeSection.appendChild(nodeWidthControl);
         nodeSection.appendChild(hintsLabel);
         
         // Actions section
@@ -307,7 +315,7 @@ export class EditorUI {
         return btn;
     }
 
-    private createSliderControl(label: string, min: number, max: number, defaultValue: number, onChange: (value: number) => void): HTMLElement {
+    private createSliderControl(label: string, min: number, max: number, defaultValue: number, onChange: (value: number) => void, step?: number): HTMLElement {
         const control = document.createElement('div');
         control.className = 'editor-control';
         
@@ -319,15 +327,18 @@ export class EditorUI {
         slider.min = min.toString();
         slider.max = max.toString();
         slider.value = defaultValue.toString();
+        if (step) {
+            slider.step = step.toString();
+        }
         
         const valueEl = document.createElement('span');
-        valueEl.textContent = defaultValue.toString();
+        valueEl.textContent = step ? defaultValue.toFixed(2) : defaultValue.toString();
         valueEl.style.minWidth = '40px';
         valueEl.style.textAlign = 'right';
         
         slider.addEventListener('input', () => {
-            const value = parseInt(slider.value);
-            valueEl.textContent = value.toString();
+            const value = step ? parseFloat(slider.value) : parseInt(slider.value);
+            valueEl.textContent = step ? value.toFixed(2) : value.toString();
             onChange(value);
         });
         
@@ -440,6 +451,7 @@ export class EditorUI {
         
         if (!selectedNodeId) {
             label.textContent = 'Node: None selected';
+            this.setNodeWidthControlEnabled(false);
             return;
         }
         
@@ -448,6 +460,11 @@ export class EditorUI {
             const typeText = node.type === 'smooth' ? 'Smooth' : 'Corner';
             const hasHandles = !!(node.handleIn || node.handleOut);
             label.textContent = `Node: ${typeText}${hasHandles ? ' (has handles)' : ''}`;
+            
+            this.setNodeWidthControlEnabled(true);
+            this.setNodeWidthControlValue(node.widthScale ?? 1.0);
+        } else {
+            this.setNodeWidthControlEnabled(false);
         }
     }
 
@@ -460,6 +477,30 @@ export class EditorUI {
     public hide(): void {
         if (this.container) {
             this.container.style.display = 'none';
+        }
+    }
+
+    public setNodeWidthControlEnabled(enabled: boolean): void {
+        const control = this.container.querySelector('#node-width-control') as HTMLElement;
+        if (control) {
+            const slider = control.querySelector('input[type="range"]') as HTMLInputElement;
+            const label = control.querySelector('label') as HTMLElement;
+            if (slider && label) {
+                slider.disabled = !enabled;
+                control.style.opacity = enabled ? '1' : '0.5';
+            }
+        }
+    }
+
+    public setNodeWidthControlValue(value: number): void {
+        const control = this.container.querySelector('#node-width-control') as HTMLElement;
+        if (control) {
+            const slider = control.querySelector('input[type="range"]') as HTMLInputElement;
+            const valueEl = control.querySelector('span') as HTMLElement;
+            if (slider && valueEl) {
+                slider.value = value.toString();
+                valueEl.textContent = value.toFixed(2);
+            }
         }
     }
 

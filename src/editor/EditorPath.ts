@@ -40,6 +40,50 @@ export class EditorPath {
         return samples;
     }
 
+    public resampleWithParams(numSamples: number): { x: number; y: number; t: number; sFrac: number }[] {
+        if (this.nodes.length < 2) return [];
+        
+        // Build arc-length table for the entire closed loop
+        const arcLengthTable = this.buildArcLengthTable();
+        const totalLength = arcLengthTable[arcLengthTable.length - 1];
+        
+        if (totalLength === 0) return [];
+        
+        const samples: { x: number; y: number; t: number; sFrac: number }[] = [];
+        
+        for (let i = 0; i < numSamples; i++) {
+            const targetLength = (i / numSamples) * totalLength;
+            const t = this.arcLengthToT(targetLength, arcLengthTable, totalLength);
+            const point = this.getPointAt(t);
+            if (point) {
+                samples.push({
+                    x: point.x,
+                    y: point.y,
+                    t: t,
+                    sFrac: targetLength / totalLength
+                });
+            }
+        }
+        
+        return samples;
+    }
+
+    public getNodeArcLengthFractions(): number[] {
+        if (this.nodes.length < 2) return [];
+        
+        const arcLengthTable = this.buildArcLengthTable();
+        const totalLength = arcLengthTable[arcLengthTable.length - 1];
+        
+        if (totalLength === 0) return new Array(this.nodes.length).fill(0);
+        
+        const fractions: number[] = [];
+        for (let i = 0; i < this.nodes.length; i++) {
+            fractions.push(arcLengthTable[i] / totalLength);
+        }
+        
+        return fractions;
+    }
+
     private buildArcLengthTable(): number[] {
         const table: number[] = [0];
         let totalLength = 0;
@@ -376,7 +420,8 @@ export class EditorPath {
             id: 'node_' + Math.random().toString(36).substr(2, 9),
             x,
             y,
-            type
+            type,
+            widthScale: 1.0
         };
         
         this.nodes.push(node);
@@ -389,7 +434,8 @@ export class EditorPath {
             x,
             y,
             type: 'smooth',
-            handleOut
+            handleOut,
+            widthScale: 1.0
         };
         
         this.nodes.push(node);
@@ -450,7 +496,8 @@ export class EditorPath {
             handleOut: {
                 x: r1.x - s.x,
                 y: r1.y - s.y
-            }
+            },
+            widthScale: 1.0
         };
         
         // Insert new node after the start node

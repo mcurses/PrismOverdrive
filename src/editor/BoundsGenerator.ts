@@ -13,6 +13,7 @@ export interface BoundsGenerationInput {
 export interface BoundsGenerationResult {
     bounds: number[][][];
     checkpoints?: Checkpoint[];
+    usedWidthProfile?: number[];
 }
 
 export class BoundsGenerator {
@@ -39,21 +40,35 @@ export class BoundsGenerator {
 
         // Generate from centerline
         if (centerPath.length < 3) {
-            return { bounds: [] }; // Need at least 3 points for a closed path
+            return { bounds: [], usedWidthProfile: [] }; // Need at least 3 points for a closed path
         }
 
         // Set up the path
         this.editorPath.setNodes(centerPath);
 
-        // Resample the centerline
-        const centerline = this.editorPath.resample(resampleN);
-        if (centerline.length === 0) return { bounds: [] };
+        // Resample the centerline with parameters
+        const samples = this.editorPath.resampleWithParams(resampleN);
+        if (samples.length === 0) return { bounds: [], usedWidthProfile: [] };
+        const centerline = samples.map(p => ({ x: p.x, y: p.y }));
+
+        // Determine width profile
+        let usedWidthProfile: number[];
+        const nodeProfile = this.computeWidthProfileFromNodes(centerPath, samples);
+        const nodeHasCustom = nodeProfile.some(w => Math.abs(w - 1) > 1e-6);
+        
+        if (nodeHasCustom) {
+            usedWidthProfile = nodeProfile;
+        } else if (widthProfile.length === samples.length) {
+            usedWidthProfile = [...widthProfile];
+        } else {
+            usedWidthProfile = nodeProfile; // which will be all 1s
+        }
 
         // Process width profile with auto-shrink
         const processedWidthProfile = this.autoShrink.processWidthProfile(
             centerline,
             defaultWidth,
-            widthProfile
+            usedWidthProfile
         );
 
         // Generate offset paths
@@ -86,7 +101,7 @@ export class BoundsGenerator {
             }
         }
 
-        return { bounds, checkpoints };
+        return { bounds, checkpoints, usedWidthProfile };
     }
 
     public generateBounds(state: EditorState): number[][][] {
@@ -117,7 +132,7 @@ export class BoundsGenerator {
                 console.warn('Failed to generate checkpoints for manual bounds:', error);
                 checkpoints = [];
             }
-            return { bounds, checkpoints };
+            return { bounds, checkpoints, usedWidthProfile: [] };
         }
 
         // Use the canonical algorithm
@@ -252,6 +267,78 @@ export class BoundsGenerator {
         }
 
         return smoothed;
+    }
+
+    private computeWidthProfileFromNodes(
+        centerPath: BezierNode[],
+        samples: { x: number; y: number; t: number; sFrac: number }[]
+    ): number[] {
+        if (centerPath.length === 0) return [];
+        
+        // Build arrays for interpolation
+        const nodeFractions = this.editorPath.getNodeArcLengthFractions();
+        const nodeWidths = centerPath.map(node => node.widthScale ?? 1.0);
+        
+        if (nodeFractions.length === 0 || nodeWidths.length === 0) {
+            return new Array(samples.length).fill(1.0);
+        }
+        
+        const result: number[] = [];
+        
+        for (const sample of samples) {
+            const sFrac = sample.sFrac;
+            
+            // Find bracketing nodes on the ring
+            let i1 = 0;
+            for (let i = 0; i < nodeFractions.length; i++) {
+                if (nodeFractions[i] <= sFrac) {
+                    i1 = i;
+                } else {
+                    break;
+                }
+            }
+            
+            const i2 = (i1 + 1) % nodeFractions.length;
+            const i0 = (i1 - 1 + nodeFractions.length) % nodeFractions.length;
+            const i3 = (i1 + 2) % nodeFractions.length;
+            
+            // Handle wrap-around for arc length fractions
+            let s1 = nodeFractions[i1];
+            let s2 = nodeFractions[i2];
+            let s = sFrac;
+            
+            if (s2 < s1) {
+                // Wrap case: segment crosses 0
+                s2 += 1.0;
+                if (s < s1) {
+                    s += 1.0;
+                }
+            }
+            
+            // Compute local parameter u in [0,1] along the arc between nodes i1 and i2
+            const segmentLength = s2 - s1;
+            const u = segmentLength > 0 ? (s - s1) / segmentLength : 0;
+            
+            // Get Catmull-Rom control points
+            const p0 = nodeWidths[i0];
+            const p1 = nodeWidths[i1];
+            const p2 = nodeWidths[i2];
+            const p3 = nodeWidths[i3];
+            
+            // Interpolate using Catmull-Rom
+            const width = this.catmullRomScalar(p0, p1, p2, p3, u);
+            
+            // Clamp to reasonable range
+            result.push(Math.max(0.2, Math.min(3.0, width)));
+        }
+        
+        return result;
+    }
+
+    private catmullRomScalar(p0: number, p1: number, p2: number, p3: number, u: number): number {
+        const u2 = u * u;
+        const u3 = u2 * u;
+        return 0.5 * ((2 * p1) + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3);
     }
 
     private getDefaultWidthSquared(): number {
@@ -609,15 +696,16 @@ export class BoundsGenerator {
         }
 
         this.editorPath.setNodes(state.centerPath);
-        const centerline = this.editorPath.resample(Math.min(state.resampleN, 128)); // Lower res for preview
+        const samples = this.editorPath.resampleWithParams(Math.min(state.resampleN, 128)); // Lower res for preview
         
-        if (centerline.length === 0) {
+        if (samples.length === 0) {
             return { outer: [], inner: [], centerline: [] };
         }
+        
+        const centerline = samples.map(p => ({ x: p.x, y: p.y }));
 
-        let widthProfile = state.widthProfile.length === centerline.length 
-            ? state.widthProfile 
-            : new Array(centerline.length).fill(1);
+        // Compute width profile from node widths (ignore state.widthProfile for preview)
+        let widthProfile = this.computeWidthProfileFromNodes(state.centerPath, samples);
 
         // Apply auto-shrink processing if enabled for preview
         if (state.autoShrinkPreviewEnabled) {

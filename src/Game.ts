@@ -656,6 +656,13 @@ class Game {
                     // Note: Do NOT call markDirty() here - this only affects preview
                 }
             },
+            onNodeWidthChange: (value) => {
+                if (this.selectedNodeId && this.editorState) {
+                    const clampedValue = Math.max(0.2, Math.min(3.0, value));
+                    this.editorState.updateNode(this.selectedNodeId, { widthScale: clampedValue });
+                    this.editorState.markDirty();
+                }
+            },
             onPlay: () => this.toggleBuildPlayMode(),
             onSave: () => this.saveCurrentTrack(),
             onExport: () => this.exportCurrentTrack(),
@@ -806,6 +813,7 @@ class Game {
                     this.selectedNodeId = newNode.id;
                     this.selectedHandle = null;
                     this.editorUI?.updateNodeSelection(this.selectedNodeId, this.editorState.centerPath);
+                    this.updateNodeWidthControl();
                     
                     // Switch to select tool for immediate dragging
                     this.currentTool = 'select';
@@ -856,6 +864,7 @@ class Game {
             this.selectedHandle = null;
             this.isDragging = true;
             this.updateEditorUI();
+            this.updateNodeWidthControl();
             return;
         }
         
@@ -863,11 +872,24 @@ class Game {
         this.selectedNodeId = null;
         this.selectedHandle = null;
         this.updateEditorUI();
+        this.updateNodeWidthControl();
     }
 
     private updateEditorUI(): void {
         if (this.editorUI && this.editorState) {
             this.editorUI.updateNodeSelection(this.selectedNodeId, this.editorState.centerPath);
+        }
+    }
+
+    private updateNodeWidthControl(): void {
+        if (this.editorUI && this.editorState) {
+            if (this.selectedNodeId) {
+                const node = this.editorState.centerPath.find(n => n.id === this.selectedNodeId);
+                this.editorUI.setNodeWidthControlEnabled(true);
+                this.editorUI.setNodeWidthControlValue(node?.widthScale ?? 1.0);
+            } else {
+                this.editorUI.setNodeWidthControlEnabled(false);
+            }
         }
     }
 
@@ -1237,6 +1259,12 @@ class Game {
         console.log('Rebuilding derived bounds and checkpoints...');
         const result = this.boundsGenerator!.generateBoundsAndCheckpoints(state);
         state.setDerivedBounds(result.bounds, result.checkpoints || []);
+        
+        // Update widthProfile from node-driven computation
+        if (result.usedWidthProfile) {
+            state.widthProfile = result.usedWidthProfile.slice();
+        }
+        
         console.log(`Generated ${result.bounds.length} boundary rings and ${result.checkpoints?.length || 0} checkpoints`);
     }
 

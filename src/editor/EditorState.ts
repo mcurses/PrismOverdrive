@@ -8,6 +8,7 @@ export interface BezierNode {
     type: 'corner' | 'smooth';
     handleIn?: { x: number; y: number }; // Relative vector from node position
     handleOut?: { x: number; y: number }; // Relative vector from node position
+    widthScale?: number; // Multiplier for default width at this node (default 1.0)
 }
 
 export interface FinishLine {
@@ -96,6 +97,12 @@ export class EditorState {
         this.mapSize = bundle.mapSize;
         this.background = bundle.background;
         this.centerPath = [...bundle.centerPath];
+        // Ensure all nodes have widthScale
+        this.centerPath.forEach(node => {
+            if (node.widthScale === undefined) {
+                node.widthScale = 1.0;
+            }
+        });
         this.defaultWidth = bundle.defaultWidth;
         this.widthProfile = [...bundle.widthProfile];
         this.resampleN = bundle.resampleN;
@@ -132,6 +139,10 @@ export class EditorState {
     }
 
     public addNode(node: BezierNode): void {
+        // Ensure widthScale is set
+        if (node.widthScale === undefined) {
+            node.widthScale = 1.0;
+        }
         this.centerPath.push(node);
         this.markDirty();
     }
@@ -165,7 +176,8 @@ export class EditorState {
             y: node.y,
             type: node.type,
             handleIn: node.handleIn ? { x: node.handleIn.x, y: node.handleIn.y } : undefined,
-            handleOut: node.handleOut ? { x: node.handleOut.x, y: node.handleOut.y } : undefined
+            handleOut: node.handleOut ? { x: node.handleOut.x, y: node.handleOut.y } : undefined,
+            widthScale: node.widthScale ?? 1.0
         };
     }
 
