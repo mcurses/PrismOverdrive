@@ -622,12 +622,19 @@ class Game {
                 if (this.editorState) {
                     this.editorState.defaultWidth = width;
                     this.editorState.markDirty();
+                    // Refresh ghost preview without full rebuild
                 }
             },
             onResampleChange: (n) => {
                 if (this.editorState) {
                     this.editorState.resampleN = n;
                     this.editorState.markDirty();
+                }
+            },
+            onAutoShrinkToggle: (enabled) => {
+                if (this.editorState) {
+                    this.editorState.autoShrinkPreviewEnabled = enabled;
+                    // Note: Do NOT call markDirty() here - this only affects preview
                 }
             },
             onPlay: () => this.toggleBuildPlayMode(),
@@ -879,17 +886,13 @@ class Game {
                 this.editorCanvas.style.display = 'none';
             }
             
-            // Generate bounds and switch to play
+            // Ensure derived data is up to date before switching to play
             if (this.editorState && this.boundsGenerator) {
-                const bounds = this.boundsGenerator.generateBounds(this.editorState);
-                if (bounds.length > 0) {
+                this.ensureDerivedUpToDate(this.editorState);
+                
+                if (this.editorState.derived.bounds && this.editorState.derived.bounds.length > 0) {
                     // Create bundle from editor state
                     const bundle = this.editorState.toBundle();
-                    
-                    // Set derived data
-                    this.editorState.setDerivedBounds(bounds, this.track.checkpoints || []);
-                    bundle.derived.bounds = bounds;
-                    bundle.derived.checkpoints = this.track.checkpoints || [];
                     
                     // Persist the track
                     Serializer.saveToLocalStorage(bundle);
@@ -919,9 +922,8 @@ class Game {
     private saveCurrentTrack(): void {
         if (!this.editorState || !this.boundsGenerator) return;
         
-        // Generate current bounds
-        const bounds = this.boundsGenerator.generateBounds(this.editorState);
-        this.editorState.setDerivedBounds(bounds, this.track.checkpoints || []);
+        // Ensure derived data is up to date
+        this.ensureDerivedUpToDate(this.editorState);
         
         // Save to localStorage
         const bundle = this.editorState.toBundle();
@@ -930,15 +932,19 @@ class Game {
         // Refresh track data
         TrackData.refreshCustomTracks();
         
+        // Reload the track to ensure Play uses latest derived bounds
+        if (this.session.trackName === bundle.id) {
+            this.loadTrack(bundle.id);
+        }
+        
         console.log('Track saved:', bundle.name);
     }
 
     private exportCurrentTrack(): void {
         if (!this.editorState || !this.boundsGenerator) return;
         
-        // Generate current bounds
-        const bounds = this.boundsGenerator.generateBounds(this.editorState);
-        this.editorState.setDerivedBounds(bounds, this.track.checkpoints || []);
+        // Ensure derived data is up to date
+        this.ensureDerivedUpToDate(this.editorState);
         
         // Export to file
         const bundle = this.editorState.toBundle();
@@ -965,11 +971,23 @@ class Game {
         }
     }
 
+    private ensureDerivedUpToDate(state: EditorState): void {
+        if (!state.isDerivedStale()) {
+            return; // Already up to date
+        }
+
+        console.log('Rebuilding derived bounds and checkpoints...');
+        const result = this.boundsGenerator!.generateBoundsAndCheckpoints(state);
+        state.setDerivedBounds(result.bounds, result.checkpoints || []);
+        console.log(`Generated ${result.bounds.length} boundary rings and ${result.checkpoints?.length || 0} checkpoints`);
+    }
+
     private rebuildFromCenterline(): void {
         if (!this.editorState) return;
         
         this.editorState.clearManualBounds();
-        console.log('Manual bounds cleared, will rebuild from centerline');
+        this.ensureDerivedUpToDate(this.editorState);
+        console.log('Manual bounds cleared, rebuilt from centerline');
     }
 
     setWorldScale(scale: number): void {

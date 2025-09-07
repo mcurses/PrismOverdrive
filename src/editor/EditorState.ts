@@ -50,6 +50,9 @@ export class EditorState {
         timestamp?: number;
     } = {};
     
+    // Transient preview-only setting (not serialized)
+    public autoShrinkPreviewEnabled: boolean = true;
+    
     public trackId: string = '';
     public trackName: string = 'Custom Track';
     public background: string = 'starField';
@@ -110,6 +113,12 @@ export class EditorState {
     public markDirty(): void {
         this.updatedAt = Date.now();
         this.derived.timestamp = undefined; // Invalidate derived data
+    }
+
+    public isDerivedStale(): boolean {
+        return !this.derived.bounds || 
+               !this.derived.timestamp || 
+               this.derived.timestamp < this.updatedAt;
     }
 
     public clearManualBounds(): void {

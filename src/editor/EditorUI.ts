@@ -6,6 +6,7 @@ export interface EditorUICallbacks {
     onToolChange: (tool: EditorTool) => void;
     onWidthChange: (width: number) => void;
     onResampleChange: (n: number) => void;
+    onAutoShrinkToggle: (enabled: boolean) => void;
     onPlay: () => void;
     onSave: () => void;
     onExport: () => void;
@@ -212,7 +213,7 @@ export class EditorUI {
         const controlsSection = document.createElement('div');
         controlsSection.className = 'editor-toolbar-section';
         
-        const widthControl = this.createSliderControl('Width', 50, 300, 120, (value) => {
+        const widthControl = this.createSliderControl('Width', 50, 600, 120, (value) => {
             this.callbacks.onWidthChange(value);
         });
         
@@ -220,8 +221,13 @@ export class EditorUI {
             this.callbacks.onResampleChange(value);
         });
         
+        const autoShrinkControl = this.createCheckboxControl('Auto-Shrink', true, (enabled) => {
+            this.callbacks.onAutoShrinkToggle(enabled);
+        });
+        
         controlsSection.appendChild(widthControl);
         controlsSection.appendChild(resampleControl);
+        controlsSection.appendChild(autoShrinkControl);
         
         // Actions section
         const actionsSection = document.createElement('div');
@@ -337,6 +343,27 @@ export class EditorUI {
         return control;
     }
 
+    private createCheckboxControl(label: string, defaultValue: boolean, onChange: (enabled: boolean) => void): HTMLElement {
+        const control = document.createElement('div');
+        control.className = 'editor-control';
+        
+        const labelEl = document.createElement('label');
+        labelEl.textContent = label;
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = defaultValue;
+        
+        checkbox.addEventListener('change', () => {
+            onChange(checkbox.checked);
+        });
+        
+        control.appendChild(labelEl);
+        control.appendChild(checkbox);
+        
+        return control;
+    }
+
     private createActionButton(label: string, onClick: () => void, variant?: 'danger'): HTMLElement {
         const btn = document.createElement('button');
         btn.className = 'editor-action-btn';
@@ -379,6 +406,11 @@ export class EditorUI {
         const resampleInput = this.container.querySelector('input[type="number"]') as HTMLInputElement;
         if (resampleInput) {
             resampleInput.value = state.resampleN.toString();
+        }
+        
+        const autoShrinkCheckbox = this.container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        if (autoShrinkCheckbox) {
+            autoShrinkCheckbox.checked = state.autoShrinkPreviewEnabled;
         }
     }
 

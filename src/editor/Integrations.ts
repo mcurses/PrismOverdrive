@@ -1,16 +1,36 @@
 import { TrackBundle } from './EditorState';
 import { Serializer } from './Serializer';
+import { BoundsGenerator } from './BoundsGenerator';
 
 export class Integrations {
     public static mergeCustomTracksIntoTrackData(TrackData: any): void {
         const customBundles = Serializer.loadAllFromLocalStorage();
         
         for (const bundle of customBundles) {
+            // Ensure bundle has valid bounds
+            let bounds = bundle.derived.bounds;
+            if (!bounds || bounds.length === 0) {
+                // Rebuild bounds if missing
+                const result = BoundsGenerator.generateBoundsFromInput({
+                    centerPath: bundle.centerPath,
+                    defaultWidth: bundle.defaultWidth,
+                    widthProfile: bundle.widthProfile,
+                    resampleN: bundle.resampleN
+                });
+                bounds = result.bounds;
+                
+                // Update the bundle with rebuilt data
+                bundle.derived.bounds = bounds;
+                bundle.derived.checkpoints = result.checkpoints;
+                bundle.derived.timestamp = Date.now();
+                Serializer.saveToLocalStorage(bundle);
+            }
+            
             // Convert bundle to TrackData format
             const trackEntry = {
                 name: bundle.id, // Use ID as internal name
                 background: bundle.background,
-                bounds: bundle.derived.bounds || [],
+                bounds: bounds,
                 mapSize: bundle.mapSize
             };
             
@@ -43,8 +63,26 @@ export class Integrations {
         finishLine?: { a: { x: number; y: number }; b: { x: number; y: number } };
         spawnPosition: { x: number; y: number; angle: number };
     } {
-        // Use derived bounds if available, otherwise empty
-        const bounds = bundle.derived.bounds || [];
+        // Ensure bounds are available and up to date
+        let bounds = bundle.derived.bounds;
+        if (!bounds || bounds.length === 0 || 
+            !bundle.derived.timestamp || 
+            bundle.derived.timestamp < bundle.updatedAt) {
+            
+            // Rebuild bounds deterministically
+            const result = BoundsGenerator.generateBoundsFromInput({
+                centerPath: bundle.centerPath,
+                defaultWidth: bundle.defaultWidth,
+                widthProfile: bundle.widthProfile,
+                resampleN: bundle.resampleN
+            });
+            bounds = result.bounds;
+            
+            // Update bundle (caller should persist if needed)
+            bundle.derived.bounds = bounds;
+            bundle.derived.checkpoints = result.checkpoints;
+            bundle.derived.timestamp = Date.now();
+        }
         
         // Default spawn position (center of map)
         let spawnPosition = {
