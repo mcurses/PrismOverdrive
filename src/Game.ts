@@ -29,15 +29,9 @@ import { Serializer } from "./editor/Serializer";
 import { Integrations } from "./editor/Integrations";
 import {EDITOR_GRID_SIZE, EDITOR_TO_WORLD_SCALE} from "./config/Scale";
 import { mountUI } from "./ui/mount";
-
-const STEP_MS = 1000 / 120;
-const MAX_STEPS = 8;
-const BASE_VISIBLE_FACTOR = 1.5 * 0.67 * 0.991; // 0.995955
-
-// Dynamic zoom constants
-const ZOOM_MIN_RELATIVE = 0.6;
-const SPEED_FOR_MIN_ZOOM = 200; // single tuning value; adjust as needed
-const ZOOM_SMOOTH = 0.050; // lerp factor per frame
+import { GameLoop } from "./core/GameLoop";
+import { Scheduler } from "./core/Scheduler";
+import { STEP_MS, MAX_STEPS, BASE_VISIBLE_FACTOR, ZOOM_MIN_RELATIVE, SPEED_FOR_MIN_ZOOM, ZOOM_SMOOTH } from "./config/GameConfig";
 
 class Game {
     canvasSize: Dimensions;
@@ -73,14 +67,13 @@ class Game {
     private trailsOverdrawCounter: number;
     private background: Background;
     private session: Session;
-    private intervals: { [name: string]: GameTimeInterval } = {};
+    private scheduler: Scheduler;
+    private loop: GameLoop | null = null;
     private ui: { 
         setVisible(v: boolean): void;
         updateScores(scores: Array<{ name: string; best: number; current: number; multiplier: number }>): void;
         updateHUD(hud: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } }): void;
     };
-    private _accMs = 0;
-    private _lastNow = performance.now();
     private lapCounter: LapCounter | null = null;
     private showCheckpoints: boolean = false;
     private worldScale: number = .67;
@@ -124,6 +117,7 @@ class Game {
         this.layer2 = new Image();
         this.players = {};
         this.zoomBaseline = this.worldScale;
+        this.scheduler = new Scheduler();
     }
 
     async preload() {
@@ -157,9 +151,9 @@ class Game {
             this.session = new Session("Player");
         }
 
-        this.addInterval('save', () => {
+        this.scheduler.add('save', 1000, () => {
             this.session.saveToLocalStorage();
-        }, 1000);
+        });
 
         console.log("Setup");
 
@@ -228,11 +222,10 @@ class Game {
         // this.trackBlurInterval = setInterval(() => {
         // }, 1000 / 4);
 
-        this.sendUpdateInterval = setInterval(() => {
+        this.scheduler.add('netSend', 50, () => {
             if (this.localPlayer)
                 this.serverConnection.sendUpdate(this.localPlayer);
-            // console.log("Sending update")
-        }, 1000 / 20);
+        });
 
         this.serverConnection = new ServerConnection(
             (id, snapshot, stamps) => this.updatePlayer(id, snapshot, stamps),
@@ -294,28 +287,18 @@ class Game {
         this.initializeEditor();
         this.editorUI.hide();
 
-        requestAnimationFrame(this.frame);
+        // Start the game loop
+        this.loop = new GameLoop({
+            fixedStepMs: STEP_MS,
+            maxSteps: MAX_STEPS,
+            onStep: (stepMs) => this.simStep(stepMs),
+            onFrame: (now) => this.renderFrame()
+        });
+        this.loop.start();
 
     }
 
 
-    private frame = (now: number) => {
-        const deltaTime = Math.min(now - this._lastNow, 250);
-        this._lastNow = now;
-        this._accMs += deltaTime;
-
-        this.updateIntervals(deltaTime);
-
-        let steps = 0;
-        while (this._accMs >= STEP_MS && steps < MAX_STEPS) {
-            this.simStep(STEP_MS);
-            this._accMs -= STEP_MS;
-            steps++;
-        }
-
-        this.renderFrame();
-        requestAnimationFrame(this.frame);
-    }
 
     private simStep(stepMs: number): void {
         if (!this.serverConnection.socketId) {
@@ -354,6 +337,9 @@ class Game {
         if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
             return;
         }
+
+        // Update scheduler tasks
+        this.scheduler.tick(stepMs);
 
         const localPlayer = this.localPlayer;
         const actions = this.inputController.getActions();
@@ -1429,15 +1415,6 @@ class Game {
 
     }
 
-    private addInterval(name: string, param: () => void, number: number) {
-        this.intervals[name] = new GameTimeInterval(param, number);
-    }
-
-    private updateIntervals(deltaTime: number) {
-        for (let interval in this.intervals) {
-            this.intervals[interval].update(deltaTime);
-        }
-    }
 
     private setTrackScore(score: Score) {
         if (score)
@@ -1447,27 +1424,6 @@ class Game {
 }
 
 // on load start the game
-
-class GameTimeInterval {
-    interval: number;
-    counter: number;
-    callback: () => void;
-
-    constructor(callback: () => void, interval: number) {
-        this.callback = callback;
-        this.interval = interval;
-        this.counter = 0;
-        return this;
-    }
-
-    update(deltaTime: number) {
-        this.counter += deltaTime;
-        if (this.counter > this.interval) {
-            this.callback();
-            this.counter = 0;
-        }
-    }
-}
 
 
 // // --- FPS logger ---
