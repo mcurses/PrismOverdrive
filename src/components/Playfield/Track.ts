@@ -1,6 +1,6 @@
 import {constrain, Dimensions} from "../../utils/Utils";
 import Vector from "../../utils/Vector"
-import {drawPolylineShape} from "./PlayfieldUtils";
+import {drawPolylineShape, drawCRSplinePath} from "./PlayfieldUtils";
 import {createShader, createProgram, createTexture} from "../../utils/WebGLUtils";
 import { Checkpoint, computeCheckpoints } from "../../race/CheckpointGenerator";
 
@@ -28,6 +28,11 @@ class Track {
     private ringAreas: number[] = [];
     private outerIndex: number = 0;
     private inwardSign: number[] = [];
+    
+    // Smooth rendering cache
+    private smoothPath: Path2D | null = null;
+    private smoothTension: number = 0.5;
+    private useSmoothRendering: boolean = true;
 
     constructor(name: string,trackCtx: CanvasRenderingContext2D, mapSize: Dimensions, boundaries: number[][][]) {
         this.mapSize = mapSize;
@@ -69,7 +74,7 @@ class Track {
         // this.texture = createTexture(gl, distanceField, width, height);
     }
 
-    setBounds(boundaries: number[][][], ctx) {
+    setBounds(boundaries: number[][][], ctx: CanvasRenderingContext2D) {
         this.boundaries = boundaries;
         
         // Compute ring metadata for collision normals
@@ -77,6 +82,9 @@ class Track {
         this.outerIndex = this.ringAreas.reduce((maxIdx, area, idx, areas) => 
             Math.abs(area) > Math.abs(areas[maxIdx]) ? idx : maxIdx, 0);
         this.inwardSign = this.ringAreas.map(area => area >= 0 ? 1 : -1); // CCW => +1
+        
+        // Rebuild cached smooth path for rendering
+        this.rebuildSmoothPath();
         
         this.computeCheckpoints();
         this.draw(ctx);
@@ -162,13 +170,23 @@ class Track {
     }
 
     draw(ctx: CanvasRenderingContext2D) {
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
         // Set the style for the track
-        ctx.fillStyle = 'rgb(60,60,60)'; // Change this to the color of your track
-        ctx.strokeStyle = 'rgb(0,0,0)'; // Change this to the color of your track's border
-        ctx.lineWidth = 20; // Change this to the width of your track's border
-        // Draw the track
-        drawPolylineShape(ctx, this.boundaries, 1); // Use a scale of 1 to draw the track at its original size
+        ctx.fillStyle = 'rgb(60,60,60)';
+        ctx.strokeStyle = 'rgb(0,0,0)';
+        ctx.lineWidth = 20;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        
+        if (this.useSmoothRendering && this.smoothPath) {
+            // Even-odd rule keeps inner rings as holes
+            ctx.fill(this.smoothPath, 'evenodd');
+            ctx.stroke(this.smoothPath);
+        } else {
+            // Fallback: original polyline rendering
+            drawPolylineShape(ctx, this.boundaries, 1);
+        }
 
 
         // const gl = ctx.canvas.getContext('webgl');
@@ -232,6 +250,28 @@ class Track {
         dot = constrain(dot, 0, magnitude);
 
         return Vector.add(start, startToEndNormalized.mult(dot));
+    }
+
+    private rebuildSmoothPath(): void {
+        // Build a single cached path for all rings at scale 1 (world units)
+        if (!this.boundaries || this.boundaries.length === 0) {
+            this.smoothPath = null;
+            return;
+        }
+        this.smoothPath = drawCRSplinePath(this.boundaries, 1, this.smoothTension);
+    }
+
+    // Optional public setters for runtime tuning:
+    setSmoothTension(t: number): void {
+        // clamp to a sensible range
+        const clamped = Math.max(0, Math.min(1, t));
+        if (clamped === this.smoothTension) return;
+        this.smoothTension = clamped;
+        this.rebuildSmoothPath();
+    }
+
+    setUseSmoothRendering(use: boolean): void {
+        this.useSmoothRendering = !!use;
     }
 
     private computeSignedArea(points: number[][]): number {
