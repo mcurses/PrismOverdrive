@@ -1,4 +1,7 @@
 import { MountDeps } from './mount';
+import HighscorePanel from './components/HighscorePanel';
+import BoostBar from './components/BoostBar';
+import LapHUD from './components/LapHUD';
 
 export default function AppUI(props: MountDeps) {
   const handleNameChange = (e: Event) => {
@@ -18,19 +21,32 @@ export default function AppUI(props: MountDeps) {
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      right: '16px',
-      bottom: '16px',
-      pointerEvents: 'auto',
-      background: 'rgba(0, 0, 0, 0.3)',
-      color: '#e0e0e0',
-      padding: '8px 12px',
-      borderRadius: '6px',
-      font: '12px monospace',
-      display: 'flex',
-      gap: '8px'
-    }}>
+    <>
+      <HighscorePanel scores={props.scores} />
+      <BoostBar 
+        charge={props.hud.boost.charge} 
+        max={props.hud.boost.max} 
+        active={props.hud.boost.active} 
+      />
+      <LapHUD 
+        best={props.hud.lap.best} 
+        last={props.hud.lap.last} 
+        current={props.hud.lap.current} 
+      />
+      
+      <div style={{
+        position: 'absolute',
+        right: '16px',
+        bottom: '16px',
+        pointerEvents: 'auto',
+        background: 'rgba(0, 0, 0, 0.3)',
+        color: '#e0e0e0',
+        padding: '8px 12px',
+        borderRadius: '6px',
+        font: '12px monospace',
+        display: 'flex',
+        gap: '8px'
+      }}>
       <input
         type="text"
         value={props.session.playerName}
@@ -103,6 +119,7 @@ export default function AppUI(props: MountDeps) {
       >
         Editor
       </button>
-    </div>
+      </div>
+    </>
   );
 }

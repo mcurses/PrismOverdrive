@@ -8,7 +8,6 @@ import Camera from "./components/Camera/Camera";
 import Player, { TrailStamp } from "./components/Player/Player";
 import ServerConnection from "./components/ServerConnection/ServerConnection";
 import Score from "./components/Score/Score";
-import HighScoreTable from "./components/Score/HighscoreTable";
 import CarData from "./components/Car/CarData";
 import TrackData from "./components/Playfield/TrackData";
 import Background from "./components/Playfield/Background";
@@ -69,14 +68,17 @@ class Game {
     private trackBlurInterval: NodeJS.Timeout;
     private lastUdpate: number;
     private sendUpdateInterval: NodeJS.Timer;
-    private highscoreTable: HighScoreTable;
     private prevKeys: { [p: string]: boolean } = {};
     private trackOverpaintInterval: NodeJS.Timer;
     private trailsOverdrawCounter: number;
     private background: Background;
     private session: Session;
     private intervals: { [name: string]: GameTimeInterval } = {};
-    private ui: { setVisible(v: boolean): void };
+    private ui: { 
+        setVisible(v: boolean): void;
+        updateScores(scores: Array<{ name: string; best: number; current: number; multiplier: number }>): void;
+        updateHUD(hud: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } }): void;
+    };
     private _accMs = 0;
     private _lastNow = performance.now();
     private lapCounter: LapCounter | null = null;
@@ -166,9 +168,6 @@ class Game {
         this.camera = new Camera({canvasSize: this.canvasSize});
         this.camera.setScale(this.worldScale);
         this.inputController = new InputController(InputType.KEYBOARD);
-        this.highscoreTable = new HighScoreTable({
-            position: { x: 10, y: 10 }
-        });
         this.lastUdpate = 0;
 
         // let paralaxLayer1 = new Image();
@@ -258,6 +257,11 @@ class Game {
                 setCarType: (t) => this.setCarType(t),
                 loadTrack: (tr) => this.loadTrack(tr),
                 toggleEditor: () => window.dispatchEvent(new CustomEvent('toggleEditor')),
+            },
+            scores: [],
+            hud: {
+                boost: { charge: 0, max: 1, active: false },
+                lap: { best: null, last: null, current: null }
             }
         });
 
@@ -548,62 +552,22 @@ class Game {
         if (lapState) {
             this.miniMap.drawCheckpointsMini(this.ctx, lapState.activated);
         }
-        this.highscoreTable.updateScores(
-            Object.values(this.players).map(player => ({playerName: player.name, score: player.score}))
-        );
-        this.highscoreTable.displayScores(this.ctx);
+        // Update UI with current scores
+        const scores = Object.values(this.players).map(p => ({
+            name: p.name.slice(0, 8),
+            best: p.score.highScore,
+            current: p.score.driftScore,
+            multiplier: p.score.multiplier || 1,
+        })).sort((a, b) => b.best - a.best);
+        this.ui.updateScores(scores);
 
-        // Draw boost HUD
-        this.drawBoostHUD(this.ctx, localPlayer);
+        // Update HUD
+        const boost = {
+            charge: localPlayer.boostCharge,
+            max: localPlayer.BOOST_MAX,
+            active: localPlayer.boostActive
+        };
         
-        // Draw lap timing HUD
-        this.drawLapHUD(this.ctx, localPlayer);
-
-        // Debug: show active particle count
-        // this.ctx.fillStyle = 'white';
-        // this.ctx.font = '16px Arial';
-        // this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
-    }
-
-    private drawBoostHUD(ctx: CanvasRenderingContext2D, player: Player): void {
-        const x = 320;
-        const y = this.canvasSize.height - 50;
-        const width = 160;
-        const height = 12;
-        
-        // Draw outline
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, width, height);
-        
-        // Draw fill
-        const fillWidth = width * (player.boostCharge / player.BOOST_MAX);
-        if (fillWidth > 0) {
-            ctx.fillStyle = player.boostActive ? 'rgba(0, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.6)';
-            ctx.fillRect(x, y, fillWidth, height);
-        }
-        
-        // Draw label
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.font = '12px Arial';
-        ctx.fillText('BOOST', x, y - 4);
-    }
-
-    private drawLapHUD(ctx: CanvasRenderingContext2D, player: Player): void {
-        const x = 10;
-        const y = 100;
-        const lineHeight = 20;
-        
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.font = '14px Arial';
-        
-        // Best Lap
-        ctx.fillText(`Best Lap: ${this.formatLapTime(player.lapBestMs)}`, x, y);
-        
-        // Last Lap
-        ctx.fillText(`Last Lap: ${this.formatLapTime(player.lapLastMs)}`, x, y + lineHeight);
-        
-        // Current Lap
         let currentLapTime = null;
         if (this.lapCounter) {
             const state = this.lapCounter.getState();
@@ -611,19 +575,21 @@ class Game {
                 currentLapTime = Date.now() - state.currentLapStartMs;
             }
         }
-        ctx.fillText(`Current Lap: ${this.formatLapTime(currentLapTime)}`, x, y + lineHeight * 2);
+        
+        const lap = {
+            best: localPlayer.lapBestMs,
+            last: localPlayer.lapLastMs,
+            current: currentLapTime
+        };
+        
+        this.ui.updateHUD({ boost, lap });
+
+        // Debug: show active particle count
+        // this.ctx.fillStyle = 'white';
+        // this.ctx.font = '16px Arial';
+        // this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
     }
 
-    private formatLapTime(ms: number | null): string {
-        if (ms === null) return "—";
-        
-        const totalSeconds = ms / 1000;
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = Math.floor(totalSeconds % 60);
-        const milliseconds = Math.floor(ms % 1000);
-        
-        return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-    }
 
     private initializeEditor(): void {
         // Create editor canvas
