@@ -1047,6 +1047,11 @@ class Game {
                 this.editorCanvas.style.display = 'block';
             }
             
+            // Show editor UI
+            if (this.editorUI) {
+                this.editorUI.show();
+            }
+            
             // Load current track into editor if it's a custom track
             if (Integrations.isCustomTrack(this.session.trackName)) {
                 const bundle = Integrations.getCustomTrackBundle(this.session.trackName);
@@ -1065,6 +1070,11 @@ class Game {
             this.canvas.style.display = 'block';
             if (this.editorCanvas) {
                 this.editorCanvas.style.display = 'none';
+            }
+            
+            // Hide editor UI
+            if (this.editorUI) {
+                this.editorUI.hide();
             }
             
             // Ensure derived data is up to date before switching to play

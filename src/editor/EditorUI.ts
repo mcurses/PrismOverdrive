@@ -451,6 +451,18 @@ export class EditorUI {
         }
     }
 
+    public show(): void {
+        if (this.container) {
+            this.container.style.display = 'flex';
+        }
+    }
+
+    public hide(): void {
+        if (this.container) {
+            this.container.style.display = 'none';
+        }
+    }
+
     public destroy(): void {
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
