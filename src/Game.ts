@@ -32,6 +32,8 @@ import { mountUI } from "./ui/mount";
 import { GameLoop } from "./core/GameLoop";
 import { Scheduler } from "./core/Scheduler";
 import { STEP_MS, MAX_STEPS, BASE_VISIBLE_FACTOR, ZOOM_MIN_RELATIVE, SPEED_FOR_MIN_ZOOM, ZOOM_SMOOTH } from "./config/GameConfig";
+import { ZoomController } from "./render/ZoomController";
+import { WorldRenderer } from "./render/WorldRenderer";
 
 class Game {
     canvasSize: Dimensions;
@@ -78,6 +80,8 @@ class Game {
     private showCheckpoints: boolean = false;
     private worldScale: number = .67;
     private zoomBaseline: number = .67;
+    private zoom: ZoomController;
+    private worldRenderer: WorldRenderer | null = null;
     
     // Editor system
     private editorMode: boolean = false;
@@ -118,6 +122,12 @@ class Game {
         this.players = {};
         this.zoomBaseline = this.worldScale;
         this.scheduler = new Scheduler();
+        this.zoom = new ZoomController({ 
+            baseline: this.worldScale, 
+            minRelative: ZOOM_MIN_RELATIVE, 
+            speedForMin: SPEED_FOR_MIN_ZOOM, 
+            smooth: ZOOM_SMOOTH 
+        });
     }
 
     async preload() {
@@ -287,6 +297,18 @@ class Game {
         this.initializeEditor();
         this.editorUI.hide();
 
+        // Initialize world renderer
+        this.worldRenderer = new WorldRenderer({
+            camera: this.camera,
+            background: this.background,
+            trackCtx: this.trackCtx,
+            trails: this.trails,
+            particleSystem: this.particleSystem,
+            miniMap: this.miniMap,
+            ui: this.ui,
+            canvasSizeRef: this.canvasSize
+        });
+
         // Start the game loop
         this.loop = new GameLoop({
             fixedStepMs: STEP_MS,
@@ -392,7 +414,8 @@ class Game {
         }
 
         // Update dynamic zoom based on car speed
-        this.updateZoomFromSpeed(localPlayer.car.velocity.mag());
+        this.worldScale = this.zoom.update(localPlayer.car.velocity.mag());
+        this.camera.setScale(this.worldScale);
 
         // Update particles
         if (this.particleSystem) {
@@ -431,7 +454,7 @@ class Game {
             return;
         }
         
-        if (!this.players || !this.localPlayer || !this.serverConnection.connected) {
+        if (!this.players || !this.localPlayer || !this.serverConnection.connected || !this.worldRenderer) {
             return;
         }
 
@@ -440,25 +463,6 @@ class Game {
         // Update camera with current world scale
         this.camera.setScale(this.worldScale);
         this.camera.moveTowards(localPlayer.car.position);
-
-        // Clear the canvas and reset transform
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.fillStyle = 'rgb(0, 0, 0)';
-        this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-
-        // Apply world transform with scale first, then camera translation
-        this.ctx.setTransform(this.worldScale, 0, 0, this.worldScale, 0, 0);
-        this.ctx.translate(Math.floor(this.camera.position.x), Math.floor(this.camera.position.y));
-        
-        // Draw world-space elements in order: background → track → trails → cars
-        if (this.background) {
-            this.background.draw(this.ctx, this.camera.position, {
-                width: this.canvasSize.width / this.worldScale,
-                height: this.canvasSize.height / this.worldScale
-            });
-        }
-        this.ctx.drawImage(this.trackCtx.canvas, 0, 0);
-        
 
         // Interpolate remote players
         const renderTime = this.serverConnection.serverNowMs() - 100; // 100ms delay
@@ -485,90 +489,24 @@ class Game {
 
         this.checkIdlePlayers();
 
-        // Render trail stamps for all players
-        for (let id in this.players) {
-            const player = this.players[id];
-            
-            // Process pending trail stamps (unified for all players)
-            while (player.pendingTrailStamps.length > 0) {
-                const stamp = player.pendingTrailStamps.shift()!;
-                player.car.trail.drawStamp(this.trails, stamp);
-            }
-        }
-        
-        this.trails.drawTo(this.ctx, -this.camera.position.x, -this.camera.position.y, this.canvasSize.width / this.worldScale, this.canvasSize.height / this.worldScale);
-
+        // Handle trails overdraw counter
         if (this.trailsOverdrawCounter > 200) {
             this.trailsOverdrawCounter = 0;
             // Overdraw the offscreen trails buffer with the clean track @ 2% alpha
             this.trails.overlayImage(this.trackCanvas, 0.1);
         } else {
-            this.trailsOverdrawCounter += performance.now() - this._lastNow;
+            this.trailsOverdrawCounter += 1; // Simple increment since we're called per frame
         }
 
-        // Draw spark particles
-        if (this.particleSystem) {
-            this.particleSystem.draw(this.ctx);
-        }
-
-        // Render the cars
-        for (let id in this.players) {
-            const player = this.players[id];
-            // Remote players already have their position set from network interpolation
-            // Local player position is already updated in simStep
-            player.car.render(this.ctx);
-        }
-
-        // Draw checkpoints if debug mode is enabled (after cars so they appear on top)
-        if (this.showCheckpoints && this.lapCounter) {
-            const lapState = this.lapCounter.getState();
-            this.track.drawCheckpoints(this.ctx, { 
-                showIds: true, 
-                activated: lapState.activated 
-            });
-        }
-
-        // Reset transform for UI drawing (so UI doesn't scale with world)
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        
-        // Draw mini-map
-        this.ctx.drawImage(this.miniMapCanvas, this.miniMap.position.x, this.miniMap.position.y);
-        const lapState = this.lapCounter?.getState();
-        this.miniMap.draw(this.ctx, Object.values(this.players).map(player => player.car));
-        if (lapState) {
-            this.miniMap.drawCheckpointsMini(this.ctx, lapState.activated);
-        }
-        // Update UI with current scores
-        const scores = Object.values(this.players).map(p => ({
-            name: p.name.slice(0, 8),
-            best: p.score.highScore,
-            current: p.score.driftScore,
-            multiplier: p.score.multiplier || 1,
-        })).sort((a, b) => b.best - a.best);
-        this.ui.updateScores(scores);
-
-        // Update HUD
-        const boost = {
-            charge: localPlayer.boostCharge,
-            max: localPlayer.BOOST_MAX,
-            active: localPlayer.boostActive
-        };
-        
-        let currentLapTime = null;
-        if (this.lapCounter) {
-            const state = this.lapCounter.getState();
-            if (state.currentLapStartMs !== null) {
-                currentLapTime = Date.now() - state.currentLapStartMs;
-            }
-        }
-        
-        const lap = {
-            best: localPlayer.lapBestMs,
-            last: localPlayer.lapLastMs,
-            current: currentLapTime
-        };
-        
-        this.ui.updateHUD({ boost, lap });
+        // Use WorldRenderer to draw the frame
+        this.worldRenderer.drawFrame(this.ctx, {
+            localPlayer,
+            players: this.players,
+            showCheckpoints: this.showCheckpoints,
+            lapCounter: this.lapCounter,
+            track: this.track,
+            worldScale: this.worldScale
+        });
 
         // Debug: show active particle count
         // this.ctx.fillStyle = 'white';
@@ -1272,16 +1210,10 @@ class Game {
         console.log('Manual bounds cleared, rebuilt from centerline');
     }
 
-    private updateZoomFromSpeed(speed: number): void {
-        const t = clamp(0, speed / SPEED_FOR_MIN_ZOOM, 1);
-        const target = this.zoomBaseline * lerp(1.0, ZOOM_MIN_RELATIVE, t);
-        this.worldScale = lerp(this.worldScale, target, ZOOM_SMOOTH);
-        this.camera.setScale(this.worldScale);
-    }
-
     setWorldScale(scale: number): void {
         this.worldScale = scale;
         this.zoomBaseline = scale;
+        this.zoom.setBaseline(scale);
         this.camera.setScale(scale);
     }
 
@@ -1311,6 +1243,10 @@ class Game {
                     mapSize: this.mapSize,
                     layers: layers
                 });
+                // Update world renderer with new background
+                if (this.worldRenderer) {
+                    this.worldRenderer.setBackground(this.background);
+                }
             });
         }
     }
@@ -1332,6 +1268,10 @@ class Game {
             
             if (this.miniMap) {
                 this.miniMap.setTrack(this.track, this.miniMapCtx);
+                // Update world renderer with new minimap
+                if (this.worldRenderer) {
+                    this.worldRenderer.setMiniMap(this.miniMap);
+                }
             }
             
             // Recreate lap counter with new checkpoints
