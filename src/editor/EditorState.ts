@@ -138,6 +138,13 @@ export class EditorState {
         this.markDirty();
     }
 
+    public setTrackName(name: string): void {
+        const trimmed = (name ?? '').toString().trim().slice(0, 60); // cap length
+        if (trimmed.length === 0) return; // ignore empty
+        this.trackName = trimmed;
+        this.markDirty();
+    }
+
     public addNode(node: BezierNode): void {
         // Ensure widthScale is set
         if (node.widthScale === undefined) {

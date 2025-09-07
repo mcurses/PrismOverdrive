@@ -8,6 +8,7 @@ export interface EditorUICallbacks {
     onResampleChange: (n: number) => void;
     onAutoShrinkToggle: (enabled: boolean) => void;
     onNodeWidthChange: (value: number) => void;
+    onTrackNameChange: (name: string) => void;
     onPlay: () => void;
     onSave: () => void;
     onExport: () => void;
@@ -137,6 +138,17 @@ export class EditorUI {
                 font-family: monospace;
             }
             
+            .editor-control input[type="text"] {
+                width: 140px;
+                background: rgba(20, 20, 20, 0.8);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 3px;
+                color: #e0e0e0;
+                padding: 2px 6px;
+                font-size: 11px;
+                font-family: monospace;
+            }
+            
             .editor-action-btn {
                 background: rgba(0, 120, 255, 0.8);
                 border: 1px solid rgba(0, 120, 255, 1);
@@ -256,6 +268,16 @@ export class EditorUI {
         nodeSection.appendChild(nodeWidthControl);
         nodeSection.appendChild(hintsLabel);
         
+        // Track section
+        const trackSection = document.createElement('div');
+        trackSection.className = 'editor-toolbar-section';
+        
+        const trackNameControl = this.createTextControl('Track Name', 'Custom Track', (name) => {
+            this.callbacks.onTrackNameChange(name);
+        });
+        
+        trackSection.appendChild(trackNameControl);
+        
         // Actions section
         const actionsSection = document.createElement('div');
         actionsSection.className = 'editor-toolbar-section';
@@ -293,6 +315,7 @@ export class EditorUI {
         this.container.appendChild(toolsSection);
         this.container.appendChild(controlsSection);
         this.container.appendChild(nodeSection);
+        this.container.appendChild(trackSection);
         this.container.appendChild(actionsSection);
         this.container.appendChild(fileInput);
         
@@ -395,6 +418,28 @@ export class EditorUI {
         return control;
     }
 
+    private createTextControl(label: string, defaultValue: string, onChange: (value: string) => void): HTMLElement {
+        const control = document.createElement('div');
+        control.className = 'editor-control';
+        
+        const labelEl = document.createElement('label');
+        labelEl.textContent = label;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = defaultValue;
+        input.id = 'track-name-input';
+        
+        input.addEventListener('input', () => {
+            onChange(input.value);
+        });
+        
+        control.appendChild(labelEl);
+        control.appendChild(input);
+        
+        return control;
+    }
+
     private createActionButton(label: string, onClick: () => void, variant?: 'danger'): HTMLElement {
         const btn = document.createElement('button');
         btn.className = 'editor-action-btn';
@@ -442,6 +487,11 @@ export class EditorUI {
         const autoShrinkCheckbox = this.container.querySelector('input[type="checkbox"]') as HTMLInputElement;
         if (autoShrinkCheckbox) {
             autoShrinkCheckbox.checked = state.autoShrinkPreviewEnabled;
+        }
+        
+        const trackNameInput = this.container.querySelector('#track-name-input') as HTMLInputElement;
+        if (trackNameInput) {
+            trackNameInput.value = state.trackName;
         }
     }
 

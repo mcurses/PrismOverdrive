@@ -663,6 +663,11 @@ class Game {
                     this.editorState.markDirty();
                 }
             },
+            onTrackNameChange: (name) => {
+                if (this.editorState) {
+                    this.editorState.setTrackName(name);
+                }
+            },
             onPlay: () => this.toggleBuildPlayMode(),
             onSave: () => this.saveCurrentTrack(),
             onExport: () => this.exportCurrentTrack(),
@@ -1153,6 +1158,7 @@ class Game {
                 // Start with empty track
                 this.editorState = new EditorState();
                 this.editorPath?.setNodes([]);
+                this.editorUI?.updateValues(this.editorState);
             }
         } else {
             // Switch to Play mode
