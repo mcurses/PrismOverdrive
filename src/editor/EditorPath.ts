@@ -2,9 +2,11 @@ import { BezierNode } from './EditorState';
 
 export class EditorPath {
     private nodes: BezierNode[] = [];
+    private static readonly CATMULL_ROM_TENSION = 1.0;
+    private static readonly ARC_LENGTH_SAMPLES_PER_SEGMENT = 16;
 
     constructor() {
-        // Simple implementation without paper.js for now
+        // Cubic Bézier path implementation
     }
 
     public setNodes(nodes: BezierNode[]): void {
@@ -18,24 +20,214 @@ export class EditorPath {
     public resample(numSamples: number): { x: number; y: number }[] {
         if (this.nodes.length < 2) return [];
         
+        // Build arc-length table for the entire closed loop
+        const arcLengthTable = this.buildArcLengthTable();
+        const totalLength = arcLengthTable[arcLengthTable.length - 1];
+        
+        if (totalLength === 0) return [];
+        
         const samples: { x: number; y: number }[] = [];
         
-        // Simple linear interpolation between nodes for now
         for (let i = 0; i < numSamples; i++) {
-            const t = i / numSamples;
-            const segmentIndex = Math.floor(t * this.nodes.length);
-            const localT = (t * this.nodes.length) - segmentIndex;
-            
-            const currentNode = this.nodes[segmentIndex % this.nodes.length];
-            const nextNode = this.nodes[(segmentIndex + 1) % this.nodes.length];
-            
-            const x = currentNode.x + (nextNode.x - currentNode.x) * localT;
-            const y = currentNode.y + (nextNode.y - currentNode.y) * localT;
-            
-            samples.push({ x, y });
+            const targetLength = (i / numSamples) * totalLength;
+            const t = this.arcLengthToT(targetLength, arcLengthTable, totalLength);
+            const point = this.getPointAt(t);
+            if (point) {
+                samples.push(point);
+            }
         }
         
         return samples;
+    }
+
+    private buildArcLengthTable(): number[] {
+        const table: number[] = [0];
+        let totalLength = 0;
+        
+        for (let segmentIndex = 0; segmentIndex < this.nodes.length; segmentIndex++) {
+            const segmentLength = this.getSegmentLength(segmentIndex);
+            totalLength += segmentLength;
+            table.push(totalLength);
+        }
+        
+        return table;
+    }
+
+    private getSegmentLength(segmentIndex: number): number {
+        let length = 0;
+        const samples = EditorPath.ARC_LENGTH_SAMPLES_PER_SEGMENT;
+        
+        let prevPoint = this.getSegmentPointAt(segmentIndex, 0);
+        if (!prevPoint) return 0;
+        
+        for (let i = 1; i <= samples; i++) {
+            const t = i / samples;
+            const point = this.getSegmentPointAt(segmentIndex, t);
+            if (!point) continue;
+            
+            const dx = point.x - prevPoint.x;
+            const dy = point.y - prevPoint.y;
+            length += Math.sqrt(dx * dx + dy * dy);
+            prevPoint = point;
+        }
+        
+        return length;
+    }
+
+    private arcLengthToT(targetLength: number, arcLengthTable: number[], totalLength: number): number {
+        if (targetLength <= 0) return 0;
+        if (targetLength >= totalLength) return 1;
+        
+        // Binary search in arc length table
+        let low = 0;
+        let high = arcLengthTable.length - 1;
+        
+        while (low < high - 1) {
+            const mid = Math.floor((low + high) / 2);
+            if (arcLengthTable[mid] < targetLength) {
+                low = mid;
+            } else {
+                high = mid;
+            }
+        }
+        
+        // Interpolate within the segment
+        const segmentStart = arcLengthTable[low];
+        const segmentEnd = arcLengthTable[high];
+        const segmentLength = segmentEnd - segmentStart;
+        
+        if (segmentLength === 0) {
+            return low / this.nodes.length;
+        }
+        
+        const localT = (targetLength - segmentStart) / segmentLength;
+        return (low + localT) / this.nodes.length;
+    }
+
+    private getSegmentPointAt(segmentIndex: number, t: number): { x: number; y: number } | null {
+        if (this.nodes.length < 2) return null;
+        
+        const node0 = this.nodes[segmentIndex % this.nodes.length];
+        const node1 = this.nodes[(segmentIndex + 1) % this.nodes.length];
+        
+        const { p0, p1, p2, p3 } = this.getSegmentControlPoints(segmentIndex);
+        
+        return this.evaluateCubicBezier(p0, p1, p2, p3, t);
+    }
+
+    private getSegmentControlPoints(segmentIndex: number): {
+        p0: { x: number; y: number };
+        p1: { x: number; y: number };
+        p2: { x: number; y: number };
+        p3: { x: number; y: number };
+    } {
+        const node0 = this.nodes[segmentIndex % this.nodes.length];
+        const node1 = this.nodes[(segmentIndex + 1) % this.nodes.length];
+        
+        const p0 = { x: node0.x, y: node0.y };
+        const p3 = { x: node1.x, y: node1.y };
+        
+        // Get or generate control points
+        const handleOut = this.getHandleOut(segmentIndex);
+        const handleIn = this.getHandleIn((segmentIndex + 1) % this.nodes.length);
+        
+        const p1 = { x: p0.x + handleOut.x, y: p0.y + handleOut.y };
+        const p2 = { x: p3.x + handleIn.x, y: p3.y + handleIn.y };
+        
+        return { p0, p1, p2, p3 };
+    }
+
+    private getHandleOut(nodeIndex: number): { x: number; y: number } {
+        const node = this.nodes[nodeIndex % this.nodes.length];
+        
+        if (node.handleOut) {
+            return node.handleOut;
+        }
+        
+        // Auto-generate using Catmull-Rom
+        return this.generateAutoHandleOut(nodeIndex);
+    }
+
+    private getHandleIn(nodeIndex: number): { x: number; y: number } {
+        const node = this.nodes[nodeIndex % this.nodes.length];
+        
+        if (node.handleIn) {
+            return node.handleIn;
+        }
+        
+        // Auto-generate using Catmull-Rom
+        return this.generateAutoHandleIn(nodeIndex);
+    }
+
+    private generateAutoHandleOut(nodeIndex: number): { x: number; y: number } {
+        const prevIndex = (nodeIndex - 1 + this.nodes.length) % this.nodes.length;
+        const nextIndex = (nodeIndex + 1) % this.nodes.length;
+        
+        const prev = this.nodes[prevIndex];
+        const curr = this.nodes[nodeIndex];
+        const next = this.nodes[nextIndex];
+        
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        
+        return {
+            x: dx / 6 * EditorPath.CATMULL_ROM_TENSION,
+            y: dy / 6 * EditorPath.CATMULL_ROM_TENSION
+        };
+    }
+
+    private generateAutoHandleIn(nodeIndex: number): { x: number; y: number } {
+        const prevIndex = (nodeIndex - 1 + this.nodes.length) % this.nodes.length;
+        const nextIndex = (nodeIndex + 1) % this.nodes.length;
+        const nextNextIndex = (nodeIndex + 2) % this.nodes.length;
+        
+        const prev = this.nodes[prevIndex];
+        const curr = this.nodes[nodeIndex];
+        const next = this.nodes[nextIndex];
+        
+        const dx = prev.x - next.x;
+        const dy = prev.y - next.y;
+        
+        return {
+            x: dx / 6 * EditorPath.CATMULL_ROM_TENSION,
+            y: dy / 6 * EditorPath.CATMULL_ROM_TENSION
+        };
+    }
+
+    private evaluateCubicBezier(
+        p0: { x: number; y: number },
+        p1: { x: number; y: number },
+        p2: { x: number; y: number },
+        p3: { x: number; y: number },
+        t: number
+    ): { x: number; y: number } {
+        const u = 1 - t;
+        const tt = t * t;
+        const uu = u * u;
+        const uuu = uu * u;
+        const ttt = tt * t;
+        
+        return {
+            x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+            y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
+        };
+    }
+
+    private evaluateCubicBezierDerivative(
+        p0: { x: number; y: number },
+        p1: { x: number; y: number },
+        p2: { x: number; y: number },
+        p3: { x: number; y: number },
+        t: number
+    ): { x: number; y: number } {
+        const u = 1 - t;
+        const tt = t * t;
+        const uu = u * u;
+        
+        return {
+            x: 3 * uu * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * tt * (p3.x - p2.x),
+            y: 3 * uu * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * tt * (p3.y - p2.y)
+        };
     }
 
     public getNormalAt(t: number): { x: number; y: number } | null {
@@ -55,35 +247,34 @@ export class EditorPath {
     public getTangentAt(t: number): { x: number; y: number } | null {
         if (this.nodes.length < 2) return null;
         
-        const segmentIndex = Math.floor(t * this.nodes.length);
-        const currentNode = this.nodes[segmentIndex % this.nodes.length];
-        const nextNode = this.nodes[(segmentIndex + 1) % this.nodes.length];
+        // Map global t to segment and local t
+        const segmentIndex = Math.floor(t * this.nodes.length) % this.nodes.length;
+        const localT = (t * this.nodes.length) - Math.floor(t * this.nodes.length);
         
-        const dx = nextNode.x - currentNode.x;
-        const dy = nextNode.y - currentNode.y;
-        const length = Math.sqrt(dx * dx + dy * dy);
+        const { p0, p1, p2, p3 } = this.getSegmentControlPoints(segmentIndex);
+        const derivative = this.evaluateCubicBezierDerivative(p0, p1, p2, p3, localT);
         
-        if (length === 0) return null;
+        // Normalize to unit vector
+        const length = Math.sqrt(derivative.x * derivative.x + derivative.y * derivative.y);
+        if (length < 1e-10) return null;
         
         return {
-            x: dx / length,
-            y: dy / length
+            x: derivative.x / length,
+            y: derivative.y / length
         };
     }
 
     public getPointAt(t: number): { x: number; y: number } | null {
         if (this.nodes.length < 2) return null;
         
-        const segmentIndex = Math.floor(t * this.nodes.length);
-        const localT = (t * this.nodes.length) - segmentIndex;
+        // Ensure t is in [0, 1) for closed loop
+        t = t - Math.floor(t);
         
-        const currentNode = this.nodes[segmentIndex % this.nodes.length];
-        const nextNode = this.nodes[(segmentIndex + 1) % this.nodes.length];
+        // Map global t to segment and local t
+        const segmentIndex = Math.floor(t * this.nodes.length) % this.nodes.length;
+        const localT = (t * this.nodes.length) - Math.floor(t * this.nodes.length);
         
-        return {
-            x: currentNode.x + (nextNode.x - currentNode.x) * localT,
-            y: currentNode.y + (nextNode.y - currentNode.y) * localT
-        };
+        return this.getSegmentPointAt(segmentIndex, localT);
     }
 
     public offsetPath(distance: number): { x: number; y: number }[] {
@@ -104,6 +295,37 @@ export class EditorPath {
         }
         
         return offsetSamples;
+    }
+
+    public hitTestHandle(point: { x: number; y: number }, tolerance: number = 10): { nodeId: string; handle: 'in' | 'out' } | null {
+        for (const node of this.nodes) {
+            if (node.handleOut) {
+                const handlePos = { x: node.x + node.handleOut.x, y: node.y + node.handleOut.y };
+                const distance = Math.sqrt(Math.pow(handlePos.x - point.x, 2) + Math.pow(handlePos.y - point.y, 2));
+                if (distance <= tolerance) {
+                    return { nodeId: node.id, handle: 'out' };
+                }
+            }
+            
+            if (node.handleIn) {
+                const handlePos = { x: node.x + node.handleIn.x, y: node.y + node.handleIn.y };
+                const distance = Math.sqrt(Math.pow(handlePos.x - point.x, 2) + Math.pow(handlePos.y - point.y, 2));
+                if (distance <= tolerance) {
+                    return { nodeId: node.id, handle: 'in' };
+                }
+            }
+        }
+        return null;
+    }
+
+    public hitTestNode(point: { x: number; y: number }, tolerance: number = 10): string | null {
+        for (const node of this.nodes) {
+            const distance = Math.sqrt(Math.pow(node.x - point.x, 2) + Math.pow(node.y - point.y, 2));
+            if (distance <= tolerance) {
+                return node.id;
+            }
+        }
+        return null;
     }
 
     public hitTest(point: { x: number; y: number }, tolerance: number = 10): boolean {
@@ -149,7 +371,7 @@ export class EditorPath {
         };
     }
 
-    public addNode(x: number, y: number, type: 'corner' | 'smooth' = 'smooth'): BezierNode {
+    public addNode(x: number, y: number, type: 'corner' | 'smooth' = 'corner'): BezierNode {
         const node: BezierNode = {
             id: 'node_' + Math.random().toString(36).substr(2, 9),
             x,
@@ -159,6 +381,55 @@ export class EditorPath {
         
         this.nodes.push(node);
         return node;
+    }
+
+    public addNodeWithHandle(x: number, y: number, handleOut: { x: number; y: number }): BezierNode {
+        const node: BezierNode = {
+            id: 'node_' + Math.random().toString(36).substr(2, 9),
+            x,
+            y,
+            type: 'smooth',
+            handleOut
+        };
+        
+        this.nodes.push(node);
+        return node;
+    }
+
+    public toggleNodeType(nodeId: string): void {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        
+        if (node.type === 'corner') {
+            node.type = 'smooth';
+            // Generate symmetric handles if none exist
+            if (!node.handleIn && !node.handleOut) {
+                const nodeIndex = this.nodes.findIndex(n => n.id === nodeId);
+                const autoOut = this.generateAutoHandleOut(nodeIndex);
+                node.handleOut = autoOut;
+                node.handleIn = { x: -autoOut.x, y: -autoOut.y };
+            }
+        } else {
+            node.type = 'corner';
+            // Keep existing handles but remove auto-symmetry
+        }
+    }
+
+    public updateHandle(nodeId: string, handle: 'in' | 'out', newHandle: { x: number; y: number }, mirrorSymmetric: boolean = true): void {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        
+        if (handle === 'out') {
+            node.handleOut = newHandle;
+            if (mirrorSymmetric && node.type === 'smooth') {
+                node.handleIn = { x: -newHandle.x, y: -newHandle.y };
+            }
+        } else {
+            node.handleIn = newHandle;
+            if (mirrorSymmetric && node.type === 'smooth') {
+                node.handleOut = { x: -newHandle.x, y: -newHandle.y };
+            }
+        }
     }
 
     public removeNode(nodeId: string): void {

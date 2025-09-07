@@ -229,6 +229,25 @@ export class EditorUI {
         controlsSection.appendChild(resampleControl);
         controlsSection.appendChild(autoShrinkControl);
         
+        // Node controls section
+        const nodeSection = document.createElement('div');
+        nodeSection.className = 'editor-toolbar-section';
+        
+        const nodeTypeLabel = document.createElement('div');
+        nodeTypeLabel.style.fontSize = '11px';
+        nodeTypeLabel.style.color = '#ccc';
+        nodeTypeLabel.textContent = 'Node: None selected';
+        nodeTypeLabel.id = 'node-type-label';
+        
+        const hintsLabel = document.createElement('div');
+        hintsLabel.style.fontSize = '10px';
+        hintsLabel.style.color = '#999';
+        hintsLabel.style.lineHeight = '1.2';
+        hintsLabel.innerHTML = 'Double-click: Toggle type<br/>Alt+drag: Break symmetry<br/>Shift+drag: Constrain angle';
+        
+        nodeSection.appendChild(nodeTypeLabel);
+        nodeSection.appendChild(hintsLabel);
+        
         // Actions section
         const actionsSection = document.createElement('div');
         actionsSection.className = 'editor-toolbar-section';
@@ -265,6 +284,7 @@ export class EditorUI {
         
         this.container.appendChild(toolsSection);
         this.container.appendChild(controlsSection);
+        this.container.appendChild(nodeSection);
         this.container.appendChild(actionsSection);
         this.container.appendChild(fileInput);
         
@@ -411,6 +431,23 @@ export class EditorUI {
         const autoShrinkCheckbox = this.container.querySelector('input[type="checkbox"]') as HTMLInputElement;
         if (autoShrinkCheckbox) {
             autoShrinkCheckbox.checked = state.autoShrinkPreviewEnabled;
+        }
+    }
+
+    public updateNodeSelection(selectedNodeId: string | null, nodes: any[]): void {
+        const label = this.container.querySelector('#node-type-label') as HTMLElement;
+        if (!label) return;
+        
+        if (!selectedNodeId) {
+            label.textContent = 'Node: None selected';
+            return;
+        }
+        
+        const node = nodes.find(n => n.id === selectedNodeId);
+        if (node) {
+            const typeText = node.type === 'smooth' ? 'Smooth' : 'Corner';
+            const hasHandles = !!(node.handleIn || node.handleOut);
+            label.textContent = `Node: ${typeText}${hasHandles ? ' (has handles)' : ''}`;
         }
     }
 

@@ -89,6 +89,11 @@ class Game {
     private editorCtx: CanvasRenderingContext2D | null = null;
     private currentTool: EditorTool = 'pen';
     private selectedNodeId: string | null = null;
+    private selectedHandle: { nodeId: string; handle: 'in' | 'out' } | null = null;
+    private isDragging: boolean = false;
+    private dragStart: { x: number; y: number } | null = null;
+    private isCreatingNode: boolean = false;
+    private modifierKeys: { alt: boolean; shift: boolean; cmd: boolean } = { alt: false, shift: false, cmd: false };
 
     constructor() {
         this.canvasSize = {
@@ -654,22 +659,43 @@ class Game {
         this.editorCanvas.addEventListener('mousedown', (e) => this.handleEditorMouseDown(e));
         this.editorCanvas.addEventListener('mousemove', (e) => this.handleEditorMouseMove(e));
         this.editorCanvas.addEventListener('mouseup', (e) => this.handleEditorMouseUp(e));
+        this.editorCanvas.addEventListener('dblclick', (e) => this.handleEditorDoubleClick(e));
+        
+        // Track modifier keys
+        document.addEventListener('keydown', (e) => {
+            this.modifierKeys.alt = e.altKey;
+            this.modifierKeys.shift = e.shiftKey;
+            this.modifierKeys.cmd = e.metaKey || e.ctrlKey;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            this.modifierKeys.alt = e.altKey;
+            this.modifierKeys.shift = e.shiftKey;
+            this.modifierKeys.cmd = e.metaKey || e.ctrlKey;
+        });
     }
 
     private handleEditorMouseDown(e: MouseEvent): void {
-        if (!this.editorViewport || !this.editorState) return;
+        if (!this.editorViewport || !this.editorState || !this.editorPath) return;
+        
+        // Skip if this is a panning gesture (middle mouse or cmd+left)
+        if (e.button === 1 || (e.button === 0 && this.modifierKeys.cmd)) {
+            return;
+        }
         
         const rect = this.editorCanvas!.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
         const world = this.editorViewport.screenToWorld(screenX, screenY);
         
+        this.dragStart = { x: world.x, y: world.y };
+        
         switch (this.currentTool) {
             case 'pen':
-                this.handlePenTool(world.x, world.y);
+                this.handlePenToolDown(world.x, world.y);
                 break;
             case 'select':
-                this.handleSelectTool(world.x, world.y);
+                this.handleSelectToolDown(world.x, world.y);
                 break;
             case 'finish':
                 this.handleFinishTool(world.x, world.y);
@@ -678,36 +704,133 @@ class Game {
     }
 
     private handleEditorMouseMove(e: MouseEvent): void {
-        // Handle dragging operations
+        if (!this.editorViewport || !this.editorState || !this.editorPath || !this.dragStart) return;
+        
+        const rect = this.editorCanvas!.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const world = this.editorViewport.screenToWorld(screenX, screenY);
+        
+        if (this.isDragging) {
+            const dx = world.x - this.dragStart.x;
+            const dy = world.y - this.dragStart.y;
+            
+            if (this.currentTool === 'pen' && this.isCreatingNode) {
+                this.handlePenToolDrag(dx, dy);
+            } else if (this.currentTool === 'select') {
+                this.handleSelectToolDrag(world.x, world.y, dx, dy);
+            }
+        }
     }
 
     private handleEditorMouseUp(e: MouseEvent): void {
-        // Handle end of drag operations
+        this.isDragging = false;
+        this.isCreatingNode = false;
+        this.dragStart = null;
     }
 
-    private handlePenTool(x: number, y: number): void {
-        if (!this.editorState || !this.editorPath) return;
+    private handleEditorDoubleClick(e: MouseEvent): void {
+        if (!this.editorViewport || !this.editorState || !this.editorPath) return;
         
-        const node = this.editorPath.addNode(x, y, 'smooth');
-        this.editorState.addNode(node);
-    }
-
-    private handleSelectTool(x: number, y: number): void {
-        // Find and select nearest node
-        if (!this.editorState) return;
+        const rect = this.editorCanvas!.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const world = this.editorViewport.screenToWorld(screenX, screenY);
         
-        let closestNode: string | null = null;
-        let closestDistance = Infinity;
-        
-        for (const node of this.editorState.centerPath) {
-            const distance = Math.sqrt(Math.pow(node.x - x, 2) + Math.pow(node.y - y, 2));
-            if (distance < closestDistance && distance < 20) {
-                closestDistance = distance;
-                closestNode = node.id;
+        if (this.currentTool === 'select') {
+            const nodeId = this.editorPath.hitTestNode(world, 15);
+            if (nodeId) {
+                this.editorPath.toggleNodeType(nodeId);
+                this.editorState.markDirty();
+                this.updateEditorUI();
             }
         }
+    }
+
+    private handlePenToolDown(x: number, y: number): void {
+        if (!this.editorState || !this.editorPath) return;
         
-        this.selectedNodeId = closestNode;
+        const node = this.editorPath.addNode(x, y, 'corner');
+        this.editorState.addNode(node);
+        this.selectedNodeId = node.id;
+        this.isCreatingNode = true;
+        this.isDragging = true;
+    }
+
+    private handlePenToolDrag(dx: number, dy: number): void {
+        if (!this.editorState || !this.editorPath || !this.selectedNodeId) return;
+        
+        // Convert the newly created node to smooth and set handle
+        const node = this.editorState.centerPath.find(n => n.id === this.selectedNodeId);
+        if (node) {
+            node.type = 'smooth';
+            const handleOut = { x: dx, y: dy };
+            this.editorPath.updateHandle(this.selectedNodeId, 'out', handleOut, true);
+            this.editorState.markDirty();
+        }
+    }
+
+    private handleSelectToolDown(x: number, y: number): void {
+        if (!this.editorState || !this.editorPath) return;
+        
+        // Priority: handles > nodes > segments
+        const handleHit = this.editorPath.hitTestHandle({ x, y }, 10);
+        if (handleHit) {
+            this.selectedHandle = handleHit;
+            this.selectedNodeId = handleHit.nodeId;
+            this.isDragging = true;
+            this.updateEditorUI();
+            return;
+        }
+        
+        const nodeId = this.editorPath.hitTestNode({ x, y }, 15);
+        if (nodeId) {
+            this.selectedNodeId = nodeId;
+            this.selectedHandle = null;
+            this.isDragging = true;
+            this.updateEditorUI();
+            return;
+        }
+        
+        // Clear selection
+        this.selectedNodeId = null;
+        this.selectedHandle = null;
+        this.updateEditorUI();
+    }
+
+    private updateEditorUI(): void {
+        if (this.editorUI && this.editorState) {
+            this.editorUI.updateNodeSelection(this.selectedNodeId, this.editorState.centerPath);
+        }
+    }
+
+    private handleSelectToolDrag(worldX: number, worldY: number, dx: number, dy: number): void {
+        if (!this.editorState || !this.editorPath) return;
+        
+        if (this.selectedHandle) {
+            // Dragging a handle
+            let handleVector = { x: dx, y: dy };
+            
+            // Apply shift constraint (15-degree increments)
+            if (this.modifierKeys.shift) {
+                const angle = Math.atan2(handleVector.y, handleVector.x);
+                const constrainedAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
+                const magnitude = Math.sqrt(handleVector.x * handleVector.x + handleVector.y * handleVector.y);
+                handleVector = {
+                    x: Math.cos(constrainedAngle) * magnitude,
+                    y: Math.sin(constrainedAngle) * magnitude
+                };
+            }
+            
+            // Update handle, mirror unless Alt is held (break symmetry)
+            const mirrorSymmetric = !this.modifierKeys.alt;
+            this.editorPath.updateHandle(this.selectedHandle.nodeId, this.selectedHandle.handle, handleVector, mirrorSymmetric);
+            this.editorState.markDirty();
+            
+        } else if (this.selectedNodeId) {
+            // Dragging a node
+            this.editorState.updateNode(this.selectedNodeId, { x: worldX, y: worldY });
+        }
     }
 
     private handleFinishTool(x: number, y: number): void {
@@ -831,11 +954,64 @@ class Game {
         
         const transform = this.editorViewport.getTransform();
         const nodeSize = 8 / transform.scale;
+        const handleSize = 6 / transform.scale;
         
+        // Draw handles first (so they appear behind nodes)
         for (const node of this.editorState.centerPath) {
-            this.editorCtx.fillStyle = node.id === this.selectedNodeId ? 'rgba(255, 100, 100, 0.8)' : 'rgba(100, 150, 255, 0.8)';
+            this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            this.editorCtx.lineWidth = 1 / transform.scale;
+            
+            // Draw handle lines and handles
+            if (node.handleOut) {
+                const handlePos = { x: node.x + node.handleOut.x, y: node.y + node.handleOut.y };
+                
+                // Handle line
+                this.editorCtx.beginPath();
+                this.editorCtx.moveTo(node.x, node.y);
+                this.editorCtx.lineTo(handlePos.x, handlePos.y);
+                this.editorCtx.stroke();
+                
+                // Handle point
+                const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'out';
+                this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                this.editorCtx.beginPath();
+                this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
+                this.editorCtx.fill();
+            }
+            
+            if (node.handleIn) {
+                const handlePos = { x: node.x + node.handleIn.x, y: node.y + node.handleIn.y };
+                
+                // Handle line
+                this.editorCtx.beginPath();
+                this.editorCtx.moveTo(node.x, node.y);
+                this.editorCtx.lineTo(handlePos.x, handlePos.y);
+                this.editorCtx.stroke();
+                
+                // Handle point
+                const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'in';
+                this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                this.editorCtx.beginPath();
+                this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
+                this.editorCtx.fill();
+            }
+        }
+        
+        // Draw nodes on top
+        for (const node of this.editorState.centerPath) {
+            const isSelected = node.id === this.selectedNodeId;
+            const isSmooth = node.type === 'smooth';
+            
+            this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 
+                                     isSmooth ? 'rgba(100, 150, 255, 0.8)' : 'rgba(255, 255, 100, 0.8)';
+            
             this.editorCtx.beginPath();
-            this.editorCtx.arc(node.x, node.y, nodeSize, 0, Math.PI * 2);
+            if (isSmooth) {
+                this.editorCtx.arc(node.x, node.y, nodeSize, 0, Math.PI * 2);
+            } else {
+                // Draw square for corner nodes
+                this.editorCtx.rect(node.x - nodeSize, node.y - nodeSize, nodeSize * 2, nodeSize * 2);
+            }
             this.editorCtx.fill();
             
             this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';

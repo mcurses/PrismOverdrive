@@ -6,8 +6,8 @@ export interface BezierNode {
     x: number;
     y: number;
     type: 'corner' | 'smooth';
-    handleIn?: { x: number; y: number };
-    handleOut?: { x: number; y: number };
+    handleIn?: { x: number; y: number }; // Relative vector from node position
+    handleOut?: { x: number; y: number }; // Relative vector from node position
 }
 
 export interface FinishLine {
@@ -147,6 +147,26 @@ export class EditorState {
             Object.assign(node, updates);
             this.markDirty();
         }
+    }
+
+    // Helper methods for BezierNode
+    public static isSmooth(node: BezierNode): boolean {
+        return node.type === 'smooth';
+    }
+
+    public static hasHandles(node: BezierNode): boolean {
+        return !!(node.handleIn || node.handleOut);
+    }
+
+    public static cloneNode(node: BezierNode): BezierNode {
+        return {
+            id: node.id,
+            x: node.x,
+            y: node.y,
+            type: node.type,
+            handleIn: node.handleIn ? { x: node.handleIn.x, y: node.handleIn.y } : undefined,
+            handleOut: node.handleOut ? { x: node.handleOut.x, y: node.handleOut.y } : undefined
+        };
     }
 
     public setDerivedBounds(bounds: number[][][], checkpoints: Checkpoint[]): void {
