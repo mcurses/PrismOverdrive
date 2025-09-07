@@ -3,6 +3,7 @@
     {
       "name": "default",
       "background": "starField",
+      "mapSize": { "width": 5000, "height": 4000 },
       "bounds": [
         [
           [

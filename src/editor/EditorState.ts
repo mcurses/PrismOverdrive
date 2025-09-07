@@ -194,4 +194,71 @@ export class EditorState {
         this.derived.checkpoints = checkpoints;
         this.derived.timestamp = Date.now();
     }
+
+    public normalizeToMap(padding: number = 200): void {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let hasContent = false;
+
+        // Compute bbox from centerPath if present
+        if (this.centerPath.length > 0) {
+            for (const node of this.centerPath) {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x);
+                maxY = Math.max(maxY, node.y);
+            }
+            hasContent = true;
+        } else if (this.manualBounds && this.manualBounds.length > 0) {
+            // Fallback to manualBounds if centerPath is empty
+            for (const ring of this.manualBounds) {
+                for (const point of ring) {
+                    minX = Math.min(minX, point[0]);
+                    minY = Math.min(minY, point[1]);
+                    maxX = Math.max(maxX, point[0]);
+                    maxY = Math.max(maxY, point[1]);
+                }
+            }
+            hasContent = true;
+        }
+
+        // If no content, keep current mapSize and return
+        if (!hasContent) {
+            return;
+        }
+
+        // Compute translation to move content into positive space with padding
+        const dx = padding - minX;
+        const dy = padding - minY;
+
+        // Translate all editable content
+        for (const node of this.centerPath) {
+            node.x += dx;
+            node.y += dy;
+            // handleIn/handleOut are relative vectors, so they don't change
+        }
+
+        if (this.finishLine) {
+            this.finishLine.a.x += dx;
+            this.finishLine.a.y += dy;
+            this.finishLine.b.x += dx;
+            this.finishLine.b.y += dy;
+        }
+
+        if (this.manualBounds) {
+            for (const ring of this.manualBounds) {
+                for (const point of ring) {
+                    point[0] += dx;
+                    point[1] += dy;
+                }
+            }
+        }
+
+        // Set new map size
+        this.mapSize = {
+            width: (maxX - minX) + padding * 2,
+            height: (maxY - minY) + padding * 2
+        };
+
+        this.markDirty();
+    }
 }

@@ -1,6 +1,7 @@
 import { TrackBundle } from './EditorState';
 import { Serializer } from './Serializer';
 import { BoundsGenerator } from './BoundsGenerator';
+import { EDITOR_TO_WORLD_SCALE } from '../config/Scale';
 
 export class Integrations {
     public static mergeCustomTracksIntoTrackData(TrackData: any): void {
@@ -27,12 +28,21 @@ export class Integrations {
                 Serializer.saveToLocalStorage(bundle);
             }
             
-            // Convert bundle to TrackData format
+            // Convert bundle to TrackData format with scaling
+            const s = EDITOR_TO_WORLD_SCALE;
+            const scaledBounds = bounds.map(ring => 
+                ring.map(point => [point[0] * s, point[1] * s])
+            );
+            const scaledMapSize = {
+                width: Math.round(bundle.mapSize.width * s),
+                height: Math.round(bundle.mapSize.height * s)
+            };
+            
             const trackEntry = {
                 name: bundle.id, // Use ID as internal name
                 background: bundle.background,
-                bounds: bounds,
-                mapSize: bundle.mapSize
+                bounds: scaledBounds,
+                mapSize: scaledMapSize
             };
             
             // Add to tracks array if not already present
@@ -86,10 +96,11 @@ export class Integrations {
             bundle.derived.timestamp = Date.now();
         }
         
-        // Default spawn position (center of map)
+        // Default spawn position (center of map) - scale to world units
+        const s = EDITOR_TO_WORLD_SCALE;
         let spawnPosition = {
-            x: bundle.mapSize.width / 2,
-            y: bundle.mapSize.height / 2,
+            x: (bundle.mapSize.width / 2) * s,
+            y: (bundle.mapSize.height / 2) * s,
             angle: 0
         };
         
@@ -106,8 +117,8 @@ export class Integrations {
             const angle = Math.atan2(dy, dx) + Math.PI / 2; // Perpendicular to finish line
             
             spawnPosition = {
-                x: finishCenter.x,
-                y: finishCenter.y,
+                x: finishCenter.x * s,
+                y: finishCenter.y * s,
                 angle
             };
         }

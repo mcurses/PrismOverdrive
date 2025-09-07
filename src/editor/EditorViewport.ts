@@ -1,5 +1,6 @@
 import WheelGestures from 'wheel-gestures';
 import { Dimensions } from '../utils/Utils';
+import { EDITOR_GRID_SIZE } from '../config/Scale';
 
 export interface ViewTransform {
     x: number;

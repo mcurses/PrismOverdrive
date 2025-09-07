@@ -12,7 +12,6 @@ import HighScoreTable from "./components/Score/HighscoreTable";
 import CarData from "./components/Car/CarData";
 import TrackData from "./components/Playfield/TrackData";
 import Background from "./components/Playfield/Background";
-import {scaleTo} from "./components/Playfield/PlayfieldUtils";
 import {CarType} from "./components/Car/CarType";
 import Vector from "./utils/Vector";
 import Session from "./components/Session/Session";
@@ -30,6 +29,7 @@ import { BoundsGenerator } from "./editor/BoundsGenerator";
 import { EditorUI, EditorTool } from "./editor/EditorUI";
 import { Serializer } from "./editor/Serializer";
 import { Integrations } from "./editor/Integrations";
+import {EDITOR_GRID_SIZE, EDITOR_TO_WORLD_SCALE} from "./config/Scale";
 
 const STEP_MS = 1000 / 120;
 const MAX_STEPS = 8;
@@ -983,7 +983,7 @@ class Game {
         if (!this.editorCtx || !this.editorViewport) return;
         
         const transform = this.editorViewport.getTransform();
-        const gridSize = 100;
+        const gridSize = EDITOR_GRID_SIZE;
         const alpha = Math.min(0.3, transform.scale * 0.3);
         
         this.editorCtx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
@@ -1174,11 +1174,32 @@ class Game {
             
             // Ensure derived data is up to date before switching to play
             if (this.editorState && this.boundsGenerator) {
+                // Normalize content to map coordinates first
+                this.editorState.normalizeToMap(200);
+                
+                // Fit viewport to normalized layout if still in editor mode
+                if (this.editorMode && this.editorViewport) {
+                    this.editorViewport.fitToView({
+                        minX: 0,
+                        minY: 0,
+                        maxX: this.editorState.mapSize.width,
+                        maxY: this.editorState.mapSize.height
+                    }, 50);
+                }
+                
                 this.ensureDerivedUpToDate(this.editorState);
                 
                 if (this.editorState.derived.bounds && this.editorState.derived.bounds.length > 0) {
                     // Create bundle from editor state
                     const bundle = this.editorState.toBundle();
+                    
+                    // Apply scaled map size before persisting
+                    const s = EDITOR_TO_WORLD_SCALE;
+                    const scaledMapSize = {
+                        width: Math.round(bundle.mapSize.width * s),
+                        height: Math.round(bundle.mapSize.height * s)
+                    };
+                    this.applyMapSize(scaledMapSize);
                     
                     // Persist the track
                     Serializer.saveToLocalStorage(bundle);
@@ -1208,6 +1229,9 @@ class Game {
     private saveCurrentTrack(): void {
         if (!this.editorState || !this.boundsGenerator) return;
         
+        // Normalize content to map coordinates first
+        this.editorState.normalizeToMap(200);
+        
         // Ensure derived data is up to date
         this.ensureDerivedUpToDate(this.editorState);
         
@@ -1228,6 +1252,9 @@ class Game {
 
     private exportCurrentTrack(): void {
         if (!this.editorState || !this.boundsGenerator) return;
+        
+        // Normalize content to map coordinates first
+        this.editorState.normalizeToMap(200);
         
         // Ensure derived data is up to date
         this.ensureDerivedUpToDate(this.editorState);
@@ -1295,6 +1322,36 @@ class Game {
         this.camera.setScale(scale);
     }
 
+    private applyMapSize(size: Dimensions): void {
+        if (size.width === this.mapSize.width && size.height === this.mapSize.height) {
+            return;
+        }
+        
+        this.mapSize = { ...size };
+        
+        // Recreate world-size resources
+        this.trackCanvas.width = this.mapSize.width;
+        this.trackCanvas.height = this.mapSize.height;
+        this.trackCtx = this.trackCanvas.getContext('2d')!;
+        this.trackCtx.globalAlpha = 1;
+        
+        this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
+        
+        this.miniMapCanvas.width = this.mapSize.width * this.miniMap.scale;
+        this.miniMapCanvas.height = this.mapSize.height * this.miniMap.scale;
+        
+        // Recreate background with new map size
+        if (this.session) {
+            let backgroundData = new BackgroundData();
+            backgroundData.getLayers('starField').then((layers) => {
+                this.background = new Background({
+                    mapSize: this.mapSize,
+                    layers: layers
+                });
+            });
+        }
+    }
+
     setCarType(carTypeName: string) {
         this.session.carType = carTypeName;
         this.localPlayer.car.carType = CarData.getByName(carTypeName);
@@ -1305,16 +1362,14 @@ class Game {
             const trackData = TrackData.getByName(name);
             this.session.trackName = name;
 
-            let bounds = trackData.bounds;
-            let scaledBounds = scaleTo(bounds, this.mapSize);
-
-            this.track.setBounds(scaledBounds, this.trackCtx);
+            this.applyMapSize(trackData.mapSize || this.mapSize);
+            
+            this.track.setBounds(trackData.bounds, this.trackCtx);
             this.track.computeCheckpoints(10);
             
             if (this.miniMap) {
                 this.miniMap.setTrack(this.track, this.miniMapCtx);
             }
-            this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
             
             // Recreate lap counter with new checkpoints
             if (this.localPlayer && this.track.checkpoints.length > 0) {

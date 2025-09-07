@@ -56,6 +56,12 @@ export default class TiledCanvas {
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
                 const tile = this.tiles[tileY][tileX];
+                
+                // Skip tiles with zero dimensions
+                if (tile.width === 0 || tile.height === 0) {
+                    continue;
+                }
+                
                 const ctx = tile.getContext('2d');
                 const tileOriginX = tileX * this.tileSize;
                 const tileOriginY = tileY * this.tileSize;
@@ -82,6 +88,12 @@ export default class TiledCanvas {
         for (let tileY = startTileY; tileY <= endTileY; tileY++) {
             for (let tileX = startTileX; tileX <= endTileX; tileX++) {
                 const tile = this.tiles[tileY][tileX];
+                
+                // Skip tiles with zero dimensions to avoid canvas errors
+                if (tile.width === 0 || tile.height === 0) {
+                    continue;
+                }
+                
                 const tileOriginX = tileX * this.tileSize;
                 const tileOriginY = tileY * this.tileSize;
                 
@@ -104,6 +116,12 @@ export default class TiledCanvas {
         for (let tileY = 0; tileY < this.tilesY; tileY++) {
             for (let tileX = 0; tileX < this.tilesX; tileX++) {
                 const tile = this.tiles[tileY][tileX];
+                
+                // Skip tiles with zero dimensions
+                if (tile.width === 0 || tile.height === 0) {
+                    continue;
+                }
+                
                 const ctx = tile.getContext('2d');
                 const tileOriginX = tileX * this.tileSize;
                 const tileOriginY = tileY * this.tileSize;
