@@ -23,6 +23,11 @@ class Track {
     color2Location: WebGLUniformLocation;
     texture: WebGLTexture;
     checkpoints: Checkpoint[] = [];
+    
+    // Ring metadata for collision normals
+    private ringAreas: number[] = [];
+    private outerIndex: number = 0;
+    private inwardSign: number[] = [];
 
     constructor(name: string,trackCtx: CanvasRenderingContext2D, mapSize: Dimensions, boundaries: number[][][]) {
         this.mapSize = mapSize;
@@ -66,6 +71,13 @@ class Track {
 
     setBounds(boundaries: number[][][], ctx) {
         this.boundaries = boundaries;
+        
+        // Compute ring metadata for collision normals
+        this.ringAreas = boundaries.map(ring => this.computeSignedArea(ring));
+        this.outerIndex = this.ringAreas.reduce((maxIdx, area, idx, areas) => 
+            Math.abs(area) > Math.abs(areas[maxIdx]) ? idx : maxIdx, 0);
+        this.inwardSign = this.ringAreas.map(area => area >= 0 ? 1 : -1); // CCW => +1
+        
         this.computeCheckpoints();
         this.draw(ctx);
     }
@@ -122,7 +134,17 @@ class Track {
                 if (lineDist < car.carType.dimensions.length / 2) {
                     // Calculate the normal vector
                     let boundaryVector = Vector.sub(end, start);
-                    let normalVector = new Vector(-boundaryVector.y, boundaryVector.x).mult(side === 0 ? -1 : 1);
+                    // Base left normal (-dy, dx)
+                    let normalVector = new Vector(-boundaryVector.y, boundaryVector.x);
+                    
+                    // Make it "inward" for the ring (CCW => left is inward)
+                    normalVector = normalVector.mult(this.inwardSign[side] || 1);
+                    
+                    // For inner rings, flip to push cars OUT of the hole (into the track)
+                    if (side !== this.outerIndex) {
+                        normalVector = normalVector.mult(-1);
+                    }
+                    
                     normalVector = normalVector.normalize();
 
                     return {
@@ -210,6 +232,21 @@ class Track {
         dot = constrain(dot, 0, magnitude);
 
         return Vector.add(start, startToEndNormalized.mult(dot));
+    }
+
+    private computeSignedArea(points: number[][]): number {
+        if (points.length < 3) return 0;
+
+        let area = 0;
+        const n = points.length;
+
+        for (let i = 0; i < n; i++) {
+            const j = (i + 1) % n;
+            area += points[i][0] * points[j][1];
+            area -= points[j][0] * points[i][1];
+        }
+
+        return area / 2;
     }
 }
 

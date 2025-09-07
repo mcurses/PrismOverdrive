@@ -957,43 +957,48 @@ class Game {
         const handleSize = 6 / transform.scale;
         
         // Draw handles first (so they appear behind nodes)
+        // Only show handles for selected node when using select tool
         for (const node of this.editorState.centerPath) {
-            this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-            this.editorCtx.lineWidth = 1 / transform.scale;
+            const shouldShowHandles = this.currentTool !== 'select' || node.id === this.selectedNodeId;
             
-            // Draw handle lines and handles
-            if (node.handleOut) {
-                const handlePos = { x: node.x + node.handleOut.x, y: node.y + node.handleOut.y };
+            if (shouldShowHandles) {
+                this.editorCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                this.editorCtx.lineWidth = 1 / transform.scale;
                 
-                // Handle line
-                this.editorCtx.beginPath();
-                this.editorCtx.moveTo(node.x, node.y);
-                this.editorCtx.lineTo(handlePos.x, handlePos.y);
-                this.editorCtx.stroke();
+                // Draw handle lines and handles
+                if (node.handleOut) {
+                    const handlePos = { x: node.x + node.handleOut.x, y: node.y + node.handleOut.y };
+                    
+                    // Handle line
+                    this.editorCtx.beginPath();
+                    this.editorCtx.moveTo(node.x, node.y);
+                    this.editorCtx.lineTo(handlePos.x, handlePos.y);
+                    this.editorCtx.stroke();
+                    
+                    // Handle point
+                    const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'out';
+                    this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                    this.editorCtx.beginPath();
+                    this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
+                    this.editorCtx.fill();
+                }
                 
-                // Handle point
-                const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'out';
-                this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-                this.editorCtx.beginPath();
-                this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
-                this.editorCtx.fill();
-            }
-            
-            if (node.handleIn) {
-                const handlePos = { x: node.x + node.handleIn.x, y: node.y + node.handleIn.y };
-                
-                // Handle line
-                this.editorCtx.beginPath();
-                this.editorCtx.moveTo(node.x, node.y);
-                this.editorCtx.lineTo(handlePos.x, handlePos.y);
-                this.editorCtx.stroke();
-                
-                // Handle point
-                const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'in';
-                this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-                this.editorCtx.beginPath();
-                this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
-                this.editorCtx.fill();
+                if (node.handleIn) {
+                    const handlePos = { x: node.x + node.handleIn.x, y: node.y + node.handleIn.y };
+                    
+                    // Handle line
+                    this.editorCtx.beginPath();
+                    this.editorCtx.moveTo(node.x, node.y);
+                    this.editorCtx.lineTo(handlePos.x, handlePos.y);
+                    this.editorCtx.stroke();
+                    
+                    // Handle point
+                    const isSelected = this.selectedHandle?.nodeId === node.id && this.selectedHandle?.handle === 'in';
+                    this.editorCtx.fillStyle = isSelected ? 'rgba(255, 100, 100, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+                    this.editorCtx.beginPath();
+                    this.editorCtx.arc(handlePos.x, handlePos.y, handleSize, 0, Math.PI * 2);
+                    this.editorCtx.fill();
+                }
             }
         }
         
