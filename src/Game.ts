@@ -603,8 +603,6 @@ class Game {
         this.editorCanvas.style.position = 'absolute';
         this.editorCanvas.style.top = '0';
         this.editorCanvas.style.left = '0';
-        this.editorCanvas.style.transformOrigin = '0 0';
-        this.editorCanvas.style.transform = 'scale(.67)';
         this.editorCanvas.style.display = 'none';
         this.editorCanvas.style.zIndex = '10';
         

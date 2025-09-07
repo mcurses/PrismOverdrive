@@ -161,22 +161,21 @@ export class EditorViewport {
     }
 
     public fitToView(bounds: { minX: number; minY: number; maxX: number; maxY: number }, padding: number = 50): void {
-        const canvasRect = this.canvas.getBoundingClientRect();
         const boundsWidth = bounds.maxX - bounds.minX;
         const boundsHeight = bounds.maxY - bounds.minY;
         
         if (boundsWidth === 0 || boundsHeight === 0) return;
         
-        const scaleX = (canvasRect.width - padding * 2) / boundsWidth;
-        const scaleY = (canvasRect.height - padding * 2) / boundsHeight;
+        const scaleX = (this.canvas.width - padding * 2) / boundsWidth;
+        const scaleY = (this.canvas.height - padding * 2) / boundsHeight;
         const scale = Math.min(scaleX, scaleY, 2); // Cap max zoom
         
         const centerX = (bounds.minX + bounds.maxX) / 2;
         const centerY = (bounds.minY + bounds.maxY) / 2;
         
         this.transform.scale = scale;
-        this.transform.x = canvasRect.width / 2 - centerX * scale;
-        this.transform.y = canvasRect.height / 2 - centerY * scale;
+        this.transform.x = this.canvas.width / 2 - centerX * scale;
+        this.transform.y = this.canvas.height / 2 - centerY * scale;
     }
 
     public destroy(): void {
