@@ -16,7 +16,6 @@ import {CarType} from "./components/Car/CarType";
 import Vector from "./utils/Vector";
 import Session from "./components/Session/Session";
 import BackgroundData from "./components/Playfield/BackgroundData";
-import Menu from "./components/UI/Menu";
 import TiledCanvas from "./utils/TiledCanvas";
 import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
@@ -30,6 +29,7 @@ import { EditorUI, EditorTool } from "./editor/EditorUI";
 import { Serializer } from "./editor/Serializer";
 import { Integrations } from "./editor/Integrations";
 import {EDITOR_GRID_SIZE, EDITOR_TO_WORLD_SCALE} from "./config/Scale";
+import { mountUI } from "./ui/mount";
 
 const STEP_MS = 1000 / 120;
 const MAX_STEPS = 8;
@@ -76,7 +76,7 @@ class Game {
     private background: Background;
     private session: Session;
     private intervals: { [name: string]: GameTimeInterval } = {};
-    private menu: Menu;
+    private ui: { setVisible(v: boolean): void };
     private _accMs = 0;
     private _lastNow = performance.now();
     private lapCounter: LapCounter | null = null;
@@ -242,18 +242,29 @@ class Game {
         // Provide particle system to server connection for burst spawning
         this.serverConnection.setParticleSystem(this.particleSystem);
 
-        // Create menu after data is loaded
-        this.menu = new Menu({
+        // Create Preact UI after data is loaded
+        const carTypes = CarData.types.map(t => t.name);
+        const tracks = TrackData.tracks.map(t => ({ 
+            value: t.name, 
+            label: TrackData.getDisplayName(t.name) 
+        }));
+        
+        this.ui = mountUI({
             session: this.session,
-            loadTrack: (trackName) => this.loadTrack(trackName),
-            setCarType: (carType) => this.setCarType(carType),
-            setPlayerName: (name) => this.setPlayerName(name),
-            position: { x: this.canvasSize.width - 400, y: this.canvasSize.height - 40 }
+            carTypes,
+            tracks,
+            actions: {
+                setPlayerName: (n) => this.setPlayerName(n),
+                setCarType: (t) => this.setCarType(t),
+                loadTrack: (tr) => this.loadTrack(tr),
+                toggleEditor: () => window.dispatchEvent(new CustomEvent('toggleEditor')),
+            }
         });
+
+        let uiVisible = true;
         this.inputController.handleKey('Escape', () => {
-            this.menu.toggleNameInput();
-            this.menu.toggleCarSelector();
-            this.menu.toggleTrackSelector();
+            uiVisible = !uiVisible;
+            this.ui.setVisible(uiVisible);
         });
         this.inputController.handleKey('KeyC', () => {
             this.showCheckpoints = !this.showCheckpoints;
