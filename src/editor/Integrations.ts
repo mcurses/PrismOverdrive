@@ -15,7 +15,8 @@ export class Integrations {
                     centerPath: bundle.centerPath,
                     defaultWidth: bundle.defaultWidth,
                     widthProfile: bundle.widthProfile,
-                    resampleN: bundle.resampleN
+                    resampleN: bundle.resampleN,
+                    applyAutoShrink: bundle.applyAutoShrink ?? true
                 });
                 bounds = result.bounds;
                 
@@ -74,7 +75,8 @@ export class Integrations {
                 centerPath: bundle.centerPath,
                 defaultWidth: bundle.defaultWidth,
                 widthProfile: bundle.widthProfile,
-                resampleN: bundle.resampleN
+                resampleN: bundle.resampleN,
+                applyAutoShrink: bundle.applyAutoShrink ?? true
             });
             bounds = result.bounds;
             

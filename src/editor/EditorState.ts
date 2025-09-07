@@ -26,6 +26,7 @@ export interface TrackBundle {
     defaultWidth: number;
     widthProfile: number[]; // Per-sample width multipliers
     resampleN: number;
+    applyAutoShrink: boolean;
     manualBounds?: number[][][];
     finishLine?: FinishLine;
     derived: {
@@ -42,6 +43,7 @@ export class EditorState {
     public defaultWidth: number = 120;
     public widthProfile: number[] = [];
     public resampleN: number = 256;
+    public applyAutoShrink: boolean = true;
     public mapSize: Dimensions = { width: 5000, height: 4000 };
     public finishLine?: FinishLine;
     public manualBounds?: number[][][];
@@ -50,9 +52,6 @@ export class EditorState {
         checkpoints?: Checkpoint[];
         timestamp?: number;
     } = {};
-    
-    // Transient preview-only setting (not serialized)
-    public autoShrinkPreviewEnabled: boolean = true;
     
     public trackId: string = '';
     public trackName: string = 'Custom Track';
@@ -79,6 +78,7 @@ export class EditorState {
             defaultWidth: this.defaultWidth,
             widthProfile: [...this.widthProfile],
             resampleN: this.resampleN,
+            applyAutoShrink: this.applyAutoShrink,
             manualBounds: this.manualBounds ? JSON.parse(JSON.stringify(this.manualBounds)) : undefined,
             finishLine: this.finishLine ? { ...this.finishLine } : undefined,
             derived: {
@@ -106,6 +106,7 @@ export class EditorState {
         this.defaultWidth = bundle.defaultWidth;
         this.widthProfile = [...bundle.widthProfile];
         this.resampleN = bundle.resampleN;
+        this.applyAutoShrink = bundle.applyAutoShrink ?? true; // Default to true for backwards compatibility
         this.manualBounds = bundle.manualBounds ? JSON.parse(JSON.stringify(bundle.manualBounds)) : undefined;
         this.finishLine = bundle.finishLine ? { ...bundle.finishLine } : undefined;
         this.derived = {

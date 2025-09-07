@@ -652,8 +652,8 @@ class Game {
             },
             onAutoShrinkToggle: (enabled) => {
                 if (this.editorState) {
-                    this.editorState.autoShrinkPreviewEnabled = enabled;
-                    // Note: Do NOT call markDirty() here - this only affects preview
+                    this.editorState.applyAutoShrink = enabled;
+                    this.editorState.markDirty();
                 }
             },
             onNodeWidthChange: (value) => {

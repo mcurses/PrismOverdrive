@@ -107,6 +107,7 @@ export class Serializer {
             typeof bundle.defaultWidth === 'number' &&
             Array.isArray(bundle.widthProfile) &&
             typeof bundle.resampleN === 'number' &&
+            (bundle.applyAutoShrink === undefined || typeof bundle.applyAutoShrink === 'boolean') &&
             typeof bundle.derived === 'object' &&
             typeof bundle.createdAt === 'number' &&
             typeof bundle.updatedAt === 'number'
@@ -125,6 +126,7 @@ export class Serializer {
             defaultWidth: 120,
             widthProfile: [],
             resampleN: 256,
+            applyAutoShrink: true,
             derived: {},
             createdAt: now,
             updatedAt: now

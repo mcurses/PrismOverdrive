@@ -8,6 +8,7 @@ export interface BoundsGenerationInput {
     defaultWidth: number;
     widthProfile: number[];
     resampleN: number;
+    applyAutoShrink?: boolean;
 }
 
 export interface BoundsGenerationResult {
@@ -36,7 +37,7 @@ export class BoundsGenerator {
     }
 
     private generateFromInput(input: BoundsGenerationInput): BoundsGenerationResult {
-        const { centerPath, defaultWidth, widthProfile, resampleN } = input;
+        const { centerPath, defaultWidth, widthProfile, resampleN, applyAutoShrink = true } = input;
 
         // Generate from centerline
         if (centerPath.length < 3) {
@@ -64,12 +65,10 @@ export class BoundsGenerator {
             usedWidthProfile = nodeProfile; // which will be all 1s
         }
 
-        // Process width profile with auto-shrink
-        const processedWidthProfile = this.autoShrink.processWidthProfile(
-            centerline,
-            defaultWidth,
-            usedWidthProfile
-        );
+        // Process width profile with auto-shrink if enabled
+        const processedWidthProfile = applyAutoShrink 
+            ? this.autoShrink.processWidthProfile(centerline, defaultWidth, usedWidthProfile)
+            : usedWidthProfile;
 
         // Generate offset paths
         const outerBounds = this.generateOffsetBounds(centerline, defaultWidth, processedWidthProfile, 1);
@@ -140,7 +139,8 @@ export class BoundsGenerator {
             centerPath: state.centerPath,
             defaultWidth: state.defaultWidth,
             widthProfile: state.widthProfile,
-            resampleN: state.resampleN
+            resampleN: state.resampleN,
+            applyAutoShrink: state.applyAutoShrink
         });
     }
 
@@ -707,8 +707,8 @@ export class BoundsGenerator {
         // Compute width profile from node widths (ignore state.widthProfile for preview)
         let widthProfile = this.computeWidthProfileFromNodes(state.centerPath, samples);
 
-        // Apply auto-shrink processing if enabled for preview
-        if (state.autoShrinkPreviewEnabled) {
+        // Apply auto-shrink processing if enabled (preview must match final)
+        if (state.applyAutoShrink) {
             widthProfile = this.autoShrink.processWidthProfile(
                 centerline,
                 state.defaultWidth,

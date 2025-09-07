@@ -486,7 +486,7 @@ export class EditorUI {
         
         const autoShrinkCheckbox = this.container.querySelector('input[type="checkbox"]') as HTMLInputElement;
         if (autoShrinkCheckbox) {
-            autoShrinkCheckbox.checked = state.autoShrinkPreviewEnabled;
+            autoShrinkCheckbox.checked = state.applyAutoShrink;
         }
         
         const trackNameInput = this.container.querySelector('#track-name-input') as HTMLInputElement;
