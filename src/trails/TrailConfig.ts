@@ -8,13 +8,13 @@ export const MAX_TRAIL_WEIGHT = 50;
 // Centralized stage boundaries
 export const STAGE_BOUNDARIES = {
     stage1: 0,
-    stage2: 20000,
-    stage3: 35000,
-    stage4: 60000,
-    stage5: 100000,
-    stage6: 150000,
-    stage7: 350000,
-    stage8: 500000,
+    stage2: 80000,
+    stage3: 140000,
+    stage4: 240000,
+    stage5: 400000,
+    stage6: 600000,
+    stage7: 1400000,
+    stage8: 2000000,
 };
 
 export type StageKey = keyof typeof STAGE_BOUNDARIES;
