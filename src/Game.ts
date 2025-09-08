@@ -265,6 +265,10 @@ class Game {
             this.showCheckpoints = !this.showCheckpoints;
         });
         
+        this.inputController.handleKey('KeyT', () => {
+            window.dispatchEvent(new CustomEvent('openTrackManager'));
+        });
+        
         this.inputController.handleKeyP(() => {
             this.modeManager?.toggle();
         });

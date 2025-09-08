@@ -118,7 +118,7 @@ export class Serializer {
         const now = Date.now();
         return {
             version: 1,
-            id: 'track_' + Math.random().toString(36).substr(2, 9),
+            id: 'custom_' + Math.random().toString(36).substr(2, 9),
             name: 'New Track',
             mapSize: { width: 5000, height: 4000 },
             background: 'starField',
