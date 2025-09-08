@@ -7,7 +7,7 @@ class BackgroundData {
 
     constructor() {
         this.images['parallaxLayer1'] = new Image();
-        this.images['parallaxLayer1'].src = 'assets/starfield-tile-loDens.png';
+        this.images['parallaxLayer1'].src = 'assets/starfield-tile.png';
         this.images['parallaxLayer2'] = new Image();
         this.images['parallaxLayer2'].src = 'assets/starfield-tile-loDens.png';
         // this.images['parallaxLayer2'].src = 'assets/starfield-tile2.png';
@@ -31,7 +31,7 @@ class BackgroundData {
     private starField = (): ParallaxLayer[] => [
         {
             img: this.images.parallaxLayer3,
-            z: .85,
+            z: .90,
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
@@ -51,7 +51,7 @@ class BackgroundData {
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
-            scale: 1.0,
+            scale: 3.0,
         },
     ]
 
