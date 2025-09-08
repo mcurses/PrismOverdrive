@@ -3,8 +3,8 @@
     {
       "name": "default",
       "turnRate": {
-        "drifting": 0.012,
-        "gripping": 0.008
+        "drifting": 0.015,
+        "gripping": 0.012
       },
       "grip": {
         "drifting": 0.2,
@@ -18,7 +18,7 @@
       },
       "engineForce": 0.19,
       "baseColor": {
-        "h": 100,
+        "h": 200,
         "s": 20,
         "b": 50,
         "a": 1
