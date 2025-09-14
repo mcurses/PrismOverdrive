@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface LapHUDProps {
   best: number | null;
   last: number | null;

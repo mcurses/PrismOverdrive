@@ -32,11 +32,7 @@ module.exports = {
         modules: [
             path.resolve('./src'),
             path.resolve('./node_modules')
-        ],
-        // root: path.resolve('./src'),
-        // alias: {
-        //     src: path.resolve(__dirname + '/src')
-        // }
+        ]
     },
     devServer: {
         static: {

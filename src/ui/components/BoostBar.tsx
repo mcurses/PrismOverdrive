@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface BoostBarProps {
   charge: number;
   max: number;

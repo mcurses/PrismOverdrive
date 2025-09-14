@@ -101,7 +101,9 @@ export default class Player {
 
     updateBoost(dtMs: number, boostKeyDown: boolean): void {
         const dt = dtMs / 1000;
-        
+        // DEBUG: force boost on
+        // this.boostActive = true;
+
         // Regenerate boost
         if (this.car.isDrifting) {
             this.boostCharge += this.score.frameScore * this.BOOST_REGEN_PER_FS * this.score.multiplier * dt;
@@ -113,7 +115,7 @@ export default class Player {
         this.boostCharge = Math.max(0, Math.min(this.BOOST_MAX, this.boostCharge));
         
         // Handle boost consumption
-        if (boostKeyDown && this.boostCharge > 0) {
+        if ((boostKeyDown||true) && this.boostCharge > 0) {
             this.boostActive = true;
             this.car.boostFactor = this.BOOST_MULTIPLIER;
             const drain = this.BOOST_DRAIN_PER_SEC * dt;
@@ -126,6 +128,7 @@ export default class Player {
         if (this.boostCharge <= 0) {
             this.boostActive = false;
         }
+
     }
 
     update() {

@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface HighscorePanelProps {
   scores: Array<{ name: string; best: number; current: number; multiplier: number }>;
 }

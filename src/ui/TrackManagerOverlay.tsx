@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useMemo} from 'react';
+import React, {useState, useEffect, useMemo, forwardRef} from 'react';
 import {
     Modal,
     TextInput,
@@ -17,11 +17,6 @@ import {
     Notification
 } from '@mantine/core';
 import {DataTable, DataTableSortStatus} from 'mantine-datatable';
-import {DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors} from '@dnd-kit/core';
-import {arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy} from '@dnd-kit/sortable';
-import {restrictToVerticalAxis} from '@dnd-kit/modifiers';
-import {useSortable} from '@dnd-kit/sortable';
-import {CSS} from '@dnd-kit/utilities';
 import {
     IconSearch,
     IconSortAscending,
@@ -82,28 +77,6 @@ function setCustomTrackOrder(order: string[]): void {
     }
 }
 
-function SortableRow({children, id, isDraggable}: { children: any; id: string; isDraggable: boolean }) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({id, disabled: !isDraggable});
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-    };
-
-    return (
-        <tr ref={setNodeRef} style={style} {...(attributes as any)}>
-            {children}
-        </tr>
-    );
-}
 
 export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackManagerProps) {
     const [tracks, setTracks] = useState<TrackRow[]>([]);
@@ -117,12 +90,6 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
     const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
 
     // Load tracks data
     useEffect(() => {
@@ -503,25 +470,6 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
         }
     }
 
-    function handleDragEnd(event: any) {
-        const {active, over} = event;
-
-        if (active.id !== over.id) {
-            const customTracks = filteredTracks.filter(t => t.type === 'custom');
-            const oldIndex = customTracks.findIndex(t => t.id === active.id);
-            const newIndex = customTracks.findIndex(t => t.id === over.id);
-
-            if (oldIndex !== -1 && newIndex !== -1) {
-                const newOrder = arrayMove(customTracks, oldIndex, newIndex).map(t => t.id);
-                setCustomTrackOrder(newOrder);
-
-                // Update tracks state to reflect new order
-                const builtinTracks = filteredTracks.filter(t => t.type === 'builtin');
-                const reorderedCustom = arrayMove(customTracks, oldIndex, newIndex);
-                setTracks([...builtinTracks, ...reorderedCustom]);
-            }
-        }
-    }
 
     // Keyboard handling
     useEffect(() => {
@@ -662,7 +610,7 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
                             sortable: false,
                             render: (record: TrackRow) => (
                                 record.type === 'custom' ? (
-                                    <ActionIcon size="sm" variant="subtle">
+                                    <ActionIcon size="sm" variant="subtle" style={{ cursor: 'grab' }}>
                                         <IconGripVertical size={16}/>
                                     </ActionIcon>
                                 ) : null
