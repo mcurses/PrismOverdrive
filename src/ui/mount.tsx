@@ -1,5 +1,5 @@
-import { render } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import AppUI from './AppUI';
 import TrackManagerOverlay from './TrackManagerOverlay';
@@ -78,6 +78,8 @@ export function mountUI(deps: MountDeps): {
     throw new Error('UI root container not found');
   }
 
+  const root = createRoot(container);
+
   let visible = true;
   let currentScores = deps.scores || [];
   let currentHUD = deps.hud || {
@@ -86,14 +88,13 @@ export function mountUI(deps: MountDeps): {
   };
 
   const renderApp = () => {
-    render(
+    root.render(
       <UIRoot 
         {...deps} 
         visible={visible}
         currentScores={currentScores} 
         currentHUD={currentHUD} 
-      />, 
-      container
+      />
     );
   };
 

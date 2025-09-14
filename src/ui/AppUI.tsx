@@ -1,21 +1,22 @@
+import React from 'react';
 import { MountDeps } from './mount';
 import HighscorePanel from './components/HighscorePanel';
 import BoostBar from './components/BoostBar';
 import LapHUD from './components/LapHUD';
 
 export default function AppUI(props: MountDeps) {
-  const handleNameChange = (e: Event) => {
+  const handleNameChange = (e: React.FormEvent<HTMLInputElement>) => {
     const target = e.target as HTMLInputElement;
     const value = target.value.slice(0, 8);
     props.actions.setPlayerName(value);
   };
 
-  const handleCarChange = (e: Event) => {
+  const handleCarChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const target = e.target as HTMLSelectElement;
     props.actions.setCarType(target.value);
   };
 
-  const handleTrackChange = (e: Event) => {
+  const handleTrackChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const target = e.target as HTMLSelectElement;
     props.actions.loadTrack(target.value);
   };

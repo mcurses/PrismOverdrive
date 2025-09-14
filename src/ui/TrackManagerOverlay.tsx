@@ -1,5 +1,4 @@
-import {h} from 'preact';
-import {useState, useEffect, useMemo} from 'preact/hooks';
+import React, {useState, useEffect, useMemo} from 'react';
 import {
     Modal,
     TextInput,
@@ -552,17 +551,17 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
             title="Track Manager"
             size="xl"
             styles={{
-                modal: {maxWidth: '90vw', maxHeight: '90vh'},
+                content: {maxWidth: '90vw', maxHeight: '90vh'},
                 body: {padding: 0},
                 header: {padding: '1rem'}
             }}
         >
-            <Stack spacing="md" style={{padding: '0 1rem 1rem'}}>
+            <Stack gap="md" style={{padding: '0 1rem 1rem'}}>
                 {/* Toolbar */}
-                <Group spacing="sm">
+                <Group gap="sm">
                     <TextInput
                         placeholder="Search tracks..."
-                        icon={<IconSearch size={16}/>}
+                        leftSection={<IconSearch size={16}/>}
                         value={search}
                         onChange={(e) => setSearch(e.currentTarget.value)}
                         style={{flex: 1}}
@@ -589,29 +588,29 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
                 </Group>
 
                 {/* Action Buttons */}
-                <Group spacing="sm">
-                    <Button leftIcon={<IconPlus size={16}/>} onClick={handleCreateNew}>
+                <Group gap="sm">
+                    <Button leftSection={<IconPlus size={16}/>} onClick={handleCreateNew}>
                         New
                     </Button>
-                    <Button leftIcon={<IconUpload size={16}/>} onClick={handleImport}>
+                    <Button leftSection={<IconUpload size={16}/>} onClick={handleImport}>
                         Import
                     </Button>
-                    <Button leftIcon={<IconDownload size={16}/>} disabled={!canExport} onClick={handleExport}>
+                    <Button leftSection={<IconDownload size={16}/>} disabled={!canExport} onClick={handleExport}>
                         Export
                     </Button>
-                    <Button leftIcon={<IconPlayerPlay size={16}/>} disabled={!canLoad} onClick={handleLoad}>
+                    <Button leftSection={<IconPlayerPlay size={16}/>} disabled={!canLoad} onClick={handleLoad}>
                         Load
                     </Button>
-                    <Button leftIcon={<IconEdit size={16}/>} disabled={!canOpenInEditor} onClick={handleOpenInEditor}>
+                    <Button leftSection={<IconEdit size={16}/>} disabled={!canOpenInEditor} onClick={handleOpenInEditor}>
                         Edit
                     </Button>
-                    <Button leftIcon={<IconEdit size={16}/>} disabled={!canRename} onClick={handleRename}>
+                    <Button leftSection={<IconEdit size={16}/>} disabled={!canRename} onClick={handleRename}>
                         Rename
                     </Button>
-                    <Button leftIcon={<IconCopy size={16}/>} disabled={!canDuplicate} onClick={handleDuplicate}>
+                    <Button leftSection={<IconCopy size={16}/>} disabled={!canDuplicate} onClick={handleDuplicate}>
                         Duplicate
                     </Button>
-                    <Button leftIcon={<IconTrash size={16}/>} disabled={!canDelete} onClick={handleDelete} color="red">
+                    <Button leftSection={<IconTrash size={16}/>} disabled={!canDelete} onClick={handleDelete} color="red">
                         Delete
                     </Button>
                 </Group>
@@ -628,10 +627,10 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
                                     <Skeleton height={120}/>
                                 )}
                             </Card.Section>
-                            <Text size="sm" weight={500} lineClamp={1} mt="xs">
+                            <Text size="sm" fw={500} lineClamp={1} mt="xs">
                                 {track.displayName}
                             </Text>
-                            <Group spacing={4} mt={4}>
+                            <Group gap={4} mt={4}>
                                 <Badge size="xs" color={track.type === 'custom' ? 'blue' : 'gray'}>
                                     {track.type}
                                 </Badge>
@@ -723,13 +722,13 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
                                         </ActionIcon>
                                     </Menu.Target>
                                     <Menu.Dropdown>
-                                        <Menu.Item icon={<IconPlayerPlay size={14}/>} onClick={() => {
+                                        <Menu.Item leftSection={<IconPlayerPlay size={14}/>} onClick={() => {
                                             setSelectedRecords([record]);
                                             handleLoad();
                                         }}>
                                             Load
                                         </Menu.Item>
-                                        <Menu.Item icon={<IconEdit size={14}/>} onClick={() => {
+                                        <Menu.Item leftSection={<IconEdit size={14}/>} onClick={() => {
                                             setSelectedRecords([record]);
                                             handleOpenInEditor();
                                         }}>
@@ -737,19 +736,19 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
                                         </Menu.Item>
                                         {record.type === 'custom' && (
                                             <>
-                                                <Menu.Item icon={<IconEdit size={14}/>} onClick={() => {
+                                                <Menu.Item leftSection={<IconEdit size={14}/>} onClick={() => {
                                                     setSelectedRecords([record]);
                                                     handleRename();
                                                 }}>
                                                     Rename
                                                 </Menu.Item>
-                                                <Menu.Item icon={<IconCopy size={14}/>} onClick={() => {
+                                                <Menu.Item leftSection={<IconCopy size={14}/>} onClick={() => {
                                                     setSelectedRecords([record]);
                                                     handleDuplicate();
                                                 }}>
                                                     Duplicate
                                                 </Menu.Item>
-                                                <Menu.Item icon={<IconTrash size={14}/>} color="red" onClick={() => {
+                                                <Menu.Item leftSection={<IconTrash size={14}/>} color="red" onClick={() => {
                                                     setSelectedRecords([record]);
                                                     handleDelete();
                                                 }}>
@@ -757,7 +756,7 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
                                                 </Menu.Item>
                                             </>
                                         )}
-                                        <Menu.Item icon={<IconDownload size={14}/>} onClick={() => {
+                                        <Menu.Item leftSection={<IconDownload size={14}/>} onClick={() => {
                                             setSelectedRecords([record]);
                                             handleExport();
                                         }}>
