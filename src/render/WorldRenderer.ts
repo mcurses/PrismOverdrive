@@ -8,6 +8,17 @@ import { LapCounter } from "../race/LapCounter";
 import Track from "../components/Playfield/Track";
 import { Dimensions } from "../utils/Utils";
 
+interface TimeDeltaPopup {
+    playerId: string;
+    offsetY: number;
+    text: string;
+    color: string;
+    ageMs: number;
+    durationMs: number;
+    rise: number;
+    scalePunch: number;
+}
+
 export interface WorldRendererDeps {
     camera: Camera;
     background: Background | null;
@@ -29,6 +40,7 @@ export interface DrawFrameArgs {
     lapCounter: LapCounter | null;
     track: Track;
     worldScale: number;
+    frameStepMs: number;
 }
 
 export class WorldRenderer {
@@ -40,6 +52,7 @@ export class WorldRenderer {
     private miniMap: MiniMap;
     private ui: WorldRendererDeps['ui'];
     private canvasSizeRef: Dimensions;
+    private popups: TimeDeltaPopup[] = [];
 
     constructor(deps: WorldRendererDeps) {
         this.camera = deps.camera;
@@ -60,8 +73,78 @@ export class WorldRenderer {
         this.miniMap = mm;
     }
 
+    addTimeDeltaPopup({ playerId, offsetY, text, color }: { playerId: string; offsetY: number; text: string; color: string }): void {
+        this.popups.push({
+            playerId,
+            offsetY,
+            text,
+            color,
+            ageMs: 0,
+            durationMs: 1200,
+            rise: 50,
+            scalePunch: 1.25
+        });
+    }
+
+    private updatePopups(deltaMs: number): void {
+        for (let i = this.popups.length - 1; i >= 0; i--) {
+            this.popups[i].ageMs += deltaMs;
+            if (this.popups[i].ageMs >= this.popups[i].durationMs) {
+                this.popups.splice(i, 1);
+            }
+        }
+    }
+
+    private easeOutQuad(t: number): number {
+        return 1 - (1 - t) * (1 - t);
+    }
+
+    private drawPopups(ctx: CanvasRenderingContext2D, players: { [key: string]: Player }): void {
+        for (const popup of this.popups) {
+            const player = players[popup.playerId];
+            if (!player) continue; // Skip if player no longer exists
+            
+            const progress = popup.ageMs / popup.durationMs;
+            const opacity = 1 - progress;
+            const yOffset = this.easeOutQuad(progress) * popup.rise;
+            
+            // Scale animation: punch at start, decay to 1.0 over first 150ms
+            const scaleProgress = Math.min(popup.ageMs / 150, 1);
+            const scale = popup.scalePunch - (popup.scalePunch - 1.0) * scaleProgress;
+            
+            // Position relative to player car
+            const x = player.car.position.x;
+            const y = player.car.position.y + popup.offsetY - yOffset;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+            ctx.globalAlpha = opacity;
+            
+            // Font size and style
+            const fontSize = 28;
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Draw text shadow/outline for contrast
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.strokeText(popup.text, 0, 0);
+            
+            // Draw main text
+            ctx.fillStyle = popup.color;
+            ctx.fillText(popup.text, 0, 0);
+            
+            ctx.restore();
+        }
+    }
+
     drawFrame(ctx: CanvasRenderingContext2D, args: DrawFrameArgs): void {
-        const { localPlayer, players, showCheckpoints, lapCounter, track, worldScale } = args;
+        const { localPlayer, players, showCheckpoints, lapCounter, track, worldScale, frameStepMs } = args;
+
+        // Update popups
+        this.updatePopups(frameStepMs);
 
         // 1) Reset main ctx to identity and clear
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -108,6 +191,9 @@ export class WorldRenderer {
             // Local player position is already updated in simStep
             player.car.render(ctx);
         }
+
+        // Draw time delta popups (in world space)
+        this.drawPopups(ctx, players);
 
         // 5) Draw checkpoints (conditional)
         if (showCheckpoints && lapCounter) {

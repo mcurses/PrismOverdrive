@@ -4,6 +4,9 @@ import { MantineProvider } from '@mantine/core';
 import AppUI from './AppUI';
 import TrackManagerOverlay from './TrackManagerOverlay';
 import Session from '../components/Session/Session';
+import '@mantine/core/styles.css';
+// import '@mantine/dates/styles.css';
+import 'mantine-datatable/styles.css';
 
 export type MountDeps = {
   session: Session;

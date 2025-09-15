@@ -16,6 +16,7 @@ export interface LapTimingResult {
     bestLapMs: number | null;
     activated: Set<number>;
     direction: -1 | 0 | 1;
+    prevBestLapMs: number | null;
 }
 
 export interface ScoreData {
@@ -139,9 +140,16 @@ export class PlayerManager {
             return null;
         }
 
+        // Capture previous best before updating
+        const prevBest = this.localPlayer?.lapBestMs ?? null;
+
         const lapRes = this.lapCounter.update(prevPos, curPos, nowMs);
         this.localPlayer.onLapUpdate(lapRes, trackName);
-        return lapRes;
+        
+        return {
+            ...lapRes,
+            prevBestLapMs: prevBest
+        };
     }
 
     resetLapCounter(): void {

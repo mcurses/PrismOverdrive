@@ -21,6 +21,10 @@ module.exports = {
                     },
                 },
             },
+            {
+                test: /\.css$/i,
+                use: ['style-loader', 'css-loader'],
+            }
             // {
             //     test: /\.js$/,
             //     loader: "webpack-remove-debug", // remove "debug" package
@@ -32,7 +36,8 @@ module.exports = {
         modules: [
             path.resolve('./src'),
             path.resolve('./node_modules')
-        ]
+        ],
+        mainFields: ['module', 'main']
     },
     devServer: {
         static: {

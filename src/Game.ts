@@ -85,6 +85,7 @@ class Game {
     private zoomBaseline: number = .67;
     private zoom: ZoomController;
     private worldRenderer: WorldRenderer | null = null;
+    private _lastStepMs: number = 16.6;
     
     // Mode management
     private modeManager: ModeManager | null = null;
@@ -320,6 +321,8 @@ class Game {
 
 
     private simStep(stepMs: number): void {
+        this._lastStepMs = stepMs;
+        
         if (!this.net.socketId) {
             return;
         }
@@ -373,7 +376,23 @@ class Game {
 
         // Capture current position after physics update and update lap timing
         const curPosForLap = { x: localPlayer.car.position.x, y: localPlayer.car.position.y };
-        this.playerManager.updateLapTiming(prevPosForLap, curPosForLap, Date.now(), this.session.trackName);
+        const lapRes = this.playerManager.updateLapTiming(prevPosForLap, curPosForLap, Date.now(), this.session.trackName);
+        
+        // Handle lap completion popup
+        if (lapRes?.lapCompleted && lapRes.lastLapMs != null && lapRes.prevBestLapMs != null) {
+            const deltaMs = lapRes.lastLapMs - lapRes.prevBestLapMs;
+            const deltaSeconds = Math.abs(deltaMs) / 1000;
+            const sign = deltaMs < 0 ? '-' : '+';
+            const text = `${sign}${deltaSeconds.toFixed(3)}s`;
+            const color = deltaMs < 0 ? 'hsla(130, 80%, 60%, 1)' : 'hsla(0, 80%, 60%, 1)';
+            
+            this.worldRenderer?.addTimeDeltaPopup({
+                playerId: localPlayer.id,
+                offsetY: -30,
+                text,
+                color
+            });
+        }
         
         // Store current position for any other consumers
         localPlayer.lastPos = curPosForLap;
@@ -473,7 +492,8 @@ class Game {
             showCheckpoints: this.showCheckpoints,
             lapCounter: this.playerManager.getLapCounter(),
             track: this.track,
-            worldScale: this.worldScale
+            worldScale: this.worldScale,
+            frameStepMs: this._lastStepMs
         });
 
         // Update UI with scores

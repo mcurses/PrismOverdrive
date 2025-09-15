@@ -419,7 +419,7 @@ export function getDefaultTrailStages(): TrailStageConfig[] {
 
                 const hs = stage1Gradient(clamp(x + fsHue, 0, 1));
                 const b = lerp(0, 75, easeBright(x));
-                const a = lerp(1, 0.5, easeBright(x));
+                const a = lerp(.2, 0.1, easeBright(x));
                 return { h: hs.h, s: hs.s, b, a };
             },
             // Single stage, mixed targets:

@@ -128,9 +128,9 @@ export function getDefaultSmokeStages(): SparkStageConfig[] {
             progress: (player: Player) => b6.progress(player),
             style: (player: Player, x: number) => {
                 const smokeGradient = makeGradient(g => {
-                    g.plateau(0.1, { h: 0, s: 0, b: 90, a: 0.8 })
-                        .to(0.5, { h: 0, s: 0, b: 89, a: 0.6 })
-                        .to(1.0, { h: 0, s: 0, b: 85, a: 0.4 });
+                    g.plateau(0.1, { h: 0, s: 0, b: 90, a: 0.2 })
+                        .to(0.5, { h: 0, s: 0, b: 89, a: 0.15 })
+                        .to(1.0, { h: 0, s: 0, b: 85, a: 0.06 });
                 }, { defaultA: 0.6, hueWrap: false });
                 return smokeGradient(x);
             },
