@@ -224,27 +224,6 @@ export class WorldRenderer {
         })).sort((a, b) => b.best - a.best);
         this.ui.updateScores(scores);
 
-        // Update HUD
-        const boost = {
-            charge: localPlayer.boostCharge,
-            max: localPlayer.BOOST_MAX,
-            active: localPlayer.boostActive
-        };
-        
-        let currentLapTime = null;
-        if (lapCounter) {
-            const state = lapCounter.getState();
-            if (state.currentLapStartMs !== null) {
-                currentLapTime = Date.now() - state.currentLapStartMs;
-            }
-        }
-        
-        const lap = {
-            best: localPlayer.lapBestMs,
-            last: localPlayer.lapLastMs,
-            current: currentLapTime
-        };
-        
-        this.ui.updateHUD({ boost, lap });
+        // Note: HUD updates moved to Game.ts to use LapCounter best time
     }
 }

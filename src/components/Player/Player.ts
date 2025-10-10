@@ -76,14 +76,12 @@ export default class Player {
     }
 
     private readBestLapFromStorage(trackName?: string): number | null {
-        if (!trackName) return null;
-        const stored = localStorage.getItem(`lap_best_${trackName}`);
-        return stored ? parseInt(stored, 10) : null;
+        // Disabled - now handled by PlayerManager
+        return null;
     }
 
     private saveBestLapToStorage(trackName?: string, lapMs?: number): void {
-        if (!trackName || lapMs === undefined) return;
-        localStorage.setItem(`lap_best_${trackName}`, lapMs.toString());
+        // Disabled - now handled by PlayerManager
     }
 
     addSnapshot(snapshot: Snapshot): void {

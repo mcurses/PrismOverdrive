@@ -71,8 +71,8 @@ export default class MiniMap {
             ctx.fillRect(
                 -curCar.carType.dimensions.length * this.scale * 1.25,
                 -curCar.carType.dimensions.length * this.scale * 1.25,
-                curCar.carType.dimensions.length * this.scale * 2.5,
-                curCar.carType.dimensions.length * this.scale * 2.5);
+                curCar.carType.dimensions.length * this.scale * 5.5,
+                curCar.carType.dimensions.length * this.scale * 5.5);
 
             // Restore the saved state of the canvas
             ctx.restore();

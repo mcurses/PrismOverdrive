@@ -15,6 +15,14 @@ class BackgroundData {
         // this.images['parallaxLayer3'].src = 'assets/starfield-tile3.png';
         this.images['parallaxLayer3'].src = 'assets/starfield-tile-loDens.png';
         // this.images['parallaxLayer1'].src = 'assets/stars2.jpg';
+
+        this.images['jungle_top'] = new Image();
+        this.images['jungle_top'].src = 'assets/jungle_top_a.png';
+        this.images['jungle_mid'] = new Image();
+        this.images['jungle_mid'].src = 'assets/jungle_med.png';
+        this.images['jungle_bottom'] = new Image();
+        this.images['jungle_bottom'].src = 'assets/jungle_bottom2.png';
+
     }
 
     getLayers(name: string) {
@@ -24,6 +32,10 @@ class BackgroundData {
                 switch (name) {
                     case 'starField':
                         return this.starField()
+                    case 'jungle':
+                        return this.jungle()
+                    default:
+                        throw new Error(`Background not found: ${name}`);
                 }
             });
     }
@@ -31,7 +43,7 @@ class BackgroundData {
     private starField = (): ParallaxLayer[] => [
         {
             img: this.images.parallaxLayer3,
-            z: .90,
+            z: .95,
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
@@ -39,7 +51,7 @@ class BackgroundData {
         },
         {
             img: this.images.parallaxLayer2,
-            z: .95,
+            z: .987,
             offset: new Vector(0, 0),
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
@@ -52,6 +64,33 @@ class BackgroundData {
             cropSize: {width: 1024, height: 1024},
             size: {width: 1024, height: 1024}, // kept for backward compatibility
             scale: 3.0,
+        },
+    ]
+
+    private jungle = (): ParallaxLayer[] => [
+        {
+            img: this.images.jungle_bottom,
+            z: .95,
+            offset: new Vector(0, 0),
+            cropSize: {width: 1024, height: 1024},
+            size: {width: 1024, height: 1024}, // kept for backward compatibility
+            scale: 1,
+        },
+        {
+            img: this.images.jungle_mid,
+            z: .867,
+            offset: new Vector(0, 0),
+            cropSize: {width: 1024, height: 1024},
+            size: {width: 1024, height: 1024}, // kept for backward compatibility
+            scale: 1.1,
+        },
+        {
+            img: this.images.jungle_top,
+            z: .785,
+            offset: new Vector(0, 0),
+            cropSize: {width: 1024, height: 1024},
+            size: {width: 1024, height: 1024}, // kept for backward compatibility
+            scale: 1.2,
         },
     ]
 

@@ -164,7 +164,7 @@ class Game {
         // paralaxLayer1.src = 'assets/stars2.jpg';
         // scale the image
         let backgroundData = new BackgroundData();
-        backgroundData.getLayers('starField').then((layers) => {
+        backgroundData.getLayers('jungle').then((layers) => {
             this.background = new Background({
                 mapSize: this.mapSize,
                 layers: layers
@@ -191,7 +191,7 @@ class Game {
         this.miniMap = new MiniMap({
             offscreenCtx: this.miniMapCtx, 
             track: this.track, 
-            maxWidth: 250,
+            maxWidth: 120,
             position: { x: 10, y: this.canvasSize.height - 200 }
         });
         this.miniMapCanvas.width = this.mapSize.width * this.miniMap.scale;
@@ -272,6 +272,10 @@ class Game {
         
         this.inputController.handleKeyP(() => {
             this.modeManager?.toggle();
+        });
+        
+        this.inputController.handleKey('KeyN', () => {
+            this.createTrackFromBestLap();
         });
         
         // Listen for editor toggle from menu
@@ -500,6 +504,32 @@ class Game {
         const scores = this.playerManager.updateScoresForUI();
         this.ui.updateScores(scores);
 
+        // Update HUD with best lap from LapCounter instead of Player
+        const lapCounter = this.playerManager.getLapCounter();
+        const bestLapMs = lapCounter?.getState().bestLapMs ?? null;
+        
+        let currentLapTime = null;
+        if (lapCounter) {
+            const state = lapCounter.getState();
+            if (state.currentLapStartMs !== null) {
+                currentLapTime = Date.now() - state.currentLapStartMs;
+            }
+        }
+        
+        const boost = {
+            charge: localPlayer.boostCharge,
+            max: localPlayer.BOOST_MAX,
+            active: localPlayer.boostActive
+        };
+        
+        const lap = {
+            best: bestLapMs,
+            last: localPlayer.lapLastMs,
+            current: currentLapTime
+        };
+        
+        this.ui.updateHUD({ boost, lap });
+
         // Debug: show active particle count
         // this.ctx.fillStyle = 'white';
         // this.ctx.font = '16px Arial';
@@ -613,7 +643,7 @@ class Game {
         // Recreate background with new map size
         if (this.session) {
             let backgroundData = new BackgroundData();
-            backgroundData.getLayers('starField').then((layers) => {
+            backgroundData.getLayers('jungle').then((layers) => {
                 this.background = new Background({
                     mapSize: this.mapSize,
                     layers: layers
@@ -691,6 +721,167 @@ class Game {
         //     delete cars[playerCar.id];
         // }
 
+    }
+
+    private createTrackFromBestLap(): void {
+        if (!this.net.socketId || !this.session.trackName) {
+            console.warn('Cannot create track: missing player ID or track name');
+            return;
+        }
+
+        const playerId = this.net.socketId;
+        const trackName = this.session.trackName;
+        
+        // Load best path from localStorage
+        const bestPath = this.playerManager.getBestPathFor(trackName, playerId);
+        if (!bestPath || bestPath.length < 3) {
+            console.warn('No best lap path found or path too short');
+            return;
+        }
+
+        console.log(`Creating track from best lap: ${bestPath.length} points`);
+
+        try {
+            // Convert world → editor coords
+            const s = EDITOR_TO_WORLD_SCALE;
+            const editorPts = bestPath.map(([x, y]) => ({ x: x / s, y: y / s }));
+
+            // Sample to anchor nodes (K ~ 64)
+            const K = Math.min(64, Math.max(8, Math.floor(editorPts.length / 8)));
+            const anchorNodes = this.sampleToAnchors(editorPts, K);
+
+            // Ensure at least 3 nodes and closure
+            if (anchorNodes.length < 3) {
+                console.warn('Not enough anchor nodes generated');
+                return;
+            }
+
+            // Ensure closure
+            const first = anchorNodes[0];
+            const last = anchorNodes[anchorNodes.length - 1];
+            const distance = Math.sqrt(Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2));
+            if (distance > 50) { // If not close enough, append first
+                anchorNodes.push({ ...first });
+            }
+
+            // Build BezierNode array
+            const bezierNodes = anchorNodes.map((pt, i) => ({
+                id: `node_${i}_${Math.random().toString(36).substr(2, 9)}`,
+                x: pt.x,
+                y: pt.y,
+                type: 'smooth' as const,
+                widthScale: 1.0
+                // No handles - EditorPath will auto-generate Catmull-Rom handles
+            }));
+
+            // Build EditorState
+            const state = new EditorState();
+            state.centerPath = bezierNodes;
+            state.defaultWidth = 120;
+            state.resampleN = 256;
+            state.widthProfile = new Array(state.resampleN).fill(1);
+            state.applyAutoShrink = true;
+            
+            // Normalize to map coordinates
+            state.normalizeToMap(200);
+            
+            // Generate bounds and checkpoints
+            const result = BoundsGenerator.generateBoundsFromInput({
+                centerPath: state.centerPath,
+                defaultWidth: state.defaultWidth,
+                widthProfile: state.widthProfile,
+                resampleN: state.resampleN,
+                applyAutoShrink: state.applyAutoShrink
+            });
+            
+            state.setDerivedBounds(result.bounds, result.checkpoints || []);
+            
+            if (result.usedWidthProfile) {
+                state.widthProfile = result.usedWidthProfile.slice();
+            }
+            
+            // Set track name
+            const baseTrackDisplayName = TrackData.getDisplayName(this.session.trackName);
+            state.setTrackName(`BestLap ${this.session.playerName} • ${baseTrackDisplayName}`);
+
+            // Persist
+            const bundle = state.toBundle();
+            Serializer.saveToLocalStorage(bundle);
+            TrackData.refreshCustomTracks();
+
+            // Load and switch
+            this.session.trackName = bundle.id;
+            this.loadTrack(bundle.id);
+            
+            console.log(`Created and loaded new track: ${bundle.name}`);
+            
+        } catch (error) {
+            console.error('Failed to create track from best lap:', error);
+        }
+    }
+
+    private sampleToAnchors(points: Array<{x: number, y: number}>, K: number): Array<{x: number, y: number}> {
+        if (points.length <= K) {
+            return [...points];
+        }
+
+        // Compute cumulative arc lengths
+        const lengths = [0];
+        let totalLength = 0;
+        
+        for (let i = 1; i < points.length; i++) {
+            const dx = points[i].x - points[i-1].x;
+            const dy = points[i].y - points[i-1].y;
+            const segmentLength = Math.sqrt(dx * dx + dy * dy);
+            totalLength += segmentLength;
+            lengths.push(totalLength);
+        }
+
+        if (totalLength === 0) {
+            return points.slice(0, K);
+        }
+
+        // Sample at uniform arc-length intervals
+        const anchors: Array<{x: number, y: number}> = [];
+        
+        for (let i = 0; i < K; i++) {
+            const targetLength = (i / K) * totalLength;
+            
+            // Find segment containing target length
+            let segmentIndex = 0;
+            for (let j = 1; j < lengths.length; j++) {
+                if (lengths[j] >= targetLength) {
+                    segmentIndex = j - 1;
+                    break;
+                }
+            }
+            
+            if (segmentIndex >= points.length - 1) {
+                anchors.push({ ...points[points.length - 1] });
+                continue;
+            }
+            
+            // Interpolate within segment
+            const segmentStart = lengths[segmentIndex];
+            const segmentEnd = lengths[segmentIndex + 1];
+            const segmentLength = segmentEnd - segmentStart;
+            
+            if (segmentLength === 0) {
+                anchors.push({ ...points[segmentIndex] });
+                continue;
+            }
+            
+            const t = (targetLength - segmentStart) / segmentLength;
+            const p1 = points[segmentIndex];
+            const p2 = points[segmentIndex + 1];
+            
+            anchors.push({
+                x: p1.x + t * (p2.x - p1.x),
+                y: p1.y + t * (p2.y - p1.y)
+            });
+        }
+
+        return anchors;
     }
 
 

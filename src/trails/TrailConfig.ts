@@ -13,8 +13,8 @@ export const STAGE_BOUNDARIES = {
     stage4: 240000,
     stage5: 400000,
     stage6: 600000,
-    stage7: 1400000,
-    stage8: 2000000,
+    stage7: 4400000,
+    stage8: 8000000,
 };
 
 export type StageKey = keyof typeof STAGE_BOUNDARIES;

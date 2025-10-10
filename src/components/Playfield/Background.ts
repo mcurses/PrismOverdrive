@@ -24,6 +24,9 @@ export default class Background {
         
         // Create a properly scaled tile canvas for each layer
         this.layers = [];
+
+
+
         props.layers.map(layer => {
             // Determine source tile rectangle
             const srcW = layer.cropSize?.width ?? layer.img.width;
@@ -62,6 +65,7 @@ export default class Background {
         });
     }
 
+
     drawQuadrant(ctx, img, offsetX, offsetY, cropWidth, cropHeight, x, y, width, height, scaleX, scaleY) {
         ctx.save();
         ctx.translate(x, y);
@@ -77,6 +81,16 @@ export default class Background {
 
     draw(ctx: CanvasRenderingContext2D, cameraPos: Vector, canvasSize: Dimensions) {
         let parallaxFactor = 0;
+
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+        ctx.restore();
+
+
         for (let layer of this.layers) {
             parallaxFactor += layer.z
             this.drawParallaxLayer(ctx, layer, cameraPos, canvasSize, this.mapSize);
@@ -95,8 +109,9 @@ export default class Background {
         const offsetY = mod(cameraPos.y * layer.z, tileH);
 
         // Set canvas state once before loops
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 1 - (layer.z / 2);
+        ctx.globalCompositeOperation = 'source-over';
+        // ctx.globalAlpha = 1 - (layer.z / 2);
+        ctx.globalAlpha = 1;
 
         // Use integer stepping and positions to avoid seams
         const startX = -Math.floor(offsetX) - tileW;

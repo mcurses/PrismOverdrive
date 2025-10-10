@@ -30,6 +30,8 @@ export class PlayerManager {
     private players: { [key: string]: Player } = {};
     private localPlayer: Player | null = null;
     private lapCounter: LapCounter | null = null;
+    private currentLapTrace: Array<{x: number, y: number}> = [];
+    private lastCompletedTrace: Array<{x: number, y: number}> | null = null;
 
     getPlayers(): { [key: string]: Player } {
         return this.players;
@@ -112,9 +114,21 @@ export class PlayerManager {
                 minLapMs: options?.minLapMs ?? 10000,
                 requireAllCheckpoints: options?.requireAllCheckpoints ?? true
             });
+            
+            // Set best lap from storage if available
+            if (this.localPlayer) {
+                const bestMs = this.loadBestMs(track.name || 'unknown', this.localPlayer.id);
+                if (bestMs !== null) {
+                    this.lapCounter.setBestLap(bestMs);
+                }
+            }
         } else {
             this.lapCounter = null;
         }
+        
+        // Reset lap trace for new track
+        this.currentLapTrace = [];
+        this.lastCompletedTrace = null;
     }
 
     updateScoresForUI(): ScoreData[] {
@@ -143,7 +157,38 @@ export class PlayerManager {
         // Capture previous best before updating
         const prevBest = this.localPlayer?.lapBestMs ?? null;
 
+        // Track lap trace if a lap is armed
+        const lapState = this.lapCounter.getState();
+        if (lapState.currentLapStartMs !== null) {
+            this.currentLapTrace.push({ x: curPos.x, y: curPos.y });
+        }
+
         const lapRes = this.lapCounter.update(prevPos, curPos, nowMs);
+        
+        // Handle lap completion and best lap persistence
+        if (lapRes.crossedStart) {
+            if (lapRes.lapCompleted && lapRes.lastLapMs !== null && trackName) {
+                const ms = lapRes.lastLapMs;
+                const prevBestMs = this.loadBestMs(trackName, this.localPlayer.id);
+                
+                if (prevBestMs === null || ms < prevBestMs) {
+                    // Use last completed trace or current trace snapshot
+                    const traceToSave = this.lastCompletedTrace || [...this.currentLapTrace];
+                    const downsampledPath = this.downsample(traceToSave);
+                    this.saveBest(trackName, this.localPlayer.id, ms, downsampledPath);
+                    
+                    // Update lap counter with new best
+                    this.lapCounter.setBestLap(ms);
+                }
+                
+                // Store completed trace for potential next lap
+                this.lastCompletedTrace = [...this.currentLapTrace];
+            }
+            
+            // Reset trace for new lap
+            this.currentLapTrace = [];
+        }
+        
         this.localPlayer.onLapUpdate(lapRes, trackName);
         
         return {
@@ -175,5 +220,85 @@ export class PlayerManager {
         if (this.localPlayer && score) {
             this.localPlayer.score = score;
         }
+    }
+
+    getBestFor(trackName: string, playerId: string): number | null {
+        return this.loadBestMs(trackName, playerId);
+    }
+
+    getBestPathFor(trackName: string, playerId: string): Array<[number, number]> | null {
+        try {
+            const key = `bestLap_path__${trackName}__${playerId}`;
+            const stored = localStorage.getItem(key);
+            return stored ? JSON.parse(stored) : null;
+        } catch (error) {
+            console.warn('Failed to load best lap path:', error);
+            return null;
+        }
+    }
+
+    private loadBestMs(trackName: string, playerId: string): number | null {
+        try {
+            const key = `bestLap_ms__${trackName}__${playerId}`;
+            const stored = localStorage.getItem(key);
+            return stored ? parseInt(stored, 10) : null;
+        } catch (error) {
+            console.warn('Failed to load best lap time:', error);
+            return null;
+        }
+    }
+
+    private saveBest(trackName: string, playerId: string, ms: number, pathPoints: Array<[number, number]>): void {
+        try {
+            const msKey = `bestLap_ms__${trackName}__${playerId}`;
+            const pathKey = `bestLap_path__${trackName}__${playerId}`;
+            
+            localStorage.setItem(msKey, String(ms));
+            localStorage.setItem(pathKey, JSON.stringify(pathPoints));
+            
+            console.log(`Saved new best lap: ${ms}ms with ${pathPoints.length} points`);
+        } catch (error) {
+            console.error('Failed to save best lap:', error);
+        }
+    }
+
+    private downsample(points: Array<{x: number, y: number}>): Array<[number, number]> {
+        if (points.length === 0) return [];
+        
+        if (points.length <= 800) {
+            // Keep all points, convert format
+            const result = points.map(p => [p.x, p.y] as [number, number]);
+            
+            // Ensure closed loop
+            const first = result[0];
+            const last = result[result.length - 1];
+            const distance = Math.sqrt(Math.pow(last[0] - first[0], 2) + Math.pow(last[1] - first[1], 2));
+            if (distance > 10) { // epsilon
+                result.push([first[0], first[1]]);
+            }
+            
+            return result;
+        }
+        
+        // Uniform downsampling
+        const step = Math.floor(points.length / 800);
+        const result: Array<[number, number]> = [];
+        
+        for (let i = 0; i < points.length; i += step) {
+            const p = points[i];
+            result.push([p.x, p.y]);
+        }
+        
+        // Ensure closed loop
+        if (result.length > 0) {
+            const first = result[0];
+            const last = result[result.length - 1];
+            const distance = Math.sqrt(Math.pow(last[0] - first[0], 2) + Math.pow(last[1] - first[1], 2));
+            if (distance > 10) { // epsilon
+                result.push([first[0], first[1]]);
+            }
+        }
+        
+        return result;
     }
 }
