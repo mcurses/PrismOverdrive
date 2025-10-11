@@ -14,8 +14,8 @@ interface CheckpointOptions {
     window?: number;
 }
 
-const DEFAULT_N = 256;
-const DEFAULT_STRIDE = 10;
+const DEFAULT_N = 512;
+const DEFAULT_STRIDE = 3;
 const DEFAULT_VALIDATION_SAMPLES = 7;
 
 export function computeCheckpoints(boundaries: number[][][], options?: CheckpointOptions): Checkpoint[] {

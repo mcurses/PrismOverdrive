@@ -38,6 +38,8 @@ import { Scheduler } from "./core/Scheduler";
 import { STEP_MS, MAX_STEPS, BASE_VISIBLE_FACTOR, ZOOM_MIN_RELATIVE, SPEED_FOR_MIN_ZOOM, ZOOM_SMOOTH } from "./config/GameConfig";
 import { ZoomController } from "./render/ZoomController";
 import { WorldRenderer } from "./render/WorldRenderer";
+import { AIController } from "./ai/AIController";
+import { TrainingBridge } from "./ai/TrainingBridge";
 
 class Game {
     canvasSize: Dimensions;
@@ -78,6 +80,7 @@ class Game {
         setVisible(v: boolean): void;
         updateScores(scores: Array<{ name: string; best: number; current: number; multiplier: number }>): void;
         updateHUD(hud: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } }): void;
+        updateTraining?(training: any): void;
     };
     private lapCounter: LapCounter | null = null;
     private showCheckpoints: boolean = false;
@@ -91,6 +94,15 @@ class Game {
     private modeManager: ModeManager | null = null;
     private editorManager: EditorManager | null = null;
     private playModeController: PlayModeController | null = null;
+
+    // AI Training
+    private trainingEnabled: boolean = false;
+    private aiController: AIController | null = null;
+    private trainingBridge: TrainingBridge | null = null;
+    private lastCollision: boolean = false;
+    private renderThrottle: number = 1;
+    private renderFrameCounter: number = 0;
+    private trainingOverlayVisible: boolean = true;
 
     constructor() {
         this.canvasSize = {
@@ -117,6 +129,10 @@ class Game {
             speedForMin: SPEED_FOR_MIN_ZOOM, 
             smooth: ZOOM_SMOOTH 
         });
+
+        // Check for AI training mode
+        const urlParams = new URLSearchParams(window.location.search);
+        this.trainingEnabled = urlParams.get('ai') === '1' || !!(window as any).__TRAINING__;
     }
 
     async preload() {
@@ -157,7 +173,30 @@ class Game {
         this.track = new Track(this.session.trackName, this.trackCtx, this.mapSize, [])
         this.camera = new Camera({canvasSize: this.canvasSize});
         this.camera.setScale(this.worldScale);
-        this.inputController = new InputController(InputType.KEYBOARD);
+
+        // Initialize AI if enabled
+        if (this.trainingEnabled) {
+            console.log('AI Training Mode Enabled');
+            this.aiController = new AIController();
+            this.inputController = new InputController(InputType.AI, this.aiController);
+            
+            this.trainingBridge = new TrainingBridge(this.aiController, {
+                onReset: () => this.handleAIReset(),
+                onStep: (action, repeat) => this.handleAIStep(action, repeat),
+                getPlayer: () => this.playerManager.getLocalPlayer(),
+                getTrack: () => this.track,
+                getLapCounter: () => this.playerManager.getLapCounter(),
+                getMapSize: () => this.mapSize,
+                getCollision: () => this.lastCollision,
+                getWallProximity: () => this.getWallProximity()
+            });
+            
+            // Connect to training server
+            this.trainingBridge.connect();
+        } else {
+            this.inputController = new InputController(InputType.KEYBOARD);
+        }
+
         this.lastUdpate = 0;
 
         // let paralaxLayer1 = new Image();
@@ -225,7 +264,7 @@ class Game {
 
         this.scheduler.add('netSend', 50, () => {
             const localPlayer = this.playerManager.getLocalPlayer();
-            if (localPlayer) {
+            if (localPlayer && !this.trainingEnabled) {
                 this.net.sendUpdate(localPlayer);
             }
         });
@@ -254,7 +293,18 @@ class Game {
             hud: {
                 boost: { charge: 0, max: 1, active: false },
                 lap: { best: null, last: null, current: null }
-            }
+            },
+            training: this.trainingEnabled ? {
+                enabled: true,
+                connected: false,
+                episode: 0,
+                step: 0,
+                reward: 0,
+                avgReward: 0,
+                bestLapMs: null,
+                lastLapMs: null,
+                collisions: 0
+            } : undefined
         });
 
         let uiVisible = true;
@@ -277,6 +327,19 @@ class Game {
         this.inputController.handleKey('KeyN', () => {
             this.createTrackFromBestLap();
         });
+
+        // AI training keybinds
+        if (this.trainingEnabled) {
+            this.inputController.handleKey('F9', () => {
+                this.trainingOverlayVisible = !this.trainingOverlayVisible;
+                console.log('Training overlay:', this.trainingOverlayVisible ? 'visible' : 'hidden');
+            });
+            
+            this.inputController.handleKey('F10', () => {
+                this.renderThrottle = this.renderThrottle === 1 ? 10 : 1;
+                console.log('Render throttle:', this.renderThrottle);
+            });
+        }
         
         // Listen for editor toggle from menu
         window.addEventListener('toggleEditor', () => {
@@ -287,11 +350,13 @@ class Game {
         window.addEventListener('editorRequestPlay', () => {
             this.modeManager?.enterPlayMode();
         });
-        this.net.connect().then(() => {
-            // this.createMenuElements();
 
-            // this.session.playerName = this.net.socketId;
-        });
+        if (!this.trainingEnabled) {
+            this.net.connect().then(() => {
+                // this.createMenuElements();
+                // this.session.playerName = this.net.socketId;
+            });
+        }
 
         // Initialize mode management first
         this.initializeModeManagement();
@@ -327,13 +392,14 @@ class Game {
     private simStep(stepMs: number): void {
         this._lastStepMs = stepMs;
         
-        if (!this.net.socketId) {
+        if (!this.net.socketId && !this.trainingEnabled) {
             return;
         }
 
+        const socketId = this.trainingEnabled ? 'ai_agent' : this.net.socketId;
         const localPlayer = this.playerManager.ensureLocalPlayer(
             this.session,
-            this.net.socketId,
+            socketId,
             CarData.types[0]?.name || "default",
             this.session.trackName
         );
@@ -349,10 +415,10 @@ class Game {
             this.playerManager.setPlayerName(this.session.playerName);
             this.playerManager.setTrackScore(this.session.scores[this.session.trackName]);
             
-            console.log("Added player", this.net.socketId);
+            console.log("Added player", socketId);
         }
 
-        if (!localPlayer || !this.net.connected) {
+        if (!localPlayer || (!this.net.connected && !this.trainingEnabled)) {
             return;
         }
 
@@ -413,6 +479,7 @@ class Game {
 
         // Check for collisions
         let wallHit = this.track.getWallHit(localPlayer.car);
+        this.lastCollision = wallHit !== null;
         if (wallHit !== null) {
             localPlayer.car.velocity = localPlayer.car.velocity.mult(0.99);
             let pushBack = wallHit.normalVector.mult(Math.abs(localPlayer.car.carType.dimensions.length / 2 - wallHit.distance) * .4);
@@ -462,11 +529,19 @@ class Game {
             this.editorManager?.render();
             return;
         }
+
+        // Render throttling for AI training
+        if (this.trainingEnabled && this.trainingBridge && !this.trainingBridge.isRenderEnabled()) {
+            this.renderFrameCounter++;
+            if (this.renderFrameCounter % this.renderThrottle !== 0) {
+                return;
+            }
+        }
         
         const localPlayer = this.playerManager.getLocalPlayer();
         const players = this.playerManager.getPlayers();
         
-        if (!players || !localPlayer || !this.net.connected || !this.worldRenderer) {
+        if (!players || !localPlayer || (!this.net.connected && !this.trainingEnabled) || !this.worldRenderer) {
             return;
         }
         
@@ -474,9 +549,11 @@ class Game {
         this.camera.setScale(this.worldScale);
         this.camera.moveTowards(localPlayer.car.position);
 
-        // Interpolate remote players
-        const renderTime = this.net.serverNowMs() - 100; // 100ms delay
-        this.playerManager.interpolateRemotes(renderTime, renderTime - 1000, this.net.socketId);
+        // Interpolate remote players (skip in training mode)
+        if (!this.trainingEnabled) {
+            const renderTime = this.net.serverNowMs() - 100; // 100ms delay
+            this.playerManager.interpolateRemotes(renderTime, renderTime - 1000, this.net.socketId);
+        }
 
         this.checkIdlePlayers();
 
@@ -530,10 +607,65 @@ class Game {
         
         this.ui.updateHUD({ boost, lap });
 
+        // Update training overlay
+        if (this.trainingEnabled && this.trainingBridge && this.ui.updateTraining) {
+            const episodeState = this.trainingBridge.getEpisodeState();
+            this.ui.updateTraining({
+                enabled: true,
+                connected: this.trainingBridge.isConnected(),
+                episode: episodeState.episodeNumber,
+                step: episodeState.stepCount,
+                reward: episodeState.totalReward,
+                avgReward: episodeState.stepCount > 0 ? episodeState.totalReward / episodeState.stepCount : 0,
+                bestLapMs: bestLapMs,
+                lastLapMs: localPlayer.lapLastMs,
+                collisions: episodeState.recentCollisions.length
+            });
+        }
+
         // Debug: show active particle count
         // this.ctx.fillStyle = 'white';
         // this.ctx.font = '16px Arial';
         // this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
+    }
+
+    // Fast step for AI training (no rendering)
+    fastStep(stepMs: number): void {
+        this.simStep(stepMs);
+    }
+
+    private handleAIReset(): void {
+        // Reset is handled by EpisodeManager in TrainingBridge
+        // Just ensure UI is ready
+        console.log('AI Reset requested');
+    }
+
+    private handleAIStep(action: number[], repeat: number): void {
+        // Execute multiple simulation steps
+        for (let i = 0; i < repeat; i++) {
+            this.fastStep(STEP_MS);
+        }
+    }
+
+    private getWallProximity(): number {
+        const localPlayer = this.playerManager.getLocalPlayer();
+        if (!localPlayer) return 1.0;
+
+        // Use raycast to get minimum distance to walls
+        const rayAngles = [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6];
+        const maxDist = 400;
+        
+        // Import raycast function
+        const { raycastDistances } = require('./ai/Raycast');
+        const distances = raycastDistances(
+            localPlayer.car.position,
+            localPlayer.car.angle,
+            rayAngles,
+            this.track.boundaries,
+            maxDist
+        );
+
+        return Math.min(...distances) / maxDist;
     }
 
 
@@ -724,12 +856,12 @@ class Game {
     }
 
     private createTrackFromBestLap(): void {
-        if (!this.net.socketId || !this.session.trackName) {
+        if ((!this.net.socketId && !this.trainingEnabled) || !this.session.trackName) {
             console.warn('Cannot create track: missing player ID or track name');
             return;
         }
 
-        const playerId = this.net.socketId;
+        const playerId = this.trainingEnabled ? 'ai_agent' : this.net.socketId;
         const trackName = this.session.trackName;
         
         // Load best path from localStorage

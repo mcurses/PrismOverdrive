@@ -4,3 +4,6 @@ dist
 .idea/
 .aider*
 **/.DS_Store
+.venv
+ai/checkpoints/
+ai/runs/

@@ -1,18 +1,26 @@
 import { DEFAULT_BINDINGS, isActionDown, Action } from './input/Controls';
+import { AIController } from './ai/AIController';
 
 export enum InputType {
     KEYBOARD,
+    AI,
 }
 
 export class InputController {
+    private type: InputType;
     private codesDown: Set<string> = new Set();
     private onKeyDown: (e: KeyboardEvent) => void;
     private onKeyUp: (e: KeyboardEvent) => void;
     private keyHandlers: Map<string, Function> = new Map();
+    private aiController: AIController | null = null;
 
-    constructor(type: InputType) {
+    constructor(type: InputType, aiController?: AIController) {
+        this.type = type;
+        this.aiController = aiController || null;
+
         switch (type) {
             case InputType.KEYBOARD:
+            case InputType.AI:
                 this.onKeyDown = (e: KeyboardEvent) => {
                     const code = e.code || '';
                     if (code) {
@@ -41,7 +49,16 @@ export class InputController {
 
                 window.addEventListener('keydown', this.onKeyDown);
                 window.addEventListener('keyup', this.onKeyUp);
+                break;
         }
+    }
+
+    setType(type: InputType): void {
+        this.type = type;
+    }
+
+    setAIController(aiController: AIController): void {
+        this.aiController = aiController;
     }
 
     handleKey(name: string, handler: Function) {
@@ -62,6 +79,10 @@ export class InputController {
     }
 
     getActions(): { ACCELERATE: boolean; BRAKE: boolean; LEFT: boolean; RIGHT: boolean; HANDBRAKE: boolean; BOOST: boolean } {
+        if (this.type === InputType.AI && this.aiController) {
+            return this.aiController.getActions();
+        }
+
         const d = this.getCodesDown();
         return {
             ACCELERATE: isActionDown(d, 'ACCELERATE'),
@@ -97,4 +118,3 @@ export class InputController {
 
 
 // Listen for keydown event and update the state of the corresponding key
-

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import AppUI from './AppUI';
 import TrackManagerOverlay from './TrackManagerOverlay';
+import TrainingOverlay from './TrainingOverlay';
 import Session from '../components/Session/Session';
 import '@mantine/core/styles.css';
 // import '@mantine/dates/styles.css';
@@ -23,14 +24,27 @@ export type MountDeps = {
     boost: { charge: number; max: number; active: boolean };
     lap: { best: number | null; last: number | null; current: number | null };
   };
+  training?: {
+    enabled: boolean;
+    connected: boolean;
+    episode: number;
+    step: number;
+    reward: number;
+    avgReward: number;
+    bestLapMs: number | null;
+    lastLapMs: number | null;
+    collisions: number;
+  };
 };
 
 function UIRoot(props: MountDeps & {
   visible: boolean;
   currentScores: Array<{ name: string; best: number; current: number; multiplier: number }>;
   currentHUD: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } };
+  currentTraining?: MountDeps['training'];
 }) {
   const [isTrackMgrOpen, setTrackMgrOpen] = useState(false);
+  const [trainingVisible, setTrainingVisible] = useState(true);
 
   useEffect(() => {
     const openTrackManager = () => setTrackMgrOpen(true);
@@ -49,6 +63,19 @@ function UIRoot(props: MountDeps & {
     <MantineProvider>
       <div style={{ pointerEvents: 'none' }}>
         <AppUI {...props} scores={props.currentScores} hud={props.currentHUD} />
+        
+        {props.currentTraining?.enabled && trainingVisible && (
+          <TrainingOverlay
+            connected={props.currentTraining.connected}
+            episode={props.currentTraining.episode}
+            step={props.currentTraining.step}
+            reward={props.currentTraining.reward}
+            avgReward={props.currentTraining.avgReward}
+            bestLapMs={props.currentTraining.bestLapMs}
+            lastLapMs={props.currentTraining.lastLapMs}
+            collisions={props.currentTraining.collisions}
+          />
+        )}
       </div>
       
       <div style={{ pointerEvents: 'auto' }}>
@@ -74,6 +101,7 @@ export function mountUI(deps: MountDeps): {
   setVisible(v: boolean): void;
   updateScores(scores: Array<{ name: string; best: number; current: number; multiplier: number }>): void;
   updateHUD(hud: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } }): void;
+  updateTraining?(training: MountDeps['training']): void;
   openTrackManager(): void;
 } {
   const container = document.getElementById('ui-root');
@@ -89,6 +117,7 @@ export function mountUI(deps: MountDeps): {
     boost: { charge: 0, max: 1, active: false },
     lap: { best: null, last: null, current: null }
   };
+  let currentTraining = deps.training;
 
   const renderApp = () => {
     root.render(
@@ -96,7 +125,8 @@ export function mountUI(deps: MountDeps): {
         {...deps} 
         visible={visible}
         currentScores={currentScores} 
-        currentHUD={currentHUD} 
+        currentHUD={currentHUD}
+        currentTraining={currentTraining}
       />
     );
   };
@@ -119,6 +149,10 @@ export function mountUI(deps: MountDeps): {
     },
     updateHUD(hud: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } }) {
       currentHUD = hud;
+      renderApp();
+    },
+    updateTraining(training: MountDeps['training']) {
+      currentTraining = training;
       renderApp();
     },
     openTrackManager() {
