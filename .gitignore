@@ -7,3 +7,6 @@ dist
 .venv
 ai/checkpoints/
 ai/runs/
+
+ai/
+!ai/*server.py

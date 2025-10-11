@@ -111,10 +111,37 @@ export class Reward {
         //     }
         // }
 
+        // Forward-progress shaping (direction-agnostic)
+        if (lapCounter && track.checkpoints.length > 0) {
+            const lapState = lapCounter.getState();
+            const expectedIdx = lapState.expectedIndex >= 0 ? lapState.expectedIndex : lapState.startIndex;
+            const nextCP = track.checkpoints[expectedIdx];
+            
+            if (nextCP) {
+                // Compute tangent unit vector from checkpoint line
+                const cpDx = nextCP.b.x - nextCP.a.x;
+                const cpDy = nextCP.b.y - nextCP.a.y;
+                const cpLength = Math.sqrt(cpDx * cpDx + cpDy * cpDy);
+                
+                if (cpLength > 0) {
+                    const tangentUnit = { x: cpDx / cpLength, y: cpDy / cpLength };
+                    
+                    // Project velocity onto tangent (direction-agnostic, only forward component)
+                    const vel = player.car.velocity;
+                    const velDotTangent = vel.x * tangentUnit.x + vel.y * tangentUnit.y;
+                    const forwardSpeed = Math.max(0, Math.abs(velDotTangent)); // Take absolute value for bidirectional
+                    
+                    // Small positive reward for forward progress
+                    // reward += 0.001 * Math.min(forwardSpeed, 400);
+                }
+            }
+        }
+
         // Speed bonus
         const speed = player.car.velocity.mag();
         const speedNorm = Math.min(speed / 300, 1);
-        reward += speedNorm * 0.4;
+        // console.log("speedNorm", speedNorm)
+        reward += speedNorm * 5.6;
 
         // Drift style bonus
         if (player.car.isDrifting) {
@@ -135,9 +162,11 @@ export class Reward {
             reward -= 0.5;
             this.state.collisionCount++;
         }
-        // if (wallProximity < 0.1) {
-        //     reward -= 0.05;
-        // }
+        // console.log("wallProximity", wallProximity)
+        if (wallProximity < 0.5) {
+            // substract more when closer
+            reward -= 0.05 * (0.5 - wallProximity) / 0.5;
+        }
 
         // Living cost
         reward -= 0.0005;

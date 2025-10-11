@@ -42,7 +42,12 @@ export class EpisodeManager {
 
         // Reset car at start line
         if (lapCounter && track.checkpoints.length > 0) {
-            const startCP = track.checkpoints.find(cp => cp.isStart);
+            let startCP = track.checkpoints.find(cp => cp.isStart);
+            // console.log()
+
+            const startCPPlusRandom = track.checkpoints[Math.floor(Math.random() * track.checkpoints.length)];
+             startCP = startCPPlusRandom;
+
             if (startCP) {
                 const midX = (startCP.a.x + startCP.b.x) / 2;
                 const midY = (startCP.a.y + startCP.b.y) / 2;
@@ -52,13 +57,13 @@ export class EpisodeManager {
                 const dy = startCP.b.y - startCP.a.y;
                 const angle = Math.atan2(dy, dx) + Math.PI / 2;
 
-                // After computing `angle` and (midX, midY)
+                // Compute forward unit vector from angle
                 const forward = new Vector(Math.cos(angle), Math.sin(angle));
 
-// Distance to place the car behind the start line (tune 80–150)
+                // Distance to place the car behind the start line (tune 80–150)
                 const START_BACKOFF = 100;
 
-// Put the car a bit *before* the line so it has to cross once to start
+                // Put the car a bit *before* the line so it has to cross once to start
                 player.car.position = new Vector(
                     midX - forward.x * START_BACKOFF,
                     midY - forward.y * START_BACKOFF
@@ -68,7 +73,6 @@ export class EpisodeManager {
                 player.car.acceleration = new Vector(0, 0);
                 player.car.targetPosition = null;
                 player.car.targetAngle = null;
-
             }
         }
 
@@ -127,19 +131,19 @@ export class EpisodeManager {
             return { done: true, reason: 'collisions' };
         }
 
-        // Wrong way detection
-        if (lapCounter) {
-            const lapState = lapCounter.getState();
-            if (lapState.direction === -1) {
-                if (this.state.wrongWayStartMs === null) {
-                    this.state.wrongWayStartMs = nowMs;
-                } else if (nowMs - this.state.wrongWayStartMs > this.WRONG_WAY_TIME_MS) {
-                    return { done: true, reason: 'wrong_way' };
-                }
-            } else {
-                this.state.wrongWayStartMs = null;
-            }
-        }
+        // // Wrong way detection
+        // if (lapCounter) {
+        //     const lapState = lapCounter.getState();
+        //     if (lapState.direction === -1) {
+        //         if (this.state.wrongWayStartMs === null) {
+        //             this.state.wrongWayStartMs = nowMs;
+        //         } else if (nowMs - this.state.wrongWayStartMs > this.WRONG_WAY_TIME_MS) {
+        //             return { done: true, reason: 'wrong_way' };
+        //         }
+        //     } else {
+        //         this.state.wrongWayStartMs = null;
+        //     }
+        // }
 
         return { done: false, reason: '' };
     }
