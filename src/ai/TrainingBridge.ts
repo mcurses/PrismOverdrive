@@ -21,19 +21,24 @@ export interface TrainingBridgeCallbacks {
 export class TrainingBridge {
     private ws: WebSocket | null = null;
     private connected: boolean = false;
-    private renderEnabled: boolean = true;
+    public renderEnabled: boolean = true;
     private aiController: AIController;
     private reward: Reward;
     private episodeManager: EpisodeManager;
     private callbacks: TrainingBridgeCallbacks;
-    private lastLapMs: number | null = null;
+    private lastLapSeenMs: number | null = null;
     private lastBestLapMs: number | null = null;
+    private aiVersion: number = 1;
 
     constructor(aiController: AIController, callbacks: TrainingBridgeCallbacks) {
         this.aiController = aiController;
         this.callbacks = callbacks;
         this.reward = new Reward();
         this.episodeManager = new EpisodeManager();
+        
+        // Read AI version from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        this.aiVersion = Number(urlParams.get('aiver') || '1');
     }
 
     connect(url: string = 'ws://127.0.0.1:8765'): void {
@@ -50,7 +55,7 @@ export class TrainingBridge {
             this.connected = true;
             this.send({
                 type: 'hello',
-                version: 1,
+                aiVersion: this.aiVersion,
                 fps: 120
             });
         };
@@ -110,7 +115,6 @@ export class TrainingBridge {
     private handleMessage(msg: any): void {
         switch (msg.type) {
             case 'seed':
-                // Not implemented - browser RNG is not seedable
                 console.log('TrainingBridge: seed request ignored (not supported)');
                 break;
 
@@ -149,7 +153,7 @@ export class TrainingBridge {
         this.episodeManager.reset(player, track, lapCounter);
         this.reward.reset();
         this.aiController.reset();
-        this.lastLapMs = null;
+        this.lastLapSeenMs = null;
         this.lastBestLapMs = lapCounter?.getState().bestLapMs ?? null;
 
         // Trigger game reset
@@ -206,19 +210,18 @@ export class TrainingBridge {
         );
 
         // Check for lap completion bonus
-        const currentLapMs = lapCounter?.getState().currentLapStartMs !== null
-            ? nowMs - lapCounter.getState().currentLapStartMs
-            : null;
-        const currentBestMs = lapCounter?.getState().bestLapMs ?? null;
-
-        if (currentLapMs !== null && this.lastLapMs !== null && currentLapMs < this.lastLapMs) {
+        const currentLapMs = lapCounter?.getState().lastLapMs ?? null;
+        
+        if (currentLapMs !== null && currentLapMs !== this.lastLapSeenMs) {
             // Lap completed
+            const currentBestMs = lapCounter?.getState().bestLapMs ?? null;
             const improved = currentBestMs !== null && 
                              (this.lastBestLapMs === null || currentBestMs < this.lastBestLapMs);
-            // stepReward += this.reward.onLapComplete(improved);
+            
+            stepReward += this.reward.onLapComplete(improved);
             this.lastBestLapMs = currentBestMs;
+            this.lastLapSeenMs = currentLapMs;
         }
-        this.lastLapMs = currentLapMs;
 
         // Update episode
         this.episodeManager.step(stepReward);

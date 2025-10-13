@@ -62,6 +62,17 @@ export class LapCounter {
         };
     }
 
+    initializeFromCheckpoint(startIndex: number, nowMs: number): void {
+        this.state.startIndex = startIndex;
+        this.state.currentLapStartMs = nowMs;
+        this.state.lastStartCrossMs = nowMs;
+        this.state.armed = true;
+        this.state.activated.clear();
+        this.state.direction = 0;
+        this.state.expectedIndex = -1;
+        this.state.maxDistFromStartSinceLastCross = 0;
+    }
+
     update(
         prevPos: { x: number; y: number },
         curPos: { x: number; y: number },
@@ -78,7 +89,7 @@ export class LapCounter {
         };
 
         // Update max distance from start line for re-arm logic
-        const startCP = this.startCheckpoint();
+        const startCP = this.checkpoints[this.state.startIndex];
         if (startCP) {
             const distNow = Math.abs(this.signedDistanceToLine(curPos, startCP.a, startCP.b));
             this.state.maxDistFromStartSinceLastCross = Math.max(
@@ -107,29 +118,28 @@ export class LapCounter {
             );
 
             if (intersection.hit) {
-                if (checkpoint.isStart) {
-                    // Start-line debounce logic
+                if (checkpoint.id === this.state.startIndex) {
+                    // Crossing the episode's start checkpoint (lap anchor)
                     const dPrev = this.signedDistanceToLine(prevPos, checkpoint.a, checkpoint.b);
                     const dCur = this.signedDistanceToLine(curPos, checkpoint.a, checkpoint.b);
                     
-                    const sideFlip = (dPrev * dCur) < 0; // Sign change
+                    const sideFlip = (dPrev * dCur) < 0;
                     const hysteresisOk = Math.max(Math.abs(dPrev), Math.abs(dCur)) >= this.START_HYSTERESIS;
                     const awayEnough = this.state.maxDistFromStartSinceLastCross >= this.START_REARM_DISTANCE;
                     const cooldownOk = nowMs - this.state.lastStartCrossMs >= this.START_COOLDOWN_MS;
                     
-                    // Ignore crossing if debounce conditions not met
                     if (!(sideFlip && hysteresisOk && awayEnough && cooldownOk)) {
-                        break; // Exit loop, ignore this crossing
+                        break;
                     }
                     
-                    console.log(`Checkpoint crossed: ${checkpoint.id} at ${intersection.point.x}, ${intersection.point.y}`);
+                    console.log(`Start checkpoint crossed: ${checkpoint.id} at ${intersection.point.x}, ${intersection.point.y}`);
                     result.crossedStart = true;
                     result.crossedId = checkpoint.id;
                     
                     // Check if lap should be completed
                     const requiredCheckpoints = this.config.requireAllCheckpoints ? 
-                        this.checkpoints.length - 1 : // All non-start checkpoints
-                        Math.ceil((this.checkpoints.length - 1) * 0.6); // 60% of non-start checkpoints
+                        this.checkpoints.length - 1 :
+                        Math.ceil((this.checkpoints.length - 1) * 0.6);
                     
                     if (this.state.armed && 
                         nowMs - this.state.lastStartCrossMs >= this.config.minLapMs &&
@@ -146,19 +156,19 @@ export class LapCounter {
                         }
                     }
                     
-                    // Always reset for new lap attempt when crossing start
+                    // Reset for new lap attempt
                     this.state.activated.clear();
                     this.state.direction = 0;
                     this.state.expectedIndex = -1;
                     result.activated = new Set();
                     result.direction = 0;
                     
-                    // Always update start timing
+                    // Update start timing
                     this.state.currentLapStartMs = nowMs;
                     this.state.lastStartCrossMs = nowMs;
                     this.state.armed = true;
                     
-                    // Re-arm distance tracking for next cycle
+                    // Re-arm distance tracking
                     this.state.maxDistFromStartSinceLastCross = 0;
                     
                 } else {
@@ -167,7 +177,7 @@ export class LapCounter {
                     result.crossedId = checkpoint.id;
                     
                     if (this.state.direction === 0) {
-                        // Set direction based on shortest path from start
+                        // First non-start checkpoint crossing - set direction
                         const startIdx = this.state.startIndex;
                         const checkpointIdx = checkpoint.id;
                         const totalCheckpoints = this.checkpoints.length;
@@ -181,26 +191,27 @@ export class LapCounter {
                         result.activated = new Set(this.state.activated);
                         result.direction = this.state.direction;
                         
-                        // Set next expected checkpoint
-                        this.state.expectedIndex = (checkpointIdx + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
+                        // Set next expected checkpoint (skip startIndex)
+                        let nextIdx = (checkpointIdx + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
+                        if (nextIdx === this.state.startIndex) {
+                            nextIdx = (nextIdx + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
+                        }
+                        this.state.expectedIndex = nextIdx;
                         
                     } else if (checkpoint.id === this.state.expectedIndex) {
                         // Correct checkpoint in sequence
                         this.state.activated.add(checkpoint.id);
                         result.activated = new Set(this.state.activated);
                         
-                        // Advance to next expected checkpoint
-                        this.state.expectedIndex = (this.state.expectedIndex + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
-                        
-                        // Skip start checkpoint in expected sequence
-                        if (this.state.expectedIndex === this.state.startIndex) {
-                            this.state.expectedIndex = (this.state.expectedIndex + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
+                        // Advance to next expected checkpoint (skip startIndex)
+                        let nextIdx = (this.state.expectedIndex + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
+                        if (nextIdx === this.state.startIndex) {
+                            nextIdx = (nextIdx + this.state.direction + this.checkpoints.length) % this.checkpoints.length;
                         }
+                        this.state.expectedIndex = nextIdx;
                     }
-                    // Ignore wrong checkpoints or already activated ones
                 }
                 
-                // Only process first intersection per update
                 break;
             }
         }
@@ -213,6 +224,10 @@ export class LapCounter {
             ...this.state,
             activated: new Set(this.state.activated)
         };
+    }
+
+    getActivatedCount(): number {
+        return this.state.activated.size;
     }
 
     setBestLap(bestLapMs: number | null): void {
@@ -230,25 +245,17 @@ export class LapCounter {
         this.state.maxDistFromStartSinceLastCross = 0;
     }
 
-    private startCheckpoint(): Checkpoint | null {
-        return this.checkpoints.find(cp => cp.isStart) || null;
-    }
-
     private signedDistanceToLine(
         p: { x: number; y: number },
         a: { x: number; y: number },
         b: { x: number; y: number }
     ): number {
-        // Compute signed distance from point p to line defined by a->b
-        // Positive on one side, negative on the other
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const lineLength = Math.sqrt(dx * dx + dy * dy);
         
         if (lineLength === 0) return 0;
         
-        // Cross product gives signed area (2x triangle area)
-        // Divide by line length to get perpendicular distance
         return ((p.x - a.x) * dy - (p.y - a.y) * dx) / lineLength;
     }
 

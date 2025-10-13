@@ -40,13 +40,10 @@ export class EpisodeManager {
         this.state.wrongWayStartMs = null;
         this.state.recentCollisions = [];
 
-        // Reset car at start line
+        // Reset car at random checkpoint
         if (lapCounter && track.checkpoints.length > 0) {
-            let startCP = track.checkpoints.find(cp => cp.isStart);
-            // console.log()
-
-            const startCPPlusRandom = track.checkpoints[Math.floor(Math.random() * track.checkpoints.length)];
-             startCP = startCPPlusRandom;
+            const randomIdx = Math.floor(Math.random() * track.checkpoints.length);
+            const startCP = track.checkpoints[randomIdx];
 
             if (startCP) {
                 const midX = (startCP.a.x + startCP.b.x) / 2;
@@ -60,10 +57,9 @@ export class EpisodeManager {
                 // Compute forward unit vector from angle
                 const forward = new Vector(Math.cos(angle), Math.sin(angle));
 
-                // Distance to place the car behind the start line (tune 80–150)
+                // Distance to place the car behind the checkpoint
                 const START_BACKOFF = 100;
 
-                // Put the car a bit *before* the line so it has to cross once to start
                 player.car.position = new Vector(
                     midX - forward.x * START_BACKOFF,
                     midY - forward.y * START_BACKOFF
@@ -73,6 +69,9 @@ export class EpisodeManager {
                 player.car.acceleration = new Vector(0, 0);
                 player.car.targetPosition = null;
                 player.car.targetAngle = null;
+                
+                // Initialize lap counter from this checkpoint
+                lapCounter.initializeFromCheckpoint(startCP.id, Date.now());
             }
         }
 
@@ -82,11 +81,6 @@ export class EpisodeManager {
         player.boostActive = false;
         player.lastDriftTime = 0;
         player.pendingTrailStamps = [];
-
-        // Reset lap counter
-        if (lapCounter) {
-            lapCounter.resetOnTrackChange();
-        }
     }
 
     step(reward: number): void {
@@ -130,20 +124,6 @@ export class EpisodeManager {
         if (this.state.recentCollisions.length >= this.MAX_COLLISIONS_IN_WINDOW) {
             return { done: true, reason: 'collisions' };
         }
-
-        // // Wrong way detection
-        // if (lapCounter) {
-        //     const lapState = lapCounter.getState();
-        //     if (lapState.direction === -1) {
-        //         if (this.state.wrongWayStartMs === null) {
-        //             this.state.wrongWayStartMs = nowMs;
-        //         } else if (nowMs - this.state.wrongWayStartMs > this.WRONG_WAY_TIME_MS) {
-        //             return { done: true, reason: 'wrong_way' };
-        //         }
-        //     } else {
-        //         this.state.wrongWayStartMs = null;
-        //     }
-        // }
 
         return { done: false, reason: '' };
     }

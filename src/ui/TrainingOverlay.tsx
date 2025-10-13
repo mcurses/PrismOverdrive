@@ -85,8 +85,8 @@ export default function TrainingOverlay(props: TrainingOverlayProps) {
                     </div>
                     <div>Speed: <span style={{ color: props.rewardBreakdown.speed >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.speed)}</span></div>
                     <div>Frame: <span style={{ color: props.rewardBreakdown.frame >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.frame)}</span></div>
-                    <div>Forward: <span style={{ color: props.rewardBreakdown.forward >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.forward)}</span></div>
-                    <div>AntiCircle: <span style={{ color: props.rewardBreakdown.antiCircle >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.antiCircle)}</span></div>
+                    <div>Progress: <span style={{ color: props.rewardBreakdown.forward >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.forward)}</span></div>
+                    <div>Efficiency: <span style={{ color: props.rewardBreakdown.antiCircle >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.antiCircle)}</span></div>
                     <div>WallScrape: <span style={{ color: props.rewardBreakdown.wallScrape >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.wallScrape)}</span></div>
                     <div>Collision: <span style={{ color: props.rewardBreakdown.collision >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.collision)}</span></div>
                     <div>Living: <span style={{ color: props.rewardBreakdown.living >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.living)}</span></div>

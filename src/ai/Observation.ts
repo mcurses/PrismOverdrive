@@ -8,7 +8,7 @@ export interface ObservationInfo {
     lapProgress: number;
     checkpointId: number;
     speed: number;
-    drifting: number;
+    frameScore: number;
     lapMs: number | null;
     bestLapMs: number | null;
     collisions: number;
@@ -20,6 +20,7 @@ export class Observation {
     private static readonly SPEED_NORM_MAX = 300;
     private static readonly CP_DIST_NORM = 500;
     private static readonly LAP_TIME_MAX_MS = 60000;
+    private static readonly FS_MAX = 600;
 
     static build(
         player: Player,
@@ -45,39 +46,66 @@ export class Observation {
         const speedNorm = Math.min(speed / this.SPEED_NORM_MAX, 1);
         obs.push(speedNorm);
 
-        // 6: drifting
-        obs.push(car.isDrifting ? 1 : 0);
+        // 6: frameScore_norm (replaces drifting boolean)
+        const frameScoreNorm = Math.min(player.score.frameScore / this.FS_MAX, 1);
+        obs.push(frameScoreNorm);
 
-        // 7-9: next checkpoint info
-        let dxNorm = 0, dyNorm = 0, alongTangent = 0;
+        // 7-15: next 3 checkpoints in car frame (9 values total)
         if (lapCounter && track.checkpoints.length > 0) {
             const lapState = lapCounter.getState();
             const expectedIdx = lapState.expectedIndex >= 0 ? lapState.expectedIndex : lapState.startIndex;
-            const nextCP = track.checkpoints[expectedIdx];
             
-            if (nextCP) {
-                const midX = (nextCP.a.x + nextCP.b.x) / 2;
-                const midY = (nextCP.a.y + nextCP.b.y) / 2;
-                const dx = midX - car.position.x;
-                const dy = midY - car.position.y;
-                dxNorm = dx / this.CP_DIST_NORM;
-                dyNorm = dy / this.CP_DIST_NORM;
-
-                // Tangent angle (perpendicular to checkpoint line)
-                const cpDx = nextCP.b.x - nextCP.a.x;
-                const cpDy = nextCP.b.y - nextCP.a.y;
-                const tangentAngle = Math.atan2(cpDy, cpDx);
-                let angleDiff = car.angle - tangentAngle;
-                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-                alongTangent = angleDiff / Math.PI; // [-1, 1]
+            for (let i = 0; i < 3; i++) {
+                const cpIdx = (expectedIdx + i) % track.checkpoints.length;
+                const cp = track.checkpoints[cpIdx];
+                
+                if (cp) {
+                    // Checkpoint midpoint
+                    const midX = (cp.a.x + cp.b.x) / 2;
+                    const midY = (cp.a.y + cp.b.y) / 2;
+                    
+                    // Relative to car position
+                    const dx = midX - car.position.x;
+                    const dy = midY - car.position.y;
+                    
+                    // Rotate into car frame
+                    const cosA = Math.cos(-car.angle);
+                    const sinA = Math.sin(-car.angle);
+                    const relX = dx * cosA - dy * sinA;
+                    const relY = dx * sinA + dy * cosA;
+                    
+                    // Normalize
+                    const relXNorm = relX / this.CP_DIST_NORM;
+                    const relYNorm = relY / this.CP_DIST_NORM;
+                    
+                    // Checkpoint tangent angle
+                    const cpDx = cp.b.x - cp.a.x;
+                    const cpDy = cp.b.y - cp.a.y;
+                    const tangentAngle = Math.atan2(cpDy, cpDx);
+                    
+                    // Angle difference wrapped to [-π, π]
+                    let angleDiff = tangentAngle - car.angle;
+                    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                    const angleDiffNorm = angleDiff / Math.PI;
+                    
+                    obs.push(relXNorm);
+                    obs.push(relYNorm);
+                    obs.push(angleDiffNorm);
+                } else {
+                    obs.push(0);
+                    obs.push(0);
+                    obs.push(0);
+                }
+            }
+        } else {
+            // No checkpoints - push zeros
+            for (let i = 0; i < 9; i++) {
+                obs.push(0);
             }
         }
-        obs.push(dxNorm);
-        obs.push(dyNorm);
-        obs.push(alongTangent);
 
-        // 10-16: ray distances (7 rays)
+        // 16-22: ray distances (7 rays)
         const rayDists = raycastDistances(
             car.position,
             car.angle,
@@ -89,11 +117,11 @@ export class Observation {
             obs.push(Math.min(dist / this.RAY_MAX_DIST, 1));
         }
 
-        // 17: wall_proximity (min ray distance)
+        // 23: wall_proximity (min ray distance)
         const wallProximity = Math.min(...rayDists) / this.RAY_MAX_DIST;
         obs.push(wallProximity);
 
-        // 18: progress_norm
+        // 24: progress_norm
         let progressNorm = 0;
         if (lapCounter && track.checkpoints.length > 1) {
             const lapState = lapCounter.getState();
@@ -102,7 +130,7 @@ export class Observation {
         }
         obs.push(progressNorm);
 
-        // 19: time_norm
+        // 25: time_norm
         let timeNorm = 0;
         if (lapCounter) {
             const lapState = lapCounter.getState();
@@ -113,8 +141,8 @@ export class Observation {
         }
         obs.push(timeNorm);
 
-        // 20: wrong_way
-        let wrongWay = 0.5; // neutral
+        // 26: wrong_way
+        let wrongWay = 0.5;
         if (lapCounter) {
             const lapState = lapCounter.getState();
             if (lapState.direction === -1) wrongWay = 0;
@@ -122,14 +150,14 @@ export class Observation {
         }
         obs.push(wrongWay);
 
-        // 21-22: car position coarse
+        // 27-28: car position coarse
         obs.push(car.position.x / mapSize.width);
         obs.push(car.position.y / mapSize.height);
 
-        // 23: boost_charge_norm
+        // 29: boost_charge_norm
         obs.push(player.boostCharge / player.BOOST_MAX);
 
-        // 24: multiplier_norm
+        // 30: multiplier_norm
         obs.push(Math.min(player.score.multiplier / 50, 1));
 
         // Build info
@@ -138,7 +166,7 @@ export class Observation {
             lapProgress: progressNorm,
             checkpointId: lapState?.expectedIndex ?? -1,
             speed: speed,
-            drifting: car.isDrifting ? 1 : 0,
+            frameScore: player.score.frameScore,
             lapMs: lapState?.currentLapStartMs !== null ? Date.now() - lapState.currentLapStartMs : null,
             bestLapMs: lapState?.bestLapMs ?? null,
             collisions: collisionCount

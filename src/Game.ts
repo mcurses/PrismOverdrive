@@ -1,5 +1,4 @@
 import Car from "./components/Car/Car";
-// import {bounds2, bounds3, scaleTo} from "./components/Playfield/bounds";
 import {Dimensions, gaussianRandom, loadImage, lerp, clamp} from "./utils/Utils";
 import {InputController, InputType} from "./InputController";
 import Track from "./components/Playfield/Track";
@@ -103,6 +102,8 @@ class Game {
     private renderThrottle: number = 1;
     private renderFrameCounter: number = 0;
     private trainingOverlayVisible: boolean = true;
+    private performanceMode: 'normal' | 'fast' = 'normal';
+    private renderSkipN: number = 10;
 
     constructor() {
         this.canvasSize = {
@@ -133,6 +134,7 @@ class Game {
         // Check for AI training mode
         const urlParams = new URLSearchParams(window.location.search);
         this.trainingEnabled = urlParams.get('ai') === '1' || !!(window as any).__TRAINING__;
+        this.renderSkipN = Number(urlParams.get('renderskip') || '10');
     }
 
     async preload() {
@@ -199,9 +201,6 @@ class Game {
 
         this.lastUdpate = 0;
 
-        // let paralaxLayer1 = new Image();
-        // paralaxLayer1.src = 'assets/stars2.jpg';
-        // scale the image
         let backgroundData = new BackgroundData();
         backgroundData.getLayers('jungle').then((layers) => {
             this.background = new Background({
@@ -235,7 +234,6 @@ class Game {
         });
         this.miniMapCanvas.width = this.mapSize.width * this.miniMap.scale;
         this.miniMapCanvas.height = this.mapSize.height * this.miniMap.scale;
-        // Don't initialize background here - will be done in loadTrack
 
         this.trackCanvas = document.createElement('canvas');
         this.trackCanvas.width = this.mapSize.width;
@@ -243,19 +241,6 @@ class Game {
         this.trackCtx = this.trackCanvas.getContext('2d');
         this.trackCtx.globalAlpha = 1;
         this.track.draw(this.trackCtx);
-
-
-        // this.trackOverpaintInterval = setInterval(() => {
-        //     this.trailsCtx.globalAlpha = 0.02;
-        //     this.trailsCtx.globalCompositeOperation = 'source-over'; // Reset globalCompositeOperation
-        //     // this.trailsCtx.globalCompositeOperation = 'exclusion';
-        //     this.trailsCtx.drawImage(this.trackCanvas, 0, 0);
-        //     this.trailsCtx.globalAlpha = 1;
-        //
-        // }, 1000 / 24);
-
-        // this.trackBlurInterval = setInterval(() => {
-        // }, 1000 / 4);
 
         this.net = new NetworkClient({
             onRemoteUpdate: (id, snapshot, stamps) => this.playerManager.onNetworkSnapshot(id, snapshot, stamps),
@@ -328,16 +313,47 @@ class Game {
             this.createTrackFromBestLap();
         });
 
-        // AI training keybinds
+        // AI training keybinds (F7-F10)
         if (this.trainingEnabled) {
-            this.inputController.handleKey('F9', () => {
+            this.inputController.handleKey('F7', () => {
                 this.trainingOverlayVisible = !this.trainingOverlayVisible;
                 console.log('Training overlay:', this.trainingOverlayVisible ? 'visible' : 'hidden');
             });
             
+            this.inputController.handleKey('F8', () => {
+                if (this.trainingBridge) {
+                    this.trainingBridge.renderEnabled = true;
+                }
+                this.renderThrottle = 1;
+                this.performanceMode = 'normal';
+                if (this.worldRenderer) {
+                    this.worldRenderer.setPerformanceMode('normal');
+                }
+                console.log('Performance mode: normal (render enabled, no throttle)');
+            });
+            
+            this.inputController.handleKey('F9', () => {
+                if (this.trainingBridge) {
+                    this.trainingBridge.renderEnabled = true;
+                }
+                this.renderThrottle = 1;
+                this.performanceMode = 'fast';
+                if (this.worldRenderer) {
+                    this.worldRenderer.setPerformanceMode('fast');
+                }
+                console.log('Performance mode: fast (render enabled, no frame skip)');
+            });
+            
             this.inputController.handleKey('F10', () => {
-                this.renderThrottle = this.renderThrottle === 1 ? 10 : 1;
-                console.log('Render throttle:', this.renderThrottle);
+                if (this.trainingBridge) {
+                    this.trainingBridge.renderEnabled = true;
+                }
+                this.renderThrottle = this.renderSkipN;
+                this.performanceMode = 'fast';
+                if (this.worldRenderer) {
+                    this.worldRenderer.setPerformanceMode('fast');
+                }
+                console.log(`Performance mode: fastest (render enabled, frame skip ${this.renderSkipN})`);
             });
         }
         
@@ -353,8 +369,6 @@ class Game {
 
         if (!this.trainingEnabled) {
             this.net.connect().then(() => {
-                // this.createMenuElements();
-                // this.session.playerName = this.net.socketId;
             });
         }
 
@@ -531,7 +545,7 @@ class Game {
         }
 
         // Render throttling for AI training
-        if (this.trainingEnabled && this.trainingBridge && !this.trainingBridge.isRenderEnabled()) {
+        if (this.trainingEnabled && this.trainingBridge && this.trainingBridge.isRenderEnabled()) {
             this.renderFrameCounter++;
             if (this.renderFrameCounter % this.renderThrottle !== 0) {
                 return;
@@ -551,7 +565,7 @@ class Game {
 
         // Interpolate remote players (skip in training mode)
         if (!this.trainingEnabled) {
-            const renderTime = this.net.serverNowMs() - 100; // 100ms delay
+            const renderTime = this.net.serverNowMs() - 100;
             this.playerManager.interpolateRemotes(renderTime, renderTime - 1000, this.net.socketId);
         }
 
@@ -560,10 +574,9 @@ class Game {
         // Handle trails overdraw counter
         if (this.trailsOverdrawCounter > 200) {
             this.trailsOverdrawCounter = 0;
-            // Overdraw the offscreen trails buffer with the clean track @ 2% alpha
             this.trails.overlayImage(this.trackCanvas, 0.1);
         } else {
-            this.trailsOverdrawCounter += 1; // Simple increment since we're called per frame
+            this.trailsOverdrawCounter += 1;
         }
 
         // Use WorldRenderer to draw the frame
@@ -607,8 +620,8 @@ class Game {
         
         this.ui.updateHUD({ boost, lap });
 
-        // Update training overlay with breakdown
-        if (this.trainingEnabled && this.trainingBridge && this.ui.updateTraining) {
+        // Update training overlay with breakdown (only if visible)
+        if (this.trainingEnabled && this.trainingBridge && this.ui.updateTraining && this.trainingOverlayVisible) {
             const episodeState = this.trainingBridge.getEpisodeState();
             const breakdown = this.trainingBridge.getLastRewardBreakdown();
             
@@ -625,11 +638,6 @@ class Game {
                 rewardBreakdown: breakdown
             });
         }
-
-        // Debug: show active particle count
-        // this.ctx.fillStyle = 'white';
-        // this.ctx.font = '16px Arial';
-        // this.ctx.fillText(`Particles: ${this.particleSystem.getActiveParticleCount()}`, 10, this.canvasSize.height - 30);
     }
 
     // Fast step for AI training (no rendering)
@@ -638,8 +646,6 @@ class Game {
     }
 
     private handleAIReset(): void {
-        // Reset is handled by EpisodeManager in TrainingBridge
-        // Just ensure UI is ready
         console.log('AI Reset requested');
     }
 
@@ -654,12 +660,10 @@ class Game {
         const localPlayer = this.playerManager.getLocalPlayer();
         if (!localPlayer) return 1.0;
 
-        // Use raycast to get minimum distance to walls
+        const { raycastDistances } = require('./ai/Raycast');
         const rayAngles = [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6];
         const maxDist = 400;
         
-        // Import raycast function
-        const { raycastDistances } = require('./ai/Raycast');
         const distances = raycastDistances(
             localPlayer.car.position,
             localPlayer.car.angle,
@@ -696,7 +700,7 @@ class Game {
         });
         
         this.editorManager.create();
-        this.editorManager.hide(); // Start hidden
+        this.editorManager.hide();
         
         // Initialize mode manager
         this.modeManager = new ModeManager({
@@ -706,34 +710,27 @@ class Game {
     }
 
     private enterBuildMode(): void {
-        // Hide main canvas, show editor
         this.canvas.style.display = 'none';
         this.editorManager?.show();
         
-        // Load current track into editor
         this.editorManager?.loadCustomOrEmpty(this.session.trackName);
     }
 
     private enterPlayMode(): void {
-        // Hide editor, show main canvas
         this.editorManager?.hide();
         this.canvas.style.display = 'block';
         
-        // Only export from editor if we're coming from build mode with content
         if (this.editorManager && this.editorManager.isVisible()) {
             try {
                 const { bundle, scaledMapSize } = this.editorManager.toBundleAndNormalize();
                 
-                // Persist the track
                 Serializer.saveToLocalStorage(bundle);
                 TrackData.refreshCustomTracks();
                 
-                // Apply map size and load track
                 this.applyMapSize(scaledMapSize);
                 this.session.trackName = bundle.id;
                 this.loadTrack(bundle.id);
                 
-                // Spawn car at finish line if available
                 const finishSpawn = this.editorManager?.getFinishSpawn();
                 const localPlayer = this.playerManager.getLocalPlayer();
                 if (finishSpawn && localPlayer) {
@@ -742,7 +739,6 @@ class Game {
                     localPlayer.car.angle = finishSpawn.angle;
                 }
                 
-                // Reset lap counter
                 this.playerManager.resetLapCounter();
                 
             } catch (error) {
@@ -765,17 +761,13 @@ class Game {
         
         this.mapSize = { ...size };
         
-        // Use play mode controller to apply map size changes
         this.playModeController?.applyMapSize(this.mapSize, this.trackCanvas, this.miniMapCanvas);
         
-        // Recreate track context
         this.trackCtx = this.trackCanvas.getContext('2d')!;
         this.trackCtx.globalAlpha = 1;
         
-        // Recreate trails
         this.trails = new TiledCanvas(this.mapSize.width, this.mapSize.height, 1024);
         
-        // Recreate background with new map size
         if (this.session) {
             let backgroundData = new BackgroundData();
             backgroundData.getLayers('jungle').then((layers) => {
@@ -783,7 +775,6 @@ class Game {
                     mapSize: this.mapSize,
                     layers: layers
                 });
-                // Update world renderer with new background
                 if (this.worldRenderer) {
                     this.worldRenderer.setBackground(this.background);
                 }
@@ -807,13 +798,11 @@ class Game {
             
             if (this.miniMap) {
                 this.playModeController?.setMiniMap(this.miniMap, this.miniMapCtx);
-                // Update world renderer with new minimap
                 if (this.worldRenderer) {
                     this.worldRenderer.setMiniMap(this.miniMap);
                 }
             }
             
-            // Recreate lap counter with new checkpoints
             this.playerManager.onTrackChanged(this.track, {
                 minLapMs: 10000,
                 requireAllCheckpoints: true
@@ -831,31 +820,6 @@ class Game {
 
     private checkIdlePlayers() {
         return
-        // implement later
-
-        // Check for idling
-        // for (let playerId in this.players) {
-        //     let player = this.players[playerId];
-        //     if (playerId === this.serverConnection.socketId) continue;
-        //     if (player.car.velocity.mag() < .1) {
-        //         player.incrementIdleTime();
-        //     } else {
-        //         player.score.resetScore()
-        //     }
-        // }
-
-        // if not moving, increase idle time
-        // if (curCar.velocity.mag() < 0.1) {
-        //     curCar.idleTime++;
-        // } else {
-        //     curCar.idleTime = 0;
-        // }
-        // if idle for 60 seconds, remove from game
-        // but for others not for self
-        // if (playerCar.idleTime > 60 * 60) {
-        //     delete cars[playerCar.id];
-        // }
-
     }
 
     private createTrackFromBestLap(): void {
@@ -867,7 +831,6 @@ class Game {
         const playerId = this.trainingEnabled ? 'ai_agent' : this.net.socketId;
         const trackName = this.session.trackName;
         
-        // Load best path from localStorage
         const bestPath = this.playerManager.getBestPathFor(trackName, playerId);
         if (!bestPath || bestPath.length < 3) {
             console.warn('No best lap path found or path too short');
@@ -877,39 +840,32 @@ class Game {
         console.log(`Creating track from best lap: ${bestPath.length} points`);
 
         try {
-            // Convert world → editor coords
             const s = EDITOR_TO_WORLD_SCALE;
             const editorPts = bestPath.map(([x, y]) => ({ x: x / s, y: y / s }));
 
-            // Sample to anchor nodes (K ~ 64)
             const K = Math.min(64, Math.max(8, Math.floor(editorPts.length / 8)));
             const anchorNodes = this.sampleToAnchors(editorPts, K);
 
-            // Ensure at least 3 nodes and closure
             if (anchorNodes.length < 3) {
                 console.warn('Not enough anchor nodes generated');
                 return;
             }
 
-            // Ensure closure
             const first = anchorNodes[0];
             const last = anchorNodes[anchorNodes.length - 1];
             const distance = Math.sqrt(Math.pow(last.x - first.x, 2) + Math.pow(last.y - first.y, 2));
-            if (distance > 50) { // If not close enough, append first
+            if (distance > 50) {
                 anchorNodes.push({ ...first });
             }
 
-            // Build BezierNode array
             const bezierNodes = anchorNodes.map((pt, i) => ({
                 id: `node_${i}_${Math.random().toString(36).substr(2, 9)}`,
                 x: pt.x,
                 y: pt.y,
                 type: 'smooth' as const,
                 widthScale: 1.0
-                // No handles - EditorPath will auto-generate Catmull-Rom handles
             }));
 
-            // Build EditorState
             const state = new EditorState();
             state.centerPath = bezierNodes;
             state.defaultWidth = 120;
@@ -917,10 +873,8 @@ class Game {
             state.widthProfile = new Array(state.resampleN).fill(1);
             state.applyAutoShrink = true;
             
-            // Normalize to map coordinates
             state.normalizeToMap(200);
             
-            // Generate bounds and checkpoints
             const result = BoundsGenerator.generateBoundsFromInput({
                 centerPath: state.centerPath,
                 defaultWidth: state.defaultWidth,
@@ -935,16 +889,13 @@ class Game {
                 state.widthProfile = result.usedWidthProfile.slice();
             }
             
-            // Set track name
             const baseTrackDisplayName = TrackData.getDisplayName(this.session.trackName);
             state.setTrackName(`BestLap ${this.session.playerName} • ${baseTrackDisplayName}`);
 
-            // Persist
             const bundle = state.toBundle();
             Serializer.saveToLocalStorage(bundle);
             TrackData.refreshCustomTracks();
 
-            // Load and switch
             this.session.trackName = bundle.id;
             this.loadTrack(bundle.id);
             
@@ -960,7 +911,6 @@ class Game {
             return [...points];
         }
 
-        // Compute cumulative arc lengths
         const lengths = [0];
         let totalLength = 0;
         
@@ -976,13 +926,11 @@ class Game {
             return points.slice(0, K);
         }
 
-        // Sample at uniform arc-length intervals
         const anchors: Array<{x: number, y: number}> = [];
         
         for (let i = 0; i < K; i++) {
             const targetLength = (i / K) * totalLength;
             
-            // Find segment containing target length
             let segmentIndex = 0;
             for (let j = 1; j < lengths.length; j++) {
                 if (lengths[j] >= targetLength) {
@@ -996,7 +944,6 @@ class Game {
                 continue;
             }
             
-            // Interpolate within segment
             const segmentStart = lengths[segmentIndex];
             const segmentEnd = lengths[segmentIndex + 1];
             const segmentLength = segmentEnd - segmentStart;
@@ -1025,30 +972,14 @@ class Game {
     }
 }
 
-// on load start the game
-
-
-// // --- FPS logger ---
-// let last = performance.now();
-// requestAnimationFrame(function loop(t) {
-//     const fps = 1000 / (t - last);
-//     last = t;
-//     console.log(fps.toFixed(1));
-//     requestAnimationFrame(loop);
-// });
-
 window.addEventListener('load', () => {
     let game = new Game();
-    // game.preload().then(() => game.setup());
     game.setup();
 });
 
-
-// Prevent arrow-keys and spacebar from scrolling the page.
 window.addEventListener(
     "keydown",
     (key) => {
-        // space and arrow keys
         if ([32, 37, 38, 39, 40].indexOf(key.keyCode) > -1) {
             key.preventDefault();
         }

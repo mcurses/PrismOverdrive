@@ -9,10 +9,8 @@ export interface RewardState {
     collisionCount: number;
     wrongWayStartMs: number | null;
     stuckStartMs: number | null;
-
-    // NEW: anti-farming
-    lastAwardedCheckpointId: number;
-    lastCpRewardTimeMs: number;
+    lastActivatedCount: number;
+    lastActivatedCountMs: number;
 }
 
 export type RewardBreakdown = {
@@ -27,6 +25,12 @@ export type RewardBreakdown = {
     total: number;
 };
 
+interface PathPoint {
+    t: number;
+    x: number;
+    y: number;
+}
+
 export class Reward {
     private state: RewardState = {
         lastCheckpointId: -1,
@@ -35,21 +39,18 @@ export class Reward {
         collisionCount: 0,
         wrongWayStartMs: null,
         stuckStartMs: null,
-
-        lastAwardedCheckpointId: -999,
-        lastCpRewardTimeMs: 0
+        lastActivatedCount: 0,
+        lastActivatedCountMs: 0
     };
 
-    // Tunables for anti-farming
-    private readonly CP_REWARD = 0.5;
-    private readonly CP_REWARD_COOLDOWN_MS = 800;
-    private readonly MIN_SPEED_FOR_CP = 80;         // world units/s
-    private readonly MIN_TANGENT_DOT_FOR_CP = 0.4;  // cos(66°) ~ forward-ish
-    private readonly WRONG_WAY_STEP_PENALTY = 0.004;
+    // Frame score EMA
+    private fsEma: number = 0;
+    private readonly FS_EMA_ALPHA = 0.1;
 
-    // Anti-circling state
-    private recent: Array<{ t: number; x: number; y: number }> = [];
-    private readonly ANTI_CIRCLE_HORIZON_MS = 5000;
+    // Path efficiency tracking (5s window)
+    private pathPoints: PathPoint[] = [];
+    private pathLenCum: number = 0;
+    private readonly PATH_WINDOW_MS = 5000;
 
     // Breakdown tracking
     private lastBreakdown: RewardBreakdown = {
@@ -72,15 +73,46 @@ export class Reward {
         wallProximity: number,
         nowMs: number
     ): number {
-        // Update recent positions for anti-circling
-        this.recent.push({
-            t: nowMs,
-            x: player.car.position.x,
-            y: player.car.position.y
-        });
+        // Update frame score EMA
+        this.fsEma += this.FS_EMA_ALPHA * (player.score.frameScore - this.fsEma);
 
-        // Prune old samples
-        this.recent = this.recent.filter(s => nowMs - s.t <= this.ANTI_CIRCLE_HORIZON_MS);
+        // Update path efficiency tracking
+        const curPos = { t: nowMs, x: player.car.position.x, y: player.car.position.y };
+        
+        if (this.pathPoints.length > 0) {
+            const lastPt = this.pathPoints[this.pathPoints.length - 1];
+            const dx = curPos.x - lastPt.x;
+            const dy = curPos.y - lastPt.y;
+            const segLen = Math.sqrt(dx * dx + dy * dy);
+            this.pathLenCum += segLen;
+        }
+        
+        this.pathPoints.push(curPos);
+        
+        // Prune old points outside window
+        while (this.pathPoints.length > 0 && nowMs - this.pathPoints[0].t > this.PATH_WINDOW_MS) {
+            if (this.pathPoints.length > 1) {
+                const removed = this.pathPoints.shift()!;
+                const next = this.pathPoints[0];
+                const dx = next.x - removed.x;
+                const dy = next.y - removed.y;
+                const segLen = Math.sqrt(dx * dx + dy * dy);
+                this.pathLenCum -= segLen;
+            } else {
+                this.pathPoints.shift();
+            }
+        }
+        
+        // Compute efficiency
+        let eff = 1.0;
+        if (this.pathPoints.length >= 2 && this.pathLenCum > 0) {
+            const oldest = this.pathPoints[0];
+            const newest = this.pathPoints[this.pathPoints.length - 1];
+            const dx = newest.x - oldest.x;
+            const dy = newest.y - oldest.y;
+            const displacement = Math.sqrt(dx * dx + dy * dy);
+            eff = Math.min(displacement / this.pathLenCum, 1.0);
+        }
 
         // Initialize breakdown
         const breakdown: RewardBreakdown = {
@@ -95,7 +127,26 @@ export class Reward {
             total: 0
         };
 
-        // Compute forward speed (direction-agnostic)
+        // Compute speed and speed gate
+        const speed = player.car.velocity.mag();
+        const speed_gate = this.smoothstep(speed, 60, 140);
+
+        // Compute progress rate (checkpoints per second)
+        let progress_rate = 0;
+        if (lapCounter) {
+            const currentCount = lapCounter.getActivatedCount();
+            const deltaCount = currentCount - this.state.lastActivatedCount;
+            const deltaMs = nowMs - this.state.lastActivatedCountMs;
+            
+            if (deltaMs > 0) {
+                progress_rate = (deltaCount / deltaMs) * 1000; // per second
+            }
+            
+            this.state.lastActivatedCount = currentCount;
+            this.state.lastActivatedCountMs = nowMs;
+        }
+
+        // Compute forward speed for scrape gating
         let forwardSpeed = 0;
         if (lapCounter && track.checkpoints.length > 0) {
             const lapState = lapCounter.getState();
@@ -116,97 +167,44 @@ export class Reward {
             }
         }
 
-        // Speed bonus
-        const speed = player.car.velocity.mag();
-        const speedNorm = speed / 300 ; //this.clamp(speed / 300, 0, 1);
-        breakdown.speed = speedNorm * 3.2;
-
-        // Frame score (drift quality) - gated by forward progress
-        const fs = this.clamp(player.score.frameScore / 50, 0, 1);
-        const progressGate = this.smoothstep(forwardSpeed, 40, 180);
-        breakdown.frame = 1.70 * fs * progressGate;
-
-        // Forward progress shaping
-        breakdown.forward = 0.0008 * this.clamp(forwardSpeed, 0, 400);
-
-        // Anti-circling penalty
-        breakdown.antiCircle = this.computeAntiCirclePenalty(speed);
-
-        // Wall scrape penalty (only when fast, close to wall, and not making forward progress)
+        // Reward terms
+        const r_frame = 0.015 * this.fsEma * speed_gate * eff;
+        const r_progress = 0.002 * progress_rate;
+        const r_eff = -0.01 * (1 - eff);
+        
+        let r_scrape = 0;
         if (speed > 120 && wallProximity < 0.18 && forwardSpeed < 60) {
             const proxFactor = this.smoothstep(0.18 - wallProximity, 0, 0.18);
             const progressFactor = this.smoothstep(60 - forwardSpeed, 0, 60);
-            breakdown.wallScrape = -0.03 * proxFactor * progressFactor;
-        } else {
-            breakdown.wallScrape = 0;
+            r_scrape = -0.02 * proxFactor * progressFactor;
         }
-
-        // Collision penalty
+        
+        let r_collision = 0;
         if (collision) {
-            breakdown.collision = -0.5;
+            r_collision = -1.0;
             this.state.collisionCount++;
-        } else {
-            breakdown.collision = 0;
         }
-
-        // Living cost
-        breakdown.living = -0.0005;
+        
+        const r_live = -0.0003;
 
         // Sum all terms
-        let totalBeforeClamp = 
-            breakdown.speed +
-            breakdown.frame +
-            breakdown.forward +
-            breakdown.antiCircle +
-            breakdown.wallScrape +
-            breakdown.collision +
-            breakdown.living;
-
-        // Clamp total reward
+        const totalBeforeClamp = r_frame + r_progress + r_eff + r_scrape + r_collision + r_live;
         const totalAfterClamp = this.clamp(totalBeforeClamp, -1.0, 1.0);
+
+        // Build breakdown
+        breakdown.speed = 0; // Not used in this formula
+        breakdown.frame = r_frame;
+        breakdown.forward = r_progress; // "Progress" in UI
+        breakdown.antiCircle = r_eff; // Efficiency penalty
+        breakdown.wallScrape = r_scrape;
+        breakdown.collision = r_collision;
+        breakdown.living = r_live;
         breakdown.clamp = totalBeforeClamp - totalAfterClamp;
         breakdown.total = totalAfterClamp;
 
-        // Store breakdown
         this.lastBreakdown = breakdown;
 
         return breakdown.total;
-    }
-
-    private computeAntiCirclePenalty(speed: number): number {
-        if (this.recent.length < 2) {
-            return 0;
-        }
-
-        // Compute centroid displacement (oldest to newest)
-        const oldest = this.recent[0];
-        const newest = this.recent[this.recent.length - 1];
-        const dx = newest.x - oldest.x;
-        const dy = newest.y - oldest.y;
-        const centroidDisp = Math.sqrt(dx * dx + dy * dy);
-
-        // Compute bounding box area
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
-        for (const sample of this.recent) {
-            minX = Math.min(minX, sample.x);
-            maxX = Math.max(maxX, sample.x);
-            minY = Math.min(minY, sample.y);
-            maxY = Math.max(maxY, sample.y);
-        }
-        const bboxArea = (maxX - minX) * (maxY - minY);
-
-        // Approximate speed mean (use current speed for simplicity)
-        const speedMean = speed;
-
-        // Anti-circling penalty
-        if (speedMean > 80 && centroidDisp < 200 && bboxArea < 120000) {
-            const s1 = this.smoothstep(200 - centroidDisp, 0, 200);
-            const s2 = this.smoothstep(120000 - bboxArea, 0, 120000);
-            return -0.015 * s1 * s2;
-        }
-
-        return 0;
     }
 
     onLapComplete(improved: boolean): number {
@@ -223,12 +221,13 @@ export class Reward {
             collisionCount: 0,
             wrongWayStartMs: null,
             stuckStartMs: null,
-
-            lastAwardedCheckpointId: -999,
-            lastCpRewardTimeMs: 0
+            lastActivatedCount: 0,
+            lastActivatedCountMs: Date.now()
         };
 
-        this.recent = [];
+        this.fsEma = 0;
+        this.pathPoints = [];
+        this.pathLenCum = 0;
 
         this.lastBreakdown = {
             speed: 0,

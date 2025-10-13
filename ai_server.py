@@ -1,10 +1,28 @@
-import asyncio, json, numpy as np, websockets
+import asyncio, json, numpy as np, websockets, signal, sys
 from gym import Env
 from gym.spaces import Box
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 
 PORT = 8765
+
+# Global stop control
+class StopControls:
+    def __init__(self):
+        self.sigint_count = 0
+
+STOP = StopControls()
+
+def setup_signals():
+    def handle_sigint(sig, frame):
+        STOP.sigint_count += 1
+        if STOP.sigint_count == 1:
+            print("\n[CTRL+C] Graceful stop requested…")
+            print("[CTRL+C] Press Ctrl+C again to force quit immediately.")
+        else:
+            print("\n[CTRL+C] Force quit!")
+            sys.exit(1)
+    signal.signal(signal.SIGINT, handle_sigint)
 
 # === 1) Environment definition ===
 class DriftEnv(Env):
@@ -56,6 +74,11 @@ class DriftEnv(Env):
         obs = self.obs
         episode = 0
         while True:
+            # Check for graceful stop
+            if STOP.sigint_count > 0:
+                print("\n[TRAIN] Stopping training loop...")
+                break
+                
             action = self.action_space.sample()
             obs, reward, done, info = await self.step(action)
             print(f"Ep {episode} Step {info['step']:4d} R {reward:+.3f}", end="\r")
@@ -67,5 +90,10 @@ class DriftEnv(Env):
 
 # === 2) Entry point ===
 if __name__ == "__main__":
+    setup_signals()
     env = DriftEnv()
-    asyncio.run(env.connect())
+    try:
+        asyncio.run(env.connect())
+    except KeyboardInterrupt:
+        print("\n[MAIN] KeyboardInterrupt — exiting.")
+        sys.exit(0)
