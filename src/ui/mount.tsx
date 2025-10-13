@@ -34,6 +34,17 @@ export type MountDeps = {
     bestLapMs: number | null;
     lastLapMs: number | null;
     collisions: number;
+    rewardBreakdown?: {
+      speed: number;
+      frame: number;
+      forward: number;
+      antiCircle: number;
+      wallScrape: number;
+      collision: number;
+      living: number;
+      clamp: number;
+      total: number;
+    };
   };
 };
 
@@ -74,6 +85,7 @@ function UIRoot(props: MountDeps & {
             bestLapMs={props.currentTraining.bestLapMs}
             lastLapMs={props.currentTraining.lastLapMs}
             collisions={props.currentTraining.collisions}
+            rewardBreakdown={props.currentTraining.rewardBreakdown}
           />
         )}
       </div>

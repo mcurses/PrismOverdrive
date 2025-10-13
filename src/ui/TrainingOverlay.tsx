@@ -9,6 +9,17 @@ interface TrainingOverlayProps {
     bestLapMs: number | null;
     lastLapMs: number | null;
     collisions: number;
+    rewardBreakdown?: {
+        speed: number;
+        frame: number;
+        forward: number;
+        antiCircle: number;
+        wallScrape: number;
+        collision: number;
+        living: number;
+        clamp: number;
+        total: number;
+    };
 }
 
 function formatLapTime(ms: number | null): string {
@@ -20,6 +31,11 @@ function formatLapTime(ms: number | null): string {
     const milliseconds = Math.floor(ms % 1000);
     
     return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+}
+
+function formatRewardValue(value: number): string {
+    const sign = value >= 0 ? '+' : '';
+    return sign + value.toFixed(3);
 }
 
 export default function TrainingOverlay(props: TrainingOverlayProps) {
@@ -56,6 +72,30 @@ export default function TrainingOverlay(props: TrainingOverlayProps) {
             <div>Best Lap: <span style={{ color: '#ffff00' }}>{formatLapTime(props.bestLapMs)}</span></div>
             <div>Last Lap: <span style={{ color: '#ffffff' }}>{formatLapTime(props.lastLapMs)}</span></div>
             <div>Collisions: <span style={{ color: props.collisions > 0 ? '#ff4444' : '#ffffff' }}>{props.collisions}</span></div>
+
+            {props.rewardBreakdown && (
+                <div style={{
+                    marginTop: '12px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid rgba(0, 255, 0, 0.2)',
+                    fontSize: '11px'
+                }}>
+                    <div style={{ marginBottom: '4px', color: '#00ff00', fontWeight: 'bold' }}>
+                        REWARD BREAKDOWN
+                    </div>
+                    <div>Speed: <span style={{ color: props.rewardBreakdown.speed >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.speed)}</span></div>
+                    <div>Frame: <span style={{ color: props.rewardBreakdown.frame >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.frame)}</span></div>
+                    <div>Forward: <span style={{ color: props.rewardBreakdown.forward >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.forward)}</span></div>
+                    <div>AntiCircle: <span style={{ color: props.rewardBreakdown.antiCircle >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.antiCircle)}</span></div>
+                    <div>WallScrape: <span style={{ color: props.rewardBreakdown.wallScrape >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.wallScrape)}</span></div>
+                    <div>Collision: <span style={{ color: props.rewardBreakdown.collision >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.collision)}</span></div>
+                    <div>Living: <span style={{ color: props.rewardBreakdown.living >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.living)}</span></div>
+                    <div>Clamp: <span style={{ color: props.rewardBreakdown.clamp >= 0 ? '#00ff00' : '#ff4444' }}>{formatRewardValue(props.rewardBreakdown.clamp)}</span></div>
+                    <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
+                        Total: <span style={{ color: props.rewardBreakdown.total >= 0 ? '#00ff00' : '#ff4444', fontWeight: 'bold' }}>{formatRewardValue(props.rewardBreakdown.total)}</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

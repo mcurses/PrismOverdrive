@@ -76,6 +76,14 @@ class Score {
     resetScore() {
         this.endDrift()
         this.highScore = 0;
+        this.resetComboAndMultiplier();
+    }
+
+    resetComboAndMultiplier(): void {
+        this.multiplier = 1;
+        this.driftScore = 0;
+        this.frameScore = 0;
+        this.curveScore = 0;
     }
 }
 

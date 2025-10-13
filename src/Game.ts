@@ -607,9 +607,11 @@ class Game {
         
         this.ui.updateHUD({ boost, lap });
 
-        // Update training overlay
+        // Update training overlay with breakdown
         if (this.trainingEnabled && this.trainingBridge && this.ui.updateTraining) {
             const episodeState = this.trainingBridge.getEpisodeState();
+            const breakdown = this.trainingBridge.getLastRewardBreakdown();
+            
             this.ui.updateTraining({
                 enabled: true,
                 connected: this.trainingBridge.isConnected(),
@@ -619,7 +621,8 @@ class Game {
                 avgReward: episodeState.stepCount > 0 ? episodeState.totalReward / episodeState.stepCount : 0,
                 bestLapMs: bestLapMs,
                 lastLapMs: localPlayer.lapLastMs,
-                collisions: episodeState.recentCollisions.length
+                collisions: episodeState.recentCollisions.length,
+                rewardBreakdown: breakdown
             });
         }
 

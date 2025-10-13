@@ -1,6 +1,6 @@
 import { AIController } from "./AIController";
 import { Observation, ObservationInfo } from "./Observation";
-import { Reward } from "./Reward";
+import { Reward, RewardBreakdown } from "./Reward";
 import { EpisodeManager } from "./EpisodeManager";
 import Player from "../components/Player/Player";
 import Track from "../components/Playfield/Track";
@@ -101,6 +101,10 @@ export class TrainingBridge {
 
     getEpisodeState() {
         return this.episodeManager.getState();
+    }
+
+    getLastRewardBreakdown(): RewardBreakdown {
+        return this.reward.getLastBreakdown();
     }
 
     private handleMessage(msg: any): void {
