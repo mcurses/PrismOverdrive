@@ -4,12 +4,13 @@ import Score from "../Score/Score";
 import { driftColor } from "../Score/ScoreVisualize";
 import { Snapshot } from "../../net/SnapshotBuffer";
 import { TrailEmitter } from "../../trails/TrailEmitter";
-import { getDefaultTrailStages } from "../../trails/TrailConfig";
 import { SparkEmitter, SparkBurst } from "../../particles/SparkEmitter";
-import { getDefaultSparkStages } from "../../particles/SparkConfig";
 import { SmokeEmitter } from "../../particles/SmokeEmitter";
-import { getDefaultSmokeStages } from "../../particles/SmokeConfig";
 import { ParticleSystem } from "../../particles/ParticleSystem";
+import type { SparkStageConfig } from "../../particles/SparkConfig";
+import type { SmokeStageConfig } from "../../particles/SmokeConfig";
+import { buildDefaultStageRegistry } from "../../stages/presets/defaultStages";
+import { StageRegistry } from "../../stages/StageRegistry";
 
 export default class ServerConnection {
     private ws: WebSocket | null = null;
@@ -26,10 +27,11 @@ export default class ServerConnection {
     private trailEmitter: TrailEmitter;
     private pendingSparkBursts: SparkBurst[] = [];
     private sparkEmitter: SparkEmitter;
-    private sparkStages: any[];
+    private sparkStages: SparkStageConfig[];
     private pendingSmokeBursts: SparkBurst[] = [];
     private smokeEmitter: SmokeEmitter;
-    private smokeStages: any[];
+    private smokeStages: SmokeStageConfig[];
+    private stageRegistry: StageRegistry;
     private particleSystem: ParticleSystem | null = null;
     private lastSentVx: number = 0;
     private lastSentVy: number = 0;
@@ -68,10 +70,11 @@ export default class ServerConnection {
             this.SparkBurst = root.lookupType("SparkBurst");
         });
         
-        this.trailEmitter = new TrailEmitter(getDefaultTrailStages());
-        this.sparkStages = getDefaultSparkStages();
+        this.stageRegistry = buildDefaultStageRegistry();
+        this.trailEmitter = new TrailEmitter(this.stageRegistry.getTrailStages());
+        this.sparkStages = this.stageRegistry.getSparkStages();
         this.sparkEmitter = new SparkEmitter(this.sparkStages);
-        this.smokeStages = getDefaultSmokeStages();
+        this.smokeStages = this.stageRegistry.getSmokeStages();
         this.smokeEmitter = new SmokeEmitter(this.smokeStages);
     }
 
@@ -195,9 +198,9 @@ export default class ServerConnection {
 
                     // Spawn particles from bursts
                     if (this.particleSystem && bursts.length > 0) {
-                        const stageResolver = (stageId: string) => {
-                            return this.sparkStages.find(s => s.id === stageId) || 
-                                   this.smokeStages.find(s => s.id === stageId) || 
+                        const stageResolver = (stageId: string): SparkStageConfig | SmokeStageConfig | null => {
+                            return this.sparkStages.find(s => s.id === stageId) ||
+                                   this.smokeStages.find(s => s.id === stageId) ||
                                    null;
                         };
                         
@@ -276,9 +279,9 @@ export default class ServerConnection {
 
         // Echo bursts locally for immediate feedback
         if (this.particleSystem && burstsToSend.length) {
-            const stageResolver = (id: string) => {
-                return this.sparkStages.find(s => s.id === id) || 
-                       this.smokeStages.find(s => s.id === id) || 
+            const stageResolver = (id: string): SparkStageConfig | SmokeStageConfig | null => {
+                return this.sparkStages.find(s => s.id === id) ||
+                       this.smokeStages.find(s => s.id === id) ||
                        null;
             };
             for (const burst of burstsToSend) {
