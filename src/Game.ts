@@ -575,10 +575,12 @@ class Game {
         this.camera.setScale(this.worldScale);
         this.camera.moveTowards(localPlayer.car.position);
 
+        let trailRenderTimeMs = Date.now();
         // Interpolate remote players (skip in training mode)
         if (!this.trainingEnabled) {
             const renderTime = this.net.serverNowMs() - 100;
             this.playerManager.interpolateRemotes(renderTime, renderTime - 1000, this.net.socketId);
+            trailRenderTimeMs = renderTime;
         }
 
         this.checkIdlePlayers();
@@ -599,7 +601,8 @@ class Game {
             lapCounter: this.playerManager.getLapCounter(),
             track: this.track,
             worldScale: this.worldScale,
-            frameStepMs: this._lastStepMs
+            frameStepMs: this._lastStepMs,
+            trailRenderTimeMs
         });
 
         // Update UI with scores
