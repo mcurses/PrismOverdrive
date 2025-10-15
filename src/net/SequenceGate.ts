@@ -6,8 +6,8 @@ export class SequenceGate {
       return true;
     }
 
-    const lastSeq = this.lastSeqById.get(id) ?? 0;
-    if (seq <= lastSeq) {
+    const lastSeq = this.lastSeqById.get(id);
+    if (lastSeq !== undefined && seq <= lastSeq) {
       return false;
     }
 
