@@ -2,7 +2,7 @@ export class SequenceGate {
   private readonly lastSeqById = new Map<string, number>();
 
   shouldAccept(id: string, seq?: number | null): boolean {
-    if (seq == null) {
+    if (seq == null || seq <= 0) {
       return true;
     }
 
