@@ -45,6 +45,9 @@ import { GameEventBus, GameEvents } from "./runtime/events/GameEvents";
 import GameState from "./runtime/state/GameState";
 import { DEFAULT_CANVAS_VISIBLE_FACTOR, DEFAULT_MAP_SIZE, DEFAULT_MINIMAP_SIZE, DEFAULT_PLAYER_NAME, SCHEDULER_INTERVALS } from "./config/RuntimeConfig";
 
+// Render remote players slightly in the past so interpolation has future snapshots available.
+const REMOTE_INTERPOLATION_DELAY_MS = 100;
+
 export interface GameRuntimeServices {
     eventBus?: GameEventBus;
     state?: GameState;
@@ -575,10 +578,12 @@ class Game {
         this.camera.setScale(this.worldScale);
         this.camera.moveTowards(localPlayer.car.position);
 
+        let trailRenderTimeMs = Date.now();
         // Interpolate remote players (skip in training mode)
         if (!this.trainingEnabled) {
-            const renderTime = this.net.serverNowMs() - 100;
+            const renderTime = this.net.serverNowMs() - REMOTE_INTERPOLATION_DELAY_MS;
             this.playerManager.interpolateRemotes(renderTime, renderTime - 1000, this.net.socketId);
+            trailRenderTimeMs = renderTime;
         }
 
         this.checkIdlePlayers();
@@ -599,7 +604,8 @@ class Game {
             lapCounter: this.playerManager.getLapCounter(),
             track: this.track,
             worldScale: this.worldScale,
-            frameStepMs: this._lastStepMs
+            frameStepMs: this._lastStepMs,
+            trailRenderTimeMs
         });
 
         // Update UI with scores

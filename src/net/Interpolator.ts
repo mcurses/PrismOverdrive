@@ -4,6 +4,7 @@ export interface InterpolatedState {
     x: number;
     y: number;
     angle: number;
+    sampledTimeMs: number;
 }
 
 export default class Interpolator {
@@ -22,14 +23,16 @@ export default class Interpolator {
                 return {
                     x: p0!.x + p0!.vx * dt,
                     y: p0!.y + p0!.vy * dt,
-                    angle: p0!.angle + p0!.angVel * dt
+                    angle: p0!.angle + p0!.angVel * dt,
+                    sampledTimeMs: renderTime
                 };
             }
             // Too old, just use the snapshot
             return {
                 x: p0!.x,
                 y: p0!.y,
-                angle: p0!.angle
+                angle: p0!.angle,
+                sampledTimeMs: p0!.tMs
             };
         }
 
@@ -38,7 +41,8 @@ export default class Interpolator {
             return {
                 x: p1.x,
                 y: p1.y,
-                angle: p1.angle
+                angle: p1.angle,
+                sampledTimeMs: p1.tMs
             };
         }
 
@@ -48,11 +52,13 @@ export default class Interpolator {
             return {
                 x: p1.x,
                 y: p1.y,
-                angle: p1.angle
+                angle: p1.angle,
+                sampledTimeMs: p1.tMs
             };
         }
 
-        const t = (renderTime - p0.tMs) / totalTime;
+        const clampedRenderTime = Math.max(p0.tMs, Math.min(renderTime, p1.tMs));
+        const t = (clampedRenderTime - p0.tMs) / totalTime;
         const clampedT = Math.max(0, Math.min(1, t));
 
         // Cubic Hermite interpolation for position
@@ -72,7 +78,8 @@ export default class Interpolator {
         return {
             x: pos.x,
             y: pos.y,
-            angle: angle
+            angle: angle,
+            sampledTimeMs: p0.tMs + clampedT * totalTime
         };
     }
 

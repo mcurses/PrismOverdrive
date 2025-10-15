@@ -8,6 +8,9 @@ import { LapCounter } from "../race/LapCounter";
 import Track from "../components/Playfield/Track";
 import { Dimensions } from "../utils/Utils";
 
+// Keep remote trails slightly behind the interpolated car position to avoid rendering future stamps.
+const REMOTE_TRAIL_LAG_MS = 100;
+
 interface TimeDeltaPopup {
     playerId: string;
     offsetY: number;
@@ -41,6 +44,7 @@ export interface DrawFrameArgs {
     track: Track;
     worldScale: number;
     frameStepMs: number;
+    trailRenderTimeMs: number;
 }
 
 export class WorldRenderer {
@@ -141,7 +145,7 @@ export class WorldRenderer {
     }
 
     drawFrame(ctx: CanvasRenderingContext2D, args: DrawFrameArgs): void {
-        const { localPlayer, players, showCheckpoints, lapCounter, track, worldScale, frameStepMs } = args;
+        const { localPlayer, players, showCheckpoints, lapCounter, track, worldScale, frameStepMs, trailRenderTimeMs } = args;
 
         this.updatePopups(frameStepMs);
 
@@ -163,8 +167,22 @@ export class WorldRenderer {
 
         for (let id in players) {
             const player = players[id];
-            
+            const isLocalPlayer = player === localPlayer;
+            const lastSampleMs = player.lastRemoteSampleMs;
+            const baseCutoffTime =
+                lastSampleMs !== null ? Math.min(lastSampleMs, trailRenderTimeMs) : trailRenderTimeMs;
+            const cutoffTime = isLocalPlayer
+                ? Number.POSITIVE_INFINITY
+                : baseCutoffTime - REMOTE_TRAIL_LAG_MS;
+
             while (player.pendingTrailStamps.length > 0) {
+                const nextStamp = player.pendingTrailStamps[0];
+                const stampTime = nextStamp.tMs ?? Number.NEGATIVE_INFINITY;
+
+                if (!isLocalPlayer && stampTime > cutoffTime) {
+                    break;
+                }
+
                 const stamp = player.pendingTrailStamps.shift()!;
                 player.car.trail.drawStamp(this.trails, stamp);
             }

@@ -26,6 +26,7 @@ export default class Player {
     id: string;
     snapshotBuffer: SnapshotBuffer;
     pendingTrailStamps: TrailStamp[];
+    lastRemoteSampleMs: number | null;
     
     // Boost system
     boostCharge: number = 0;
@@ -52,6 +53,7 @@ export default class Player {
         this.lastDriftTime = 0;
         this.snapshotBuffer = new SnapshotBuffer();
         this.pendingTrailStamps = [];
+        this.lastRemoteSampleMs = null;
         
         // Initialize lap timing
         this.lastPos = null;
