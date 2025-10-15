@@ -6,6 +6,8 @@ import { ParticleSystem } from "../particles/ParticleSystem";
 export interface NetworkClientCallbacks {
     onRemoteUpdate: (id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) => void;
     onRemove: (id: string) => void;
+    onDisconnect?: () => void;
+    onError?: (error: unknown) => void;
 }
 
 export class NetworkClient {
@@ -16,7 +18,11 @@ export class NetworkClient {
         this.callbacks = callbacks;
         this.serverConnection = new ServerConnection(
             (id, snapshot, stamps) => this.callbacks.onRemoteUpdate(id, snapshot, stamps),
-            (id) => this.callbacks.onRemove(id)
+            (id) => this.callbacks.onRemove(id),
+            {
+                onDisconnect: () => this.callbacks.onDisconnect?.(),
+                onError: (error) => this.callbacks.onError?.(error),
+            }
         );
     }
 

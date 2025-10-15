@@ -5,6 +5,7 @@ import AppUI from './AppUI';
 import TrackManagerOverlay from './TrackManagerOverlay';
 import TrainingOverlay from './TrainingOverlay';
 import Session from '../components/Session/Session';
+import { GameEventBus } from '../runtime/events/GameEvents';
 import '@mantine/core/styles.css';
 // import '@mantine/dates/styles.css';
 import 'mantine-datatable/styles.css';
@@ -18,6 +19,7 @@ export type MountDeps = {
     setCarType(name: string): void;
     loadTrack(name: string): void;
     toggleEditor(): void;
+    openEditor(trackId?: string): void;
   };
   scores: Array<{ name: string; best: number; current: number; multiplier: number }>;
   hud: {
@@ -46,6 +48,7 @@ export type MountDeps = {
       total: number;
     };
   };
+  events: GameEventBus;
 };
 
 function UIRoot(props: MountDeps & {
@@ -58,17 +61,14 @@ function UIRoot(props: MountDeps & {
   const [trainingVisible, setTrainingVisible] = useState(true);
 
   useEffect(() => {
-    const openTrackManager = () => setTrackMgrOpen(true);
-    const closeTrackManager = () => setTrackMgrOpen(false);
-    
-    window.addEventListener('openTrackManager', openTrackManager);
-    window.addEventListener('closeTrackManager', closeTrackManager);
-    
+    const offOpen = props.events.on('ui:openTrackManager', () => setTrackMgrOpen(true));
+    const offClose = props.events.on('ui:closeTrackManager', () => setTrackMgrOpen(false));
+
     return () => {
-      window.removeEventListener('openTrackManager', openTrackManager);
-      window.removeEventListener('closeTrackManager', closeTrackManager);
+      offOpen();
+      offClose();
     };
-  }, []);
+  }, [props.events]);
 
   return (
     <MantineProvider>
@@ -94,13 +94,12 @@ function UIRoot(props: MountDeps & {
         <TrackManagerOverlay
           isOpen={isTrackMgrOpen}
           onClose={() => setTrackMgrOpen(false)}
+          currentTrack={props.session.trackName}
           actions={{
             loadTrack: props.actions.loadTrack,
             openEditor: (trackId?: string) => {
-              if (trackId && (window as any).game?.session) {
-                (window as any).game.session.trackName = trackId;
-              }
-              props.actions.toggleEditor();
+              props.actions.openEditor(trackId);
+              setTrackMgrOpen(false);
             }
           }}
         />
@@ -109,7 +108,7 @@ function UIRoot(props: MountDeps & {
   );
 }
 
-export function mountUI(deps: MountDeps): { 
+export function mountUI(deps: MountDeps): {
   setVisible(v: boolean): void;
   updateScores(scores: Array<{ name: string; best: number; current: number; multiplier: number }>): void;
   updateHUD(hud: { boost: { charge: number; max: number; active: boolean }; lap: { best: number | null; last: number | null; current: number | null } }): void;
@@ -168,7 +167,7 @@ export function mountUI(deps: MountDeps): {
       renderApp();
     },
     openTrackManager() {
-      window.dispatchEvent(new CustomEvent('openTrackManager'));
+      deps.events.emit('ui:openTrackManager');
     }
   };
 }

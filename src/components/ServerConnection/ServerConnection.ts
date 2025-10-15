@@ -11,6 +11,10 @@ import type { SparkStageConfig } from "../../particles/SparkConfig";
 import type { SmokeStageConfig } from "../../particles/SmokeConfig";
 import { buildDefaultStageRegistry } from "../../stages/presets/defaultStages";
 import { StageRegistry } from "../../stages/StageRegistry";
+import ServerTimeSync from "../../net/ServerTimeSync";
+import SequenceGate from "../../net/SequenceGate";
+import ServerMessageDecoder, { PlayerStateMessage } from "../../net/ServerMessageDecoder";
+import { translatePlayerState } from "../../net/ServerMessageTranslator";
 
 export default class ServerConnection {
     private ws: WebSocket | null = null;
@@ -33,24 +37,21 @@ export default class ServerConnection {
     private smokeStages: SmokeStageConfig[];
     private stageRegistry: StageRegistry;
     private particleSystem: ParticleSystem | null = null;
-    private lastSentVx: number = 0;
-    private lastSentVy: number = 0;
-    private lastSentAngVel: number = 0;
     private lastAngle: number = 0;
     private lastAngleTime: number = 0;
-    private serverOffsetMs: number | null = null;
-    private lastSeqById: Map<string, number> = new Map();
+    private readonly timeSync = new ServerTimeSync();
+    private readonly sequenceGate = new SequenceGate();
+    private messageDecoder: ServerMessageDecoder | null = null;
+    private readonly hooks: { onDisconnect?: () => void; onError?: (error: unknown) => void };
 
-    constructor(updatePlayer: (id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) => void, removePlayer: (id: string) => void) {
+    constructor(updatePlayer: (id: string, snapshot: Snapshot | null, stamps: TrailStamp[]) => void, removePlayer: (id: string) => void, hooks: { onDisconnect?: () => void; onError?: (error: unknown) => void } = {}) {
         this.updateLocalPlayer = updatePlayer;
+        this.hooks = hooks;
         this.loadCarState();
     }
 
     serverNowMs(): number {
-        if (this.serverOffsetMs === null) {
-            return Date.now();
-        }
-        return Date.now() - this.serverOffsetMs;
+        return this.timeSync.now();
     }
 
     setParticleSystem(particleSystem: ParticleSystem): void {
@@ -68,6 +69,7 @@ export default class ServerConnection {
             this.ScoreState = root.lookupType("ScoreState");
             this.TrailStamp = root.lookupType("TrailStamp");
             this.SparkBurst = root.lookupType("SparkBurst");
+            this.messageDecoder = new ServerMessageDecoder(this.PlayerState);
         });
         
         this.stageRegistry = buildDefaultStageRegistry();
@@ -113,116 +115,61 @@ export default class ServerConnection {
 
             this.ws.onclose = () => {
                 this.connected = false;
+                this.sequenceGate.reset();
+                this.timeSync.reset();
+                this.hooks.onDisconnect?.();
             };
 
             this.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                this.hooks.onError?.(error);
                 reject(error);
             };
 
             this.ws.onmessage = (event) => {
-                if (event.data instanceof ArrayBuffer) {
-                    const buffer = new Uint8Array(event.data);
-                    const message = this.PlayerState.decode(buffer);
-                    const playerState = this.PlayerState.toObject(message, {
-                        longs: String,
-                        enums: String,
-                        bytes: String,
-                    });
+                if (!(event.data instanceof ArrayBuffer) || !this.messageDecoder) {
+                    return;
+                }
 
-                    // Time sync
-                    if (playerState.tServerMs) {
-                        const sampleOffset = Date.now() - playerState.tServerMs;
-                        if (this.serverOffsetMs === null) {
-                            this.serverOffsetMs = sampleOffset;
-                        } else {
-                            this.serverOffsetMs += 0.1 * (sampleOffset - this.serverOffsetMs);
+                const playerState: PlayerStateMessage = this.messageDecoder.decode(event.data);
+
+                if (!this.sequenceGate.shouldAccept(playerState.id, playerState.seq)) {
+                    return;
+                }
+
+                if (playerState.tServerMs) {
+                    this.timeSync.sample(playerState.tServerMs);
+                }
+
+                const { snapshot, trailStamps, bursts } = translatePlayerState(playerState);
+
+                if (this.particleSystem && bursts.length > 0) {
+                    const stageResolver = (stageId: string): SparkStageConfig | SmokeStageConfig | null => {
+                        const sparkStage = this.sparkStages.find((s) => s.id === stageId);
+                        if (sparkStage) {
+                            return sparkStage;
                         }
-                    }
-
-                    // Sequence ordering - drop old packets
-                    const lastSeq = this.lastSeqById.get(playerState.id) || 0;
-                    if (playerState.seq && playerState.seq <= lastSeq) {
-                        return; // Drop out-of-order packet
-                    }
-                    if (playerState.seq) {
-                        this.lastSeqById.set(playerState.id, playerState.seq);
-                    }
-
-                    // Convert to snapshot format using server timestamp
-                    const snapshot: Snapshot = {
-                        tMs: playerState.tServerMs || playerState.tMs,
-                        x: playerState.car.position.x,
-                        y: playerState.car.position.y,
-                        vx: playerState.car.vx,
-                        vy: playerState.car.vy,
-                        angle: playerState.car.angle,
-                        angVel: playerState.car.angVel,
-                        drifting: playerState.car.drifting,
-                        name: playerState.name,
-                        score: {
-                            frameScore: playerState.score.frameScore,
-                            driftScore: playerState.score.driftScore,
-                            highScore: playerState.score.highScore
+                        const smokeStage = this.smokeStages.find((s) => s.id === stageId);
+                        if (smokeStage) {
+                            return smokeStage;
                         }
+                        return null;
                     };
 
-                    // Convert stamps (handle case where stamps might be undefined)
-                    const stamps: TrailStamp[] = (playerState.stamps || []).map((stamp: any) => ({
-                        x: stamp.x,
-                        y: stamp.y,
-                        angle: stamp.angle,
-                        weight: stamp.weight,
-                        h: stamp.h,
-                        s: stamp.s,
-                        b: stamp.b,
-                        overscore: stamp.overscore,
-                        tMs: stamp.tMs,
-                        a: stamp.a
-                    }));
+                    const playerForColor = {
+                        score: {
+                            frameScore: snapshot.score.frameScore,
+                            driftScore: snapshot.score.driftScore,
+                            highScore: snapshot.score.highScore,
+                        },
+                    };
 
-                    // Convert bursts (handle case where bursts might be undefined)
-                    const bursts: SparkBurst[] = (playerState.bursts || []).map((burst: any) => ({
-                        x: burst.x,
-                        y: burst.y,
-                        dirAngle: burst.dirAngle,
-                        slip: burst.slip,
-                        count: burst.count,
-                        ttlMs: burst.ttlMs,
-                        stageId: burst.stageId,
-                        seed: burst.seed,
-                        tMs: burst.tMs,
-                        progress: burst.progress || 0,
-                        targetTag: burst.targetTag || 'center'
-                    }));
-
-                    // Spawn particles from bursts
-                    if (this.particleSystem && bursts.length > 0) {
-                        const stageResolver = (stageId: string): SparkStageConfig | SmokeStageConfig | null => {
-                            return this.sparkStages.find(s => s.id === stageId) ||
-                                   this.smokeStages.find(s => s.id === stageId) ||
-                                   null;
-                        };
-                        
-                        // Create player object for color calculation
-                        const playerForColor = {
-                            score: {
-                                frameScore: snapshot.score.frameScore,
-                                driftScore: snapshot.score.driftScore,
-                                highScore: snapshot.score.highScore
-                            }
-                        };
-                        
-                        for (const burst of bursts) {
-                            this.particleSystem.spawnFromBurst(burst, stageResolver, playerForColor, playerState.id);
-                        }
+                    for (const burst of bursts) {
+                        this.particleSystem.spawnFromBurst(burst, stageResolver, playerForColor, playerState.id);
                     }
-
-                    // console.log('client RX bursts:', bursts.length, 'from', playerState.id);
-                    // console.log('client RX stamps from', playerState.id, ':', stamps.length);
-
-                    this.updateLocalPlayer(playerState.id, snapshot, stamps);
                 }
+
+                this.updateLocalPlayer(playerState.id, snapshot, trailStamps);
             };
         });
     }

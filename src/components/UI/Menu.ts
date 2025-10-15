@@ -8,6 +8,7 @@ interface MenuProps {
     setCarType: (carType: string) => void
     setPlayerName: (name: string) => void
     position?: { x: number, y: number }
+    toggleEditor?: () => void
 }
 
 class Menu {
@@ -19,6 +20,7 @@ class Menu {
     private setCarType: (carType: string) => void;
     private setPlayerName: (name: string) => void;
     private position: { x: number, y: number };
+    private toggleEditor: () => void;
 
     constructor(props: MenuProps) {
         this.session = props.session;
@@ -26,6 +28,7 @@ class Menu {
         this.setCarType = props.setCarType;
         this.setPlayerName = props.setPlayerName;
         this.position = props.position || { x: 200, y: 10 };
+        this.toggleEditor = props.toggleEditor ?? (() => {});
         this.injectStyles();
         this.createMenuElements()
     }
@@ -130,8 +133,7 @@ class Menu {
         editorBtn.style.fontFamily = 'monospace';
         editorBtn.style.cursor = 'pointer';
         editorBtn.addEventListener('click', () => {
-            // Dispatch custom event for editor toggle
-            window.dispatchEvent(new CustomEvent('toggleEditor'));
+            this.toggleEditor();
         });
         inputWrapper.appendChild(editorBtn);
     }

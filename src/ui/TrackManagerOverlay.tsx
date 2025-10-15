@@ -41,6 +41,7 @@ import {EDITOR_TO_WORLD_SCALE} from '../config/Scale';
 interface TrackManagerProps {
     isOpen: boolean;
     onClose: () => void;
+    currentTrack: string;
     actions: {
         loadTrack: (name: string) => void;
         openEditor: (trackId?: string) => void;
@@ -78,7 +79,7 @@ function setCustomTrackOrder(order: string[]): void {
 }
 
 
-export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackManagerProps) {
+export default function TrackManagerOverlay({isOpen, onClose, currentTrack, actions}: TrackManagerProps) {
     const [tracks, setTracks] = useState<TrackRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -282,8 +283,7 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
             TrackData.refreshCustomTracks();
 
             // If current session track was deleted, load default
-            const currentSessionTrack = (window as any).game?.session?.trackName;
-            if (currentSessionTrack && deletedIds.includes(currentSessionTrack)) {
+            if (deletedIds.includes(currentTrack)) {
                 actions.loadTrack('bounds2');
             }
 
@@ -403,10 +403,6 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
         const track = selectedRecords[0];
 
         if (track.type === 'custom') {
-            // Set session track and open editor
-            if ((window as any).game?.session) {
-                (window as any).game.session.trackName = track.id;
-            }
             actions.openEditor(track.id);
             onClose();
         } else {
@@ -430,10 +426,6 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
 
                 TrackData.refreshCustomTracks();
 
-                // Set session track and open editor
-                if ((window as any).game?.session) {
-                    (window as any).game.session.trackName = bundle.id;
-                }
                 actions.openEditor(bundle.id);
                 onClose();
 
@@ -456,10 +448,6 @@ export default function TrackManagerOverlay({isOpen, onClose, actions}: TrackMan
 
             TrackData.refreshCustomTracks();
 
-            // Set session track and open editor
-            if ((window as any).game?.session) {
-                (window as any).game.session.trackName = bundle.id;
-            }
             actions.openEditor(bundle.id);
             onClose();
 

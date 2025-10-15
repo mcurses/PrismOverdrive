@@ -26,6 +26,9 @@ export interface EditorManagerConfig {
         EDITOR_TO_WORLD_SCALE: number;
     };
     deps: EditorManagerDeps;
+    callbacks?: {
+        onRequestPlay?: () => void;
+    };
 }
 
 export class EditorManager {
@@ -117,8 +120,7 @@ export class EditorManager {
                 }
             },
             onPlay: () => {
-                // This will be handled by the mode manager
-                window.dispatchEvent(new CustomEvent('editorRequestPlay'));
+                this.config.callbacks?.onRequestPlay?.();
             },
             onSave: () => this.saveCurrent(),
             onExport: () => this.exportCurrent(),

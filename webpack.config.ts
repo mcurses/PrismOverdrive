@@ -2,7 +2,7 @@ const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-    entry: './src/Game.ts', // this is your main TypeScript file
+    entry: './src/main.ts', // orchestrates runtime bootstrapping
     mode: 'development',
     module: {
         rules: [

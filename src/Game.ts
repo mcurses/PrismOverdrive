@@ -23,6 +23,7 @@ import { LapCounter } from "./race/LapCounter";
 import { ModeManager, Mode } from "./mode/ModeManager";
 import { EditorManager } from "./mode/EditorManager";
 import { PlayModeController } from "./mode/PlayModeController";
+import ModeCoordinator from "./mode/ModeCoordinator";
 import { EditorState } from "./editor/EditorState";
 import { EditorViewport } from "./editor/EditorViewport";
 import { EditorPath } from "./editor/EditorPath";
@@ -34,11 +35,20 @@ import {EDITOR_GRID_SIZE, EDITOR_TO_WORLD_SCALE} from "./config/Scale";
 import { mountUI } from "./ui/mount";
 import { GameLoop } from "./core/GameLoop";
 import { Scheduler } from "./core/Scheduler";
-import { STEP_MS, MAX_STEPS, BASE_VISIBLE_FACTOR, ZOOM_MIN_RELATIVE, SPEED_FOR_MIN_ZOOM, ZOOM_SMOOTH } from "./config/GameConfig";
+import { STEP_MS, MAX_STEPS, ZOOM_MIN_RELATIVE, SPEED_FOR_MIN_ZOOM, ZOOM_SMOOTH } from "./config/GameConfig";
 import { ZoomController } from "./render/ZoomController";
 import { WorldRenderer } from "./render/WorldRenderer";
 import { AIController } from "./ai/AIController";
 import { TrainingBridge } from "./ai/TrainingBridge";
+import EventBus from "./runtime/events/EventBus";
+import { GameEventBus, GameEvents } from "./runtime/events/GameEvents";
+import GameState from "./runtime/state/GameState";
+import { DEFAULT_CANVAS_VISIBLE_FACTOR, DEFAULT_MAP_SIZE, DEFAULT_MINIMAP_SIZE, DEFAULT_PLAYER_NAME, SCHEDULER_INTERVALS } from "./config/RuntimeConfig";
+
+export interface GameRuntimeServices {
+    eventBus?: GameEventBus;
+    state?: GameState;
+}
 
 class Game {
     canvasSize: Dimensions;
@@ -93,6 +103,7 @@ class Game {
     private modeManager: ModeManager | null = null;
     private editorManager: EditorManager | null = null;
     private playModeController: PlayModeController | null = null;
+    private modeCoordinator: ModeCoordinator | null = null;
 
     // AI Training
     private trainingEnabled: boolean = false;
@@ -105,19 +116,23 @@ class Game {
     private performanceMode: 'normal' | 'fast' = 'normal';
     private renderSkipN: number = 10;
 
-    constructor() {
+    private readonly eventBus: GameEventBus;
+    private readonly state: GameState;
+
+    constructor(services: GameRuntimeServices = {}) {
+        this.eventBus = services.eventBus ?? new EventBus<GameEvents>();
+        this.state = services.state ?? new GameState(this.eventBus, { defaultPlayerName: DEFAULT_PLAYER_NAME });
+
         this.canvasSize = {
-            width: window.innerWidth * BASE_VISIBLE_FACTOR,
-            height: window.innerHeight * BASE_VISIBLE_FACTOR,
+            width: window.innerWidth * DEFAULT_CANVAS_VISIBLE_FACTOR,
+            height: window.innerHeight * DEFAULT_CANVAS_VISIBLE_FACTOR,
         }
         this.miniMapDimensions = {
-            width: 200,
-            height: 150,
+            ...DEFAULT_MINIMAP_SIZE,
         };
 
         this.mapSize = {
-            width: 5000,
-            height: 4000,
+            ...DEFAULT_MAP_SIZE,
         }
         this.layer1 = new Image();
         this.layer2 = new Image();
@@ -155,18 +170,10 @@ class Game {
             TrackData.loadFromJSON('assets/tracks.json')
         ]);
 
-        this.session = new Session("Player");
+        this.session = this.state.ensureSession();
 
-        // if there is a session, load it
-        let storedSession = Session.loadFromLocalStorage();
-        if (storedSession) {
-            this.session = storedSession;
-        } else {
-            this.session = new Session("Player");
-        }
-
-        this.scheduler.add('save', 1000, () => {
-            this.session.saveToLocalStorage();
+        this.scheduler.add('save', SCHEDULER_INTERVALS.saveSessionMs, () => {
+            this.state.persist();
         });
 
         console.log("Setup");
@@ -243,11 +250,16 @@ class Game {
         this.track.draw(this.trackCtx);
 
         this.net = new NetworkClient({
-            onRemoteUpdate: (id, snapshot, stamps) => this.playerManager.onNetworkSnapshot(id, snapshot, stamps),
-            onRemove: (id) => this.playerManager.removePlayer(id)
+            onRemoteUpdate: (id, snapshot, stamps) => {
+                this.playerManager.onNetworkSnapshot(id, snapshot, stamps);
+                this.eventBus.emit('network:snapshot', { id, snapshot, stamps });
+            },
+            onRemove: (id) => this.playerManager.removePlayer(id),
+            onDisconnect: () => this.eventBus.emit('network:disconnected'),
+            onError: (error) => this.eventBus.emit('runtime:error', { message: 'Network error', error })
         });
 
-        this.scheduler.add('netSend', 50, () => {
+        this.scheduler.add('netSend', SCHEDULER_INTERVALS.networkSendMs, () => {
             const localPlayer = this.playerManager.getLocalPlayer();
             if (localPlayer && !this.trainingEnabled) {
                 this.net.sendUpdate(localPlayer);
@@ -272,7 +284,14 @@ class Game {
                 setPlayerName: (n) => this.setPlayerName(n),
                 setCarType: (t) => this.setCarType(t),
                 loadTrack: (tr) => this.loadTrack(tr),
-                toggleEditor: () => window.dispatchEvent(new CustomEvent('toggleEditor')),
+                toggleEditor: () => this.eventBus.emit('ui:toggleEditor'),
+                openEditor: (trackId?: string) => {
+                    if (trackId) {
+                        this.state.updateTrack(trackId);
+                        this.session = this.state.getSession();
+                    }
+                    this.eventBus.emit('ui:toggleEditor');
+                },
             },
             scores: [],
             hud: {
@@ -289,7 +308,8 @@ class Game {
                 bestLapMs: null,
                 lastLapMs: null,
                 collisions: 0
-            } : undefined
+            } : undefined,
+            events: this.eventBus
         });
 
         let uiVisible = true;
@@ -300,13 +320,13 @@ class Game {
         this.inputController.handleKey('KeyC', () => {
             this.showCheckpoints = !this.showCheckpoints;
         });
-        
+
         this.inputController.handleKey('KeyT', () => {
-            window.dispatchEvent(new CustomEvent('openTrackManager'));
+            this.eventBus.emit('ui:openTrackManager', { source: 'keyboard' });
         });
-        
+
         this.inputController.handleKeyP(() => {
-            this.modeManager?.toggle();
+            this.modeCoordinator?.toggle();
         });
         
         this.inputController.handleKey('KeyN', () => {
@@ -357,19 +377,14 @@ class Game {
             });
         }
         
-        // Listen for editor toggle from menu
-        window.addEventListener('toggleEditor', () => {
-            this.modeManager?.toggle();
-        });
-        
-        // Listen for editor play requests
-        window.addEventListener('editorRequestPlay', () => {
-            this.modeManager?.enterPlayMode();
-        });
-
         if (!this.trainingEnabled) {
-            this.net.connect().then(() => {
-            });
+            this.net.connect()
+                .then(() => {
+                    this.eventBus.emit('network:connected', { socketId: this.net.socketId });
+                })
+                .catch((error) => {
+                    this.eventBus.emit('runtime:error', { message: 'Failed to connect network', error });
+                });
         }
 
         // Initialize mode management first
@@ -456,7 +471,8 @@ class Game {
         localPlayer.car.update(compatKeys, stepMs);
         localPlayer.car.interpolatePosition();
         localPlayer.score.update(localPlayer.car.velocity, localPlayer.car.angle);
-        this.session.scores[this.session.trackName] = localPlayer.score;
+        this.state.setScore(this.session.trackName, localPlayer.score);
+        this.session = this.state.getSession();
 
         // Capture current position after physics update and update lap timing
         const curPosForLap = { x: localPlayer.car.position.x, y: localPlayer.car.position.y };
@@ -679,72 +695,59 @@ class Game {
     private initializeModeManagement(): void {
         // Initialize play mode controller
         this.playModeController = new PlayModeController(this.track, this.miniMap);
-        
-        // Initialize editor manager
-        this.editorManager = new EditorManager({
-            rootElId: 'sketch-holder',
-            canvasSizeRef: this.canvasSize,
-            configScale: {
-                EDITOR_GRID_SIZE,
-                EDITOR_TO_WORLD_SCALE
-            },
-            deps: {
-                EditorState,
-                EditorViewport,
-                EditorPath,
-                BoundsGenerator,
-                EditorUI,
-                Serializer,
-                Integrations
-            }
-        });
-        
-        this.editorManager.create();
-        this.editorManager.hide();
-        
-        // Initialize mode manager
-        this.modeManager = new ModeManager({
-            onEnterPlay: () => this.enterPlayMode(),
-            onEnterBuild: () => this.enterBuildMode()
-        });
-    }
 
-    private enterBuildMode(): void {
-        this.canvas.style.display = 'none';
-        this.editorManager?.show();
-        
-        this.editorManager?.loadCustomOrEmpty(this.session.trackName);
-    }
-
-    private enterPlayMode(): void {
-        this.editorManager?.hide();
-        this.canvas.style.display = 'block';
-        
-        if (this.editorManager && this.editorManager.isVisible()) {
-            try {
-                const { bundle, scaledMapSize } = this.editorManager.toBundleAndNormalize();
-                
-                Serializer.saveToLocalStorage(bundle);
-                TrackData.refreshCustomTracks();
-                
-                this.applyMapSize(scaledMapSize);
-                this.session.trackName = bundle.id;
-                this.loadTrack(bundle.id);
-                
-                const finishSpawn = this.editorManager?.getFinishSpawn();
-                const localPlayer = this.playerManager.getLocalPlayer();
-                if (finishSpawn && localPlayer) {
-                    localPlayer.car.position.x = finishSpawn.x;
-                    localPlayer.car.position.y = finishSpawn.y;
-                    localPlayer.car.angle = finishSpawn.angle;
+        this.modeCoordinator = new ModeCoordinator({
+            canvas: this.canvas,
+            eventBus: this.eventBus,
+            state: this.state,
+            editorConfig: {
+                rootElId: 'sketch-holder',
+                canvasSizeRef: this.canvasSize,
+                configScale: {
+                    EDITOR_GRID_SIZE,
+                    EDITOR_TO_WORLD_SCALE
+                },
+                deps: {
+                    EditorState,
+                    EditorViewport,
+                    EditorPath,
+                    BoundsGenerator,
+                    EditorUI,
+                    Serializer,
+                    Integrations
                 }
-                
-                this.playerManager.resetLapCounter();
-                
-            } catch (error) {
-                console.error('Failed to export from editor:', error);
+            },
+            callbacks: {
+                onEditorExport: ({ bundle, scaledMapSize, finishSpawn }) =>
+                    this.handleEditorExport(bundle, scaledMapSize, finishSpawn),
+                onModeChanged: () => {
+                    this.modeManager = this.modeCoordinator?.getModeManager() ?? null;
+                }
             }
+        });
+
+        this.modeCoordinator.initialize();
+        this.editorManager = this.modeCoordinator.getEditorManager();
+        this.modeManager = this.modeCoordinator.getModeManager();
+    }
+
+    private handleEditorExport(bundle: ReturnType<EditorManager['toBundleAndNormalize']>['bundle'], scaledMapSize: Dimensions, finishSpawn: { x: number; y: number; angle: number } | null): void {
+        Serializer.saveToLocalStorage(bundle);
+        TrackData.refreshCustomTracks();
+
+        this.applyMapSize(scaledMapSize);
+        this.state.updateTrack(bundle.id);
+        this.session = this.state.getSession();
+        this.loadTrack(bundle.id, { skipStateUpdate: true });
+
+        const localPlayer = this.playerManager.getLocalPlayer();
+        if (finishSpawn && localPlayer) {
+            localPlayer.car.position.x = finishSpawn.x;
+            localPlayer.car.position.y = finishSpawn.y;
+            localPlayer.car.angle = finishSpawn.angle;
         }
+
+        this.playerManager.resetLapCounter();
     }
 
     setWorldScale(scale: number): void {
@@ -783,14 +786,18 @@ class Game {
     }
 
     setCarType(carTypeName: string) {
-        this.session.carType = carTypeName;
+        this.state.updateCarType(carTypeName);
+        this.session = this.state.getSession();
         this.playerManager.setCarType(carTypeName);
     }
 
-    loadTrack(name: string) {
+    loadTrack(name: string, options: { skipStateUpdate?: boolean } = {}) {
         try {
-            this.session.trackName = name;
-            
+            if (!options.skipStateUpdate) {
+                this.state.updateTrack(name);
+            }
+            this.session = this.state.getSession();
+
             const trackData = TrackData.getByName(name);
             this.applyMapSize(trackData.mapSize || this.mapSize);
             
@@ -813,9 +820,9 @@ class Game {
     }
 
     private setPlayerName(name: string) {
-        const trimmed = name.slice(0, 8);
-        this.session.playerName = trimmed;
-        this.playerManager.setPlayerName(trimmed);
+        this.state.updatePlayerName(name);
+        this.session = this.state.getSession();
+        this.playerManager.setPlayerName(this.session.playerName);
     }
 
     private checkIdlePlayers() {
@@ -896,7 +903,8 @@ class Game {
             Serializer.saveToLocalStorage(bundle);
             TrackData.refreshCustomTracks();
 
-            this.session.trackName = bundle.id;
+            this.state.updateTrack(bundle.id);
+            this.session = this.state.getSession();
             this.loadTrack(bundle.id);
             
             console.log(`Created and loaded new track: ${bundle.name}`);
@@ -972,16 +980,4 @@ class Game {
     }
 }
 
-window.addEventListener('load', () => {
-    let game = new Game();
-    game.setup();
-});
-
-window.addEventListener(
-    "keydown",
-    (key) => {
-        if ([32, 37, 38, 39, 40].indexOf(key.keyCode) > -1) {
-            key.preventDefault();
-        }
-    },
-    false);
+export default Game;
