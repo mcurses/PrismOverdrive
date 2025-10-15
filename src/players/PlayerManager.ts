@@ -100,8 +100,11 @@ export class PlayerManager {
                     if (before) {
                         player.car.isDrifting = before.drifting;
                     }
+                    player.lastRemoteSampleMs = interpolated.sampledTimeMs;
+                } else {
+                    player.lastRemoteSampleMs = null;
                 }
-                
+
                 // Prune old snapshots
                 player.snapshotBuffer.pruneOld(pruneBeforeMs);
             }

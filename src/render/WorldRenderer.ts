@@ -8,6 +8,9 @@ import { LapCounter } from "../race/LapCounter";
 import Track from "../components/Playfield/Track";
 import { Dimensions } from "../utils/Utils";
 
+// Keep remote trails slightly behind the interpolated car position to avoid rendering future stamps.
+const REMOTE_TRAIL_LAG_MS = 100;
+
 interface TimeDeltaPopup {
     playerId: string;
     offsetY: number;
@@ -165,7 +168,12 @@ export class WorldRenderer {
         for (let id in players) {
             const player = players[id];
             const isLocalPlayer = player === localPlayer;
-            const cutoffTime = isLocalPlayer ? Number.POSITIVE_INFINITY : trailRenderTimeMs;
+            const lastSampleMs = player.lastRemoteSampleMs;
+            const baseCutoffTime =
+                lastSampleMs !== null ? Math.min(lastSampleMs, trailRenderTimeMs) : trailRenderTimeMs;
+            const cutoffTime = isLocalPlayer
+                ? Number.POSITIVE_INFINITY
+                : baseCutoffTime - REMOTE_TRAIL_LAG_MS;
 
             while (player.pendingTrailStamps.length > 0) {
                 const nextStamp = player.pendingTrailStamps[0];
