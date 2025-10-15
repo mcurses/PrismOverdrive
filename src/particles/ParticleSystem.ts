@@ -1,5 +1,6 @@
 import { SparkBurst } from "./SparkEmitter";
 import { SparkStageConfig } from "./SparkConfig";
+import { SmokeStageConfig } from "./SmokeConfig";
 import { HSLColor } from "../utils/HSLColor";
 import { clamp } from "../utils/Utils";
 
@@ -57,12 +58,12 @@ export class ParticleSystem {
         }
     }
 
-    spawnFromBurst(burst: SparkBurst, stageResolver: (stageId: string) => SparkStageConfig | null, player: any, playerId?: string): void {
+    spawnFromBurst(burst: SparkBurst, stageResolver: (stageId: string) => SparkStageConfig | SmokeStageConfig | null, player: any, playerId?: string): void {
         const stage = stageResolver(burst.stageId);
         if (!stage) return;
 
-        // Determine render type
-        const renderType = stage.render || 'spark';
+        const isSmoke = isSmokeStage(stage);
+        const renderType = isSmoke ? 'smoke' : stage.render || 'spark';
 
         // Check per-player limits
         if (playerId) {
@@ -84,36 +85,33 @@ export class ParticleSystem {
         // Initialize PRNG with burst seed
         const rng = this.mulberry32(burst.seed);
 
+        const sampleRange = (range: [number, number]) => range[0] + rng() * (range[1] - range[0]);
+
         // Spawn particles
         for (let i = 0; i < burst.count; i++) {
             const particle = this.getInactiveParticle();
             if (!particle) break;
 
             // Sample properties using deterministic RNG
-            const speed = stage.speedRange[0] + rng() * (stage.speedRange[1] - stage.speedRange[0]);
+            const speed = sampleRange(stage.speedRange);
             const spreadRad = (stage.spreadDeg * Math.PI / 180);
             const angleOffset = (rng() - 0.5) * spreadRad;
             const jitterOffset = (rng() - 0.5) * stage.jitter;
             const angle = burst.dirAngle + angleOffset + jitterOffset;
-            
-            const sampledSize = stage.sizeRange[0] + rng() * (stage.sizeRange[1] - stage.sizeRange[0]);
+
+            const sampledSize = sampleRange(stage.sizeRange);
             const size = renderType === 'smoke' ? sampledSize : 1 + sampledSize; // No bump for smoke
-            const ttl = stage.ttlRangeMs[0] + rng() * (stage.ttlRangeMs[1] - stage.ttlRangeMs[0]);
-            
+            const ttl = sampleRange(stage.ttlRangeMs);
+
             // Get color from stage style using real player data and progress
             const color = stage.style(player, burst.progress, burst.targetTag);
-            
+
             // Sample smoke-specific properties
-            const growthRate = stage.growthRange ? 
-                stage.growthRange[0] + rng() * (stage.growthRange[1] - stage.growthRange[0]) : 0;
-            const anisotropy = stage.anisotropyRange ? 
-                stage.anisotropyRange[0] + rng() * (stage.anisotropyRange[1] - stage.anisotropyRange[0]) : 1;
-            const turbulenceAmp = stage.turbulenceAmpRange ? 
-                stage.turbulenceAmpRange[0] + rng() * (stage.turbulenceAmpRange[1] - stage.turbulenceAmpRange[0]) : 0;
-            const turbulenceFreq = stage.turbulenceFreqRange ? 
-                stage.turbulenceFreqRange[0] + rng() * (stage.turbulenceFreqRange[1] - stage.turbulenceFreqRange[0]) : 0;
-            const swirlPerSecond = stage.swirlPerSecondRange ? 
-                stage.swirlPerSecondRange[0] + rng() * (stage.swirlPerSecondRange[1] - stage.swirlPerSecondRange[0]) : 0;
+            const growthRate = isSmoke ? sampleRange(stage.growthRange) : 0;
+            const anisotropy = isSmoke ? sampleRange(stage.anisotropyRange) : 1;
+            const turbulenceAmp = isSmoke ? sampleRange(stage.turbulenceAmpRange) : 0;
+            const turbulenceFreq = isSmoke ? sampleRange(stage.turbulenceFreqRange) : 0;
+            const swirlPerSecond = isSmoke ? sampleRange(stage.swirlPerSecondRange) : 0;
             
             // Initialize particle
             particle.x = burst.x;
@@ -130,7 +128,7 @@ export class ParticleSystem {
             particle.dragPerSecond = stage.dragPerSecond;
             particle.followFactor = stage.followFactor;
             particle.type = renderType;
-            particle.composite = stage.composite || null;
+            particle.composite = isSmoke ? stage.composite : null;
             particle.growthRate = growthRate;
             particle.anisotropy = anisotropy;
             particle.turbulenceAmp = turbulenceAmp;
@@ -329,4 +327,8 @@ export class ParticleSystem {
     getActiveParticleCount(): number {
         return this.particles.filter(p => p.active).length;
     }
+}
+
+function isSmokeStage(stage: SparkStageConfig | SmokeStageConfig): stage is SmokeStageConfig {
+    return (stage as SmokeStageConfig).composite !== undefined;
 }

@@ -1,20 +1,19 @@
 import Player from "../components/Player/Player";
-import { SparkStageConfig } from "./SparkConfig";
+import { SmokeStageConfig } from "./SmokeConfig";
 import { clamp } from "../utils/Utils";
 import Vector from "../utils/Vector";
 import { vectWorldToBody } from "../components/Car/CarUtils";
 import { SparkBurst } from "./SparkEmitter";
 
 export class SmokeEmitter {
-    private stages: SparkStageConfig[];
+    private stages: SmokeStageConfig[];
     private lastEmitMs: Map<string, number> = new Map();
     private slipThreshold: number = 0.55; // lower threshold for smoke
     private static readonly MIN_INTERVAL_MS = 40;
     private static readonly MAX_INTERVAL_MS = 200;
 
-    constructor(stages: SparkStageConfig[]) {
-        // Filter to only smoke stages
-        this.stages = stages.filter(stage => stage.render === 'smoke');
+    constructor(stages: SmokeStageConfig[]) {
+        this.stages = stages;
     }
 
     getBursts(nowMs: number, player: Player): SparkBurst[] {
