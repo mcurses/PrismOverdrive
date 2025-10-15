@@ -1,28 +1,28 @@
 import Vector from "../../utils/Vector";
 import {ParallaxLayer} from "./Background";
 
+export const BACKGROUND_IMAGE_SOURCES: Record<string, string> = {
+    parallaxLayer1: "assets/starfield-tile.png",
+    parallaxLayer2: "assets/starfield-tile-loDens.png",
+    // parallaxLayer2: "assets/starfield-tile2.png",
+    parallaxLayer3: "assets/starfield-tile-loDens.png",
+    // parallaxLayer3: "assets/starfield-tile3.png",
+    // parallaxLayer1: "assets/stars2.jpg",
+    jungle_top: "assets/jungle_top_a.png",
+    jungle_mid: "assets/jungle_med.png",
+    jungle_bottom: "assets/jungle_bottom2.png",
+};
+
 class BackgroundData {
     // dict with image names as keys and HTMLImageElements as values
     private images: { [key: string]: HTMLImageElement } = {};
 
     constructor() {
-        this.images['parallaxLayer1'] = new Image();
-        this.images['parallaxLayer1'].src = 'assets/starfield-tile.png';
-        this.images['parallaxLayer2'] = new Image();
-        this.images['parallaxLayer2'].src = 'assets/starfield-tile-loDens.png';
-        // this.images['parallaxLayer2'].src = 'assets/starfield-tile2.png';
-        this.images['parallaxLayer3'] = new Image();
-        // this.images['parallaxLayer3'].src = 'assets/starfield-tile3.png';
-        this.images['parallaxLayer3'].src = 'assets/starfield-tile-loDens.png';
-        // this.images['parallaxLayer1'].src = 'assets/stars2.jpg';
-
-        this.images['jungle_top'] = new Image();
-        this.images['jungle_top'].src = 'assets/jungle_top_a.png';
-        this.images['jungle_mid'] = new Image();
-        this.images['jungle_mid'].src = 'assets/jungle_med.png';
-        this.images['jungle_bottom'] = new Image();
-        this.images['jungle_bottom'].src = 'assets/jungle_bottom2.png';
-
+        Object.entries(BACKGROUND_IMAGE_SOURCES).forEach(([key, src]) => {
+            const image = new Image();
+            image.src = src;
+            this.images[key] = image;
+        });
     }
 
     getLayers(name: string) {

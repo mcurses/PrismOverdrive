@@ -14,7 +14,7 @@ import Background from "./components/Playfield/Background";
 import {CarType} from "./components/Car/CarType";
 import Vector from "./utils/Vector";
 import Session from "./components/Session/Session";
-import BackgroundData from "./components/Playfield/BackgroundData";
+import BackgroundData, { BACKGROUND_IMAGE_SOURCES } from "./components/Playfield/BackgroundData";
 import TiledCanvas from "./utils/TiledCanvas";
 import { Snapshot } from "./net/SnapshotBuffer";
 import Interpolator from "./net/Interpolator";
@@ -153,12 +153,8 @@ class Game {
     }
 
     async preload() {
-        console.log("Preload")
-        await Promise.all([
-            loadImage('assets/track2-grad.png'),
-            loadImage('assets/layer1.png'),
-            loadImage('assets/layer2.png')
-        ]);
+        const imageSources = Array.from(new Set(Object.values(BACKGROUND_IMAGE_SOURCES)));
+        await Promise.all(imageSources.map((src) => loadImage(src)));
     }
 
 
